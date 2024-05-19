@@ -1,7 +1,7 @@
 CXX = g++
 SDL2FLAGS = $(shell sdl2-config --cflags --libs)
 PROGRAM = main
-SRC = main.cpp
+SRC = main.cpp application.cpp
 
 all: compile
 
@@ -10,3 +10,6 @@ compile: $(SRC)
 
 run: $(PROGRAM)
 	./$(PROGRAM)
+
+clean:
+	rm -f $(PROGRAM)
