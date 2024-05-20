@@ -1,0 +1,36 @@
+#+STARTUP: showall indent hidestars
+#+TOC: headlines 3
+
+A proof of concept for a small virtual machine with a language on top of it and graphical capabilities relying on SDL2 for the sake of cross-platform.
+
+Tends to evolve into an emacs-like editor with a set of useful features
+
+* Compile & Install
+
+#+BEGIN_SRC sh
+  sudo apt-get install libsdl2-dev
+  make
+  make run
+#+END_SRC
+
+* Features
+
+  - [ ] Draw dots
+  - [x] Double buffering
+  - [ ] Sleep if nothing changes
+  - [x] Handle keyboard
+  - [ ] Possibly handle the mouse
+  - [ ] Output text
+  - [x] Display pictures
+  - [ ] Buffers and minibuffers
+  - [ ] Input
+  - [ ] Diagram Editor
+  - [ ] Forth Embedded Virtual Machine
+  - [ ] Co-programs
+  - [ ] JIT
+  - [ ] Memory Management
+  - [ ] GC
+  - [ ] Lisp over Forth as a scripting language
+  - [ ] Prolog over Lisp
+  - [ ] 3D inside buffers
+  - [ ] Floating objects
