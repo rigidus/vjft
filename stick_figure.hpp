@@ -23,7 +23,7 @@ public:
  private:
     Direction    m_direction;
 
-    SDL_Surface *m_image;
+    Spritesheet  m_spritesheet;
     SDL_Rect     m_position;
 
     double       m_x;

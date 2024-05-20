@@ -1,9 +1,13 @@
 #include "stick_figure.hpp"
 
+int const SPRITESHEET_UP = 0;
+int const SPRITESHEET_LEFT = 1;
+int const SPRITESHEET_RIGHT = 2;
+int const SPRITESHEET_DOWN = 3;
 
 StickFigure::StickFigure()
 {
-    m_image = SDL_LoadBMP("stick_figure.bmp");
+    m_spritesheet.select_sprite(0, 0);
 
     m_position.x = 0;
     m_position.y = 0;
