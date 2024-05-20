@@ -6,6 +6,6 @@ SDL_Surface *load_bmp(char const *path)
 
     if(!image_surface)
         return 0;
-
+    
     return image_surface;
 }

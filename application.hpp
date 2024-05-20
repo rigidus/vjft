@@ -2,11 +2,10 @@
 
 #include <SDL2/SDL.h>
 #include <iostream>
+#include <memory>
 
 #include "stick_figure.hpp"
 #include "utilities.hpp"
-
-SDL_Surface* load_surface(const char* path);
 
 class Application
 {

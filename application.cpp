@@ -1,17 +1,5 @@
 #include "application.hpp"
 
-
-SDL_Surface *load_surface(char const *path)
-{
-    SDL_Surface *image_surface = SDL_LoadBMP(path);
-
-    if(!image_surface)
-        return 0;
-
-    return image_surface;
-}
-
-
 Application::Application()
 {
     m_window = SDL_CreateWindow("SDL2 Window",
@@ -58,6 +46,7 @@ void Application::loop()
                     break;
             }
         }
+
         update(1.0/60.0);
         draw();
     }
@@ -70,7 +59,9 @@ void Application::update(double delta_time)
 
 void Application::draw()
 {
-    SDL_FillRect(m_window_surface, nullptr, SDL_MapRGB(m_window_surface->format, 0, 0, 0));
+    SDL_FillRect(m_window_surface, nullptr, SDL_MapRGB(m_window_surface->format, 255, 255, 255));
+
     m_stick_figure.draw(m_window_surface);
+
     SDL_UpdateWindowSurface(m_window);
 }

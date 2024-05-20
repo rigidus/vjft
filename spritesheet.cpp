@@ -23,3 +23,5 @@ void Spritesheet::draw_selected_sprite(SDL_Surface *window_surface, SDL_Rect *po
 {
     SDL_BlitSurface(m_spritesheet_image, &m_clip, window_surface, position);
 }
+
+
