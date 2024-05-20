@@ -5,7 +5,7 @@ int const SPRITESHEET_LEFT = 1;
 int const SPRITESHEET_RIGHT = 2;
 int const SPRITESHEET_DOWN = 3;
 
-StickFigure::StickFigure()
+StickFigure::StickFigure(): m_spritesheet("spritesheet.bmp", 4, 9)
 {
     m_spritesheet.select_sprite(0, 0);
 
@@ -18,6 +18,9 @@ StickFigure::StickFigure()
     m_y = 0.0;
 
     m_direction = Direction::NONE;
+
+    m_spritesheet.select_sprite(0, 0);
+    m_spritesheet_column = 0;
 }
 
 
@@ -63,9 +66,15 @@ void StickFigure::update(double delta_time)
     }
     m_position.x = m_x;
     m_position.y = m_y;
+
+    m_spritesheet_column++;
+
+    if(m_spritesheet_column > 8)
+        m_spritesheet_column = 1;
 }
 
 void StickFigure::draw(SDL_Surface *window_surface)
 {
-    SDL_BlitSurface(m_image, nullptr, window_surface, &m_position);
+    m_spritesheet.draw_selected_sprite(window_surface, &m_position);
+    SDL_Delay(100);
 }

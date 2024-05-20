@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "stick_figure.hpp"
+#include "utilities.hpp"
 
 SDL_Surface* load_surface(const char* path);
 
@@ -14,8 +15,8 @@ public:
     ~Application();
 
     void loop();
-    void draw();
     void update(double delta_time);
+    void draw();
 private:
     StickFigure m_stick_figure;
 
