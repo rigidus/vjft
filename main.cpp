@@ -1,9 +1,10 @@
 #include <iostream>
-#include "application.hpp"
+#include <SDL.h>
+#include "app.hpp"
 
 int main(int argc, char *argv[])
 {
-    Application app;
+    App app;
 
     app.loop();
 }

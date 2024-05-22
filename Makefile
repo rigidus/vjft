@@ -1,8 +1,8 @@
 CXX = g++
-SDL2FLAGS = $(shell sdl2-config --cflags --libs)
+SDL2FLAGS = $(shell sdl2-config --cflags --libs) -lSDL2_ttf
 PROGRAM = main
-SRC = main.cpp application.cpp stick_figure.cpp spritesheet.cpp utilities.cpp
-
+SRC = main.cpp app.cpp stick_figure.cpp spritesheet.cpp utilities.cpp
+# -lSDL2_ttf
 all: compile
 
 compile: $(SRC)

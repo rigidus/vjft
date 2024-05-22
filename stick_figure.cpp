@@ -5,7 +5,8 @@ int const SPRITESHEET_LEFT = 1;
 int const SPRITESHEET_RIGHT = 2;
 int const SPRITESHEET_DOWN = 3;
 
-StickFigure::StickFigure(): m_spritesheet("spritesheet.bmp", 4, 9)
+StickFigure::StickFigure(SDL_Renderer* renderer)
+    : m_spritesheet("spritesheet.bmp", 4, 9, renderer)
 {
     m_position.x = 0;
     m_position.y = 0;
@@ -76,8 +77,10 @@ void StickFigure::update(double delta_time)
         m_spritesheet_column = 1;
 }
 
-void StickFigure::draw(SDL_Surface *window_surface)
+void StickFigure::draw(SDL_Renderer *renderer)
 {
-    m_spritesheet.draw_selected_sprite(window_surface, &m_position);
+    m_spritesheet.draw_selected_sprite(renderer, &m_position);
+
+    std::cout << "Drawing sprite at position (" << m_position.x << ", " << m_position.y << ")" << std::endl;
     SDL_Delay(100);
 }

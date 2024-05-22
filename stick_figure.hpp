@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <SDL2/SDL.h>
 #include "spritesheet.hpp"
 
@@ -15,12 +16,12 @@ public:
         RIGHT
     };
 
-    StickFigure();
+    StickFigure(SDL_Renderer* renderer);
     ~StickFigure() = default;
 
     void handle_events(SDL_Event const &event);
     void update(double delta_time);
-    void draw(SDL_Surface *window_surface);
+    void draw(SDL_Renderer *renderer);
 private:
     Spritesheet  m_spritesheet;
     int          m_spritesheet_column;
