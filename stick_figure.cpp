@@ -6,7 +6,7 @@ int const SPRITESHEET_RIGHT = 2;
 int const SPRITESHEET_DOWN = 3;
 
 StickFigure::StickFigure(SDL_Renderer* renderer)
-    : m_spritesheet("spritesheet.bmp", 0, 0, renderer),
+    : m_spritesheet("spritesheet.bmp", 4, 9, renderer),
       m_spritesheet_column(0), m_direction(Direction::NONE),
       m_x(0), m_y(0)
 {
@@ -78,8 +78,13 @@ void StickFigure::update(double delta_time)
 
 void StickFigure::draw(SDL_Renderer *renderer)
 {
+    if (renderer == nullptr) {
+        std::cerr << "Invalid renderer passed to StickFigure::draw" << std::endl;
+        return;
+    }
+
     m_spritesheet.draw_selected_sprite(renderer, &m_position);
 
-    std::cout << "Drawing sprite at position (" << m_position.x << ", " << m_position.y << ")" << std::endl;
+    // std::cout << "Drawing sprite at position (" << m_position.x << ", " << m_position.y << ")" << std::endl;
     SDL_Delay(100);
 }

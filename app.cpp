@@ -150,18 +150,14 @@ void App::update(double delta_time)
 
 void App::draw()
 {
-    SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 0);
+    SDL_SetRenderDrawColor(m_renderer, 127, 127, 127, 0);
     SDL_RenderClear(m_renderer);
 
     if (m_stick_figure) {
         m_stick_figure->draw(m_renderer);
     }
 
-    // Сначала отрисовка спрайта
     SDL_RenderCopy(m_renderer, m_sprite_texture, &m_sprite_srcRect, &m_sprite_dstRect);
-
-    // SDL_Delay(3000);
-
     SDL_RenderCopy(m_renderer, m_texture, nullptr, &dstrect);
     SDL_RenderPresent(m_renderer);
 }
