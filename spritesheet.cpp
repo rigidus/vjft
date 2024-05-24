@@ -7,13 +7,14 @@ Spritesheet::Spritesheet(char const *path, int row, int column, SDL_Renderer* re
         std::cerr << "Failed to load spritesheet image: " << SDL_GetError() << std::endl;
     }
 
-    m_texture = SDL_CreateTextureFromSurface(renderer, m_spritesheet_image);
-    if (m_texture == nullptr) {
-        std::cerr << "Failed to create texture from surface: " << SDL_GetError() << std::endl;
-    }
+    // TODO: BUG HERE
+    // m_texture = SDL_CreateTextureFromSurface(renderer, m_spritesheet_image);
+    // if (m_texture == nullptr) {
+    //     std::cerr << "Failed to create texture from surface: " << SDL_GetError() << std::endl;
+    // }
 
-    m_clip.w = m_spritesheet_image->w / column;
-    m_clip.h = m_spritesheet_image->h / row;
+    // m_clip.w = m_spritesheet_image->w / column;
+    // m_clip.h = m_spritesheet_image->h / row;
 }
 
 

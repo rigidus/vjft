@@ -4,7 +4,7 @@
 #include <SDL_ttf.h>
 #include <iostream>
 #include <memory>
-
+#include <optional>
 #include "stick_figure.hpp"
 #include "utilities.hpp"
 
@@ -18,7 +18,8 @@ public:
     void update(double delta_time);
     void draw();
 private:
-    StickFigure   m_stick_figure;
+    // StickFigure   m_stick_figure;
+    std::optional<StickFigure> m_stick_figure;
 
     SDL_Window*   m_window;
     SDL_Surface*  m_window_surface;

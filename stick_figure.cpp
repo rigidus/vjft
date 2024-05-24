@@ -10,6 +10,9 @@ StickFigure::StickFigure(SDL_Renderer* renderer)
       m_spritesheet_column(0), m_direction(Direction::NONE),
       m_x(0), m_y(0)
 {
+
+    std::cerr << "HERE: m_stick_figure INSIDE" << std::endl;
+
     m_position = {0, 0, 22, 43};
 
     m_direction = Direction::NONE;
