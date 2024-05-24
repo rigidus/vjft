@@ -6,15 +6,11 @@ int const SPRITESHEET_RIGHT = 2;
 int const SPRITESHEET_DOWN = 3;
 
 StickFigure::StickFigure(SDL_Renderer* renderer)
-    : m_spritesheet("spritesheet.bmp", 4, 9, renderer)
+    : m_spritesheet("spritesheet.bmp", 0, 0, renderer),
+      m_spritesheet_column(0), m_direction(Direction::NONE),
+      m_x(0), m_y(0)
 {
-    m_position.x = 0;
-    m_position.y = 0;
-    m_position.w = 22;
-    m_position.h = 43;
-
-    m_x = 0.0;
-    m_y = 0.0;
+    m_position = {0, 0, 22, 43};
 
     m_direction = Direction::NONE;
 

@@ -1,17 +1,22 @@
 #include "app.hpp"
+#include "TextRenderer.hpp"
+#include "stick_figure.hpp"
 
 App::App()
-    : m_stick_figure(m_renderer)
+    : m_window(nullptr), m_renderer(nullptr), m_texture(nullptr),
+      m_sprite_texture(nullptr), m_stick_figure(nullptr),
+      m_sprite_srcRect({0, 0, 64, 64}), m_sprite_dstRect({0, 0, 64, 64}),
+      dstrect({0, 0, 0, 0})
 {
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
         std::cout << "SDL_Init Error: " << SDL_GetError() << std::endl;
-        SDL_Quit();
         return;
     }
 
     if (TTF_Init() == -1) {
         std::cerr << "TTF_Init Error: " << TTF_GetError() << std::endl;
+        SDL_Quit();
         return;
     }
 
@@ -38,15 +43,8 @@ App::App()
         return;
     }
 
-    m_font = TTF_OpenFont("16x8pxl-mono.ttf", 24);
-    if (m_font == nullptr) {
-        std::cerr << "TTF_OpenFont Error: " << TTF_GetError() << std::endl;
-        SDL_DestroyRenderer(m_renderer);
-        SDL_DestroyWindow(m_window);
-        TTF_Quit();
-        SDL_Quit();
-        return;
-    }
+    m_stick_figure = StickFigure(m_renderer);
+
 
     // ------------------------
 
@@ -55,72 +53,66 @@ App::App()
         std::cerr << "SDL_LoadBMP Error: " << SDL_GetError() << std::endl;
         SDL_DestroyRenderer(m_renderer);
         SDL_DestroyWindow(m_window);
+        TTF_Quit();
         SDL_Quit();
         return;
     }
 
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(m_renderer, surface_bmp);
+
+    m_sprite_texture = SDL_CreateTextureFromSurface(m_renderer, surface_bmp);
     SDL_FreeSurface(surface_bmp); // Освобождаем поверхность после создания текстуры
-    if (!texture) {
+    if (!m_sprite_texture) {
         std::cerr << "SDL_CreateTextureFromSurface Error: " << SDL_GetError() << std::endl;
         SDL_DestroyRenderer(m_renderer);
         SDL_DestroyWindow(m_window);
+        TTF_Quit();
         SDL_Quit();
         return;
     }
 
-    sprite_srcRect.x = 0;   // Начальная позиция по X на спрайтовом листе
-    sprite_srcRect.y = 0;   // Начальная позиция по Y на спрайтовом листе
-    sprite_srcRect.w = 64;  // Ширина спрайта
-    sprite_srcRect.h = 64;  // Высота спрайта
+    m_sprite_srcRect.x = 0;   // Начальная позиция по X на спрайтовом листе
+    m_sprite_srcRect.y = 0;   // Начальная позиция по Y на спрайтовом листе
+    m_sprite_srcRect.w = 64;  // Ширина спрайта
+    m_sprite_srcRect.h = 64;  // Высота спрайта
 
-    sprite_dstRect.x = 0; // Позиция по X на экране
-    sprite_dstRect.y = 0; // Позиция по Y на экране
-    sprite_dstRect.w = sprite_srcRect.w; // Ширина спрайта на экране
-    sprite_dstRect.h = sprite_srcRect.h; // Высота спрайта на экране
+    m_sprite_dstRect.x = 0; // Позиция по X на экране
+    m_sprite_dstRect.y = 0; // Позиция по Y на экране
+    m_sprite_dstRect.w = m_sprite_srcRect.w; // Ширина спрайта на экране
+    m_sprite_dstRect.h = m_sprite_srcRect.h; // Высота спрайта на экране
 
 
     // -------------------------
 
 
+    TextRenderer textRenderer(m_renderer);
+    if (!textRenderer.loadFont("16x8pxl-mono.ttf", 24)) {
+        SDL_DestroyRenderer(m_renderer);
+        SDL_DestroyWindow(m_window);
+        TTF_Quit();
+        SDL_Quit();
+        return;
+    }
+
     SDL_Color color = {127, 127, 127, 127};
-
-    SDL_Surface* surface = TTF_RenderText_Solid(m_font, "Hello, SDL2!", color);
-    if (surface == nullptr) {
-        std::cerr << "TTF_RenderText_Solid Error: " << TTF_GetError() << std::endl;
-        TTF_CloseFont(m_font);
+    int width, height;
+    m_texture = textRenderer.renderText("Hello, SDL2!", color, width, height);
+    if (!m_texture) {
+        std::cerr << "Failed to load text texture\n";
         SDL_DestroyRenderer(m_renderer);
         SDL_DestroyWindow(m_window);
         TTF_Quit();
         SDL_Quit();
         return;
     }
+    SDL_Rect dstrect = {100, 100, width, height};
 
-    m_texture = SDL_CreateTextureFromSurface(m_renderer, surface);
-
-    SDL_FreeSurface(surface);
-
-    if (m_texture == nullptr) {
-        std::cerr << "SDL_CreateTextureFromSurface Error: " << SDL_GetError() << std::endl;
-        TTF_CloseFont(m_font);
-        SDL_DestroyRenderer(m_renderer);
-        SDL_DestroyWindow(m_window);
-        TTF_Quit();
-        SDL_Quit();
-        return;
-    }
-
-    // Инициализация dstrect
-    dstrect.x = 100;
-    dstrect.y = 100;
-    dstrect.w = 200; // ширина текста
-    dstrect.h = 50;  // высота текста
 }
 
 App::~App()
 {
     SDL_DestroyTexture(m_texture);
-    TTF_CloseFont(m_font);
+    SDL_DestroyTexture(m_sprite_texture);
+
     SDL_DestroyRenderer(m_renderer);
     SDL_DestroyWindow(m_window);
     TTF_Quit();
@@ -159,10 +151,10 @@ void App::draw()
     SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 0);
     SDL_RenderClear(m_renderer);
 
-    // m_stick_figure.draw(m_renderer);
+    m_stick_figure.draw(m_renderer);
 
     // Сначала отрисовка спрайта
-    SDL_RenderCopy(m_renderer, m_sprite_texture, &sprite_srcRect, &sprite_dstRect);
+    SDL_RenderCopy(m_renderer, m_sprite_texture, &m_sprite_srcRect, &m_sprite_dstRect);
 
     // SDL_Delay(3000);
 
