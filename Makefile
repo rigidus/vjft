@@ -1,7 +1,9 @@
+# Makefile
+
 CXX = g++
-SDL2FLAGS = $(shell sdl2-config --cflags --libs) -lSDL2_ttf
+SDL2FLAGS = -g $(shell sdl2-config --cflags --libs) -lSDL2_ttf
 PROGRAM = main
-SRC = main.cpp App.cpp StickFigure.cpp SpriteSheet.cpp utilities.cpp TextRenderer.cpp
+SRC = Main.cpp App.cpp StickFigure.cpp SpriteSheet.cpp Utils.cpp TextRenderer.cpp StackCleanup.cpp
 # -lSDL2_ttf
 all: compile
 

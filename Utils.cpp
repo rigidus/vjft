@@ -1,4 +1,6 @@
-#include "utilities.hpp"
+// Utitls.cpp
+
+#include "Utils.hpp"
 
 SDL_Surface *load_bmp(char const *path)
 {
@@ -6,6 +8,6 @@ SDL_Surface *load_bmp(char const *path)
 
     if(!image_surface)
         return 0;
-    
+
     return image_surface;
 }

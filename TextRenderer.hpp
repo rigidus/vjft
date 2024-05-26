@@ -1,3 +1,4 @@
+// TextRenderer.hpp
 #ifndef TEXTRENDERER_HPP
 #define TEXTRENDERER_HPP
 
@@ -8,7 +9,7 @@
 
 class TextRenderer {
 public:
-    TextRenderer(SDL_Renderer* renderer);
+    TextRenderer(SDL_Renderer* renderer, const std::string& path, int fontSize);
     ~TextRenderer();
 
     bool loadFont(const std::string& path, int fontSize);
@@ -16,7 +17,7 @@ public:
 
 private:
     SDL_Renderer* renderer;
-    TTF_Font* font;
+    TTF_Font* m_font;
 };
 
 #endif // TEXTRENDERER_HPP

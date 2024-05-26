@@ -1,40 +1,34 @@
+// TextRenderer.cpp
 #include "TextRenderer.hpp"
 
-TextRenderer::TextRenderer(SDL_Renderer* renderer)
-    : renderer(renderer), font(nullptr)
+TextRenderer::TextRenderer(SDL_Renderer* renderer, const std::string& path, int fontSize)
+    : renderer(renderer), m_font(nullptr)
 {
-    if (TTF_Init() == -1) {
-        std::cerr << "TTF_Init Error: " << TTF_GetError() << std::endl;
+    m_font = TTF_OpenFont(path.c_str(), fontSize);
+    if (!m_font)
+    {
+        std::cerr << "TTF_OpenFont Error: " << TTF_GetError() << std::endl;
+        throw std::runtime_error(std::string("TTF_OpenFont Error: ") + TTF_GetError());
     }
+
 }
 
 TextRenderer::~TextRenderer()
 {
-    if (font) {
-        TTF_CloseFont(font);
+    if (m_font) {
+        TTF_CloseFont(m_font);
     }
-    TTF_Quit();
 }
 
-bool TextRenderer::loadFont(const std::string& path, int fontSize)
-{
-    font = TTF_OpenFont(path.c_str(), fontSize);
-    if (!font)
-    {
-        std::cerr << "TTF_OpenFont Error: " << TTF_GetError() << std::endl;
-        return false;
-    }
-    return true;
-}
 
 SDL_Texture* TextRenderer::renderText(const std::string& text, SDL_Color color, int& width, int& height)
 {
-    if (!font) {
+    if (!m_font) {
         std::cerr << "Font not loaded!" << std::endl;
         return nullptr;
     }
 
-    SDL_Surface* surface = TTF_RenderText_Solid(font, text.c_str(), color);
+    SDL_Surface* surface = TTF_RenderText_Solid(m_font, text.c_str(), color);
     if (!surface) {
         std::cerr << "TTF_RenderText_Solid Error: " << TTF_GetError() << std::endl;
         return nullptr;

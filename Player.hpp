@@ -3,7 +3,6 @@
 #include "EventListener.hpp"
 #include "KeyEvent.hpp"
 #include "StickFigure.hpp"
-#include <iostream>
 
 class Player : public EventListener {
 public:
