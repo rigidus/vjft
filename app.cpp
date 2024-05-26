@@ -10,7 +10,8 @@ App::App()
       m_renderer(nullptr), m_texture(nullptr),
       m_sprite_texture(nullptr),
       m_sprite_srcRect({0, 0, 64, 64}), m_sprite_dstRect({0, 0, 64, 64}),
-      dstrect({0, 0, 0, 0})
+      dstrect({0, 0, 0, 0}),
+      m_running(true)
 {
     std::cerr << "HERE: App ctcr" << std::endl;
 
@@ -94,10 +95,10 @@ App::App()
 
 App::~App()
 {
-    SDL_DestroyTexture(m_texture);
-    SDL_DestroyTexture(m_sprite_texture);
     SDL_DestroyTexture(m_text_texture);
     delete m_text_renderer;
+    SDL_DestroyTexture(m_sprite_texture);
+    SDL_DestroyTexture(m_texture);
     SDL_DestroyRenderer(m_renderer);
     SDL_DestroyWindow(m_window);
     TTF_Quit();
@@ -106,13 +107,19 @@ App::~App()
 
 void App::loop()
 {
+    const int targetFPS = 60;
+    const int frameDelay = 1000 / targetFPS;
+    Uint32 frameStart;
+    int frameTime;
     SDL_Event sdlEvent;
-    bool keep_window_open = true;
-    while(keep_window_open)
-    {
+    while(m_running) {
+        frameStart = SDL_GetTicks();
+
         while(SDL_PollEvent(&sdlEvent) > 0)
         {
-            if (sdlEvent.type == SDL_KEYDOWN) {
+            if (sdlEvent.type == SDL_QUIT) {
+                m_running = false;
+            } else if (sdlEvent.type == SDL_KEYDOWN) {
                 switch (sdlEvent.key.keysym.sym) {
                 case SDLK_w:
                     m_eventManager.sendEvent(KeyEvent(KeyEvent::W));
@@ -130,18 +137,17 @@ void App::loop()
                     continue; // Игнорируем другие клавиши
                 }
             }
-            // if (m_stick_figure) {
-            //     m_stick_figure->handle_events(m_window_event);
-            // }
-            switch(sdlEvent.type) {
-            case SDL_QUIT:
-                keep_window_open = false;
-                break;
-            }
         }
 
-        update(1.0/60.0);
+        // update(1.0/60.0);
+        update(1.0 / targetFPS); // Обновление с фиксированным временным шагом
+
         draw();
+
+        frameTime = SDL_GetTicks() - frameStart;
+        if (frameDelay > frameTime) {
+            SDL_Delay(frameDelay - frameTime); // Задержка для достижения целевого FPS
+        }
     }
 }
 
@@ -163,8 +169,6 @@ void App::draw()
 
     // Отрисовка текстуры спрайта
     // SDL_RenderCopy(m_renderer, m_sprite_texture, &m_sprite_srcRect, &m_sprite_dstRect);
-    m_stick_figure->draw(m_renderer); // Отрисовка StickFigure
-
     // Отрисовка текстуры текста
     SDL_RenderCopy(m_renderer, m_text_texture, nullptr, &m_text_rect);
 

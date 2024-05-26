@@ -72,9 +72,9 @@ void StickFigure::update(double delta_time)
     m_position.y = m_y;
 
     m_spritesheet_column++;
-
-    if(m_spritesheet_column > 8)
+    if(m_spritesheet_column > 8) {
         m_spritesheet_column = 1;
+    }
 }
 
 void StickFigure::draw(SDL_Renderer *renderer)
