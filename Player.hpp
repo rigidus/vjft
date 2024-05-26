@@ -2,7 +2,7 @@
 #pragma once
 #include "EventListener.hpp"
 #include "KeyEvent.hpp"
-#include "stick_figure.hpp"
+#include "StickFigure.hpp"
 #include <iostream>
 
 class Player : public EventListener {
@@ -37,6 +37,11 @@ public:
             break;
         }
     }
+
+    void update(double delta_time) {
+        stickFigure.update(delta_time);
+    }
+
 
 private:
     StickFigure& stickFigure;

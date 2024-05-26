@@ -1,6 +1,6 @@
 #include <iostream>
 #include <SDL.h>
-#include "app.hpp"
+#include "App.hpp"
 #include "TextRenderer.hpp"
 #include "EventManager.hpp"
 #include "Player.hpp"

@@ -11,7 +11,9 @@ public:
     }
 
     void removeListener(EventListener* listener) {
-        listeners.erase(std::remove(listeners.begin(), listeners.end(), listener), listeners.end());
+        listeners.erase(
+            std::remove(listeners.begin(), listeners.end(), listener),
+            listeners.end());
     }
 
     void sendEvent(const Event& event) {
