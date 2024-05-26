@@ -18,6 +18,12 @@ public:
     App();
     ~App();
 
+    bool initSDL();
+    bool initTTF();
+    bool initWindow();
+    bool initRenderer();
+    void processEvents();
+    void handleKeyPress(SDL_Keycode key);
     void loop();
     void update(double delta_time);
     void draw();

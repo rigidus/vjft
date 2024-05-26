@@ -8,54 +8,9 @@ App::App()
       m_renderer(nullptr),
       m_running(true)
 {
-    if (SDL_Init(SDL_INIT_VIDEO) != 0)
-    {
-        std::cout << "SDL_Init Error: " << SDL_GetError() << std::endl;
-        return;
+    if (!initSDL() || !initTTF() || !initWindow() || !initRenderer()) {
+        throw std::runtime_error("Failed to initialize SDL components");
     }
-    m_cleanupStack.addCleanupTask([]() {
-        std::cerr << "SDL_Quit()" << std::endl;
-        SDL_Quit();
-    });
-    std::cerr << "SDL_Init()" << std::endl;
-
-
-    if (TTF_Init() == -1) {
-        std::cerr << "TTF_Init Error: " << std::endl;
-        return;
-    }
-    m_cleanupStack.addCleanupTask([]() {
-        std::cerr << "TTF_Quit()" << std::endl;
-        TTF_Quit();
-    });
-    std::cerr << "TTF_Init()" << std::endl;
-
-
-    m_window = SDL_CreateWindow("SDL2 Window", SDL_WINDOWPOS_CENTERED,
-                                SDL_WINDOWPOS_CENTERED, 1024, 768, 0);
-    if(!m_window)
-    {
-        std::cerr << "Failed to create window: " << SDL_GetError() << std::endl;
-        return;
-    }
-    m_cleanupStack.addCleanupTask([this]() {
-        std::cerr << "SDL_DestroyWindow(m_window)" << std::endl;
-        SDL_DestroyWindow(m_window);
-    });
-    std::cerr << "SDL_CreateWindow()" << std::endl;
-
-
-    m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED);
-    if (!m_renderer) {
-        std::cerr << "SDL_CreateRenderer Error: " << SDL_GetError() << std::endl;
-        return;
-    }
-    m_cleanupStack.addCleanupTask([this]() {
-        std::cerr << "SDL_DestroyRenderer(m_renderer)" << std::endl;
-        SDL_DestroyRenderer(m_renderer);
-    });
-    std::cerr << "SDL_CreateRenderer()" << std::endl;
-
 
     m_stick_figure.emplace(m_renderer);
     m_player.emplace(*m_stick_figure);
@@ -95,46 +50,116 @@ App::~App()
     std::cout << ":: App destruction finished" << std::endl;
 }
 
+
+bool App::initSDL() {
+    if (SDL_Init(SDL_INIT_VIDEO) != 0)
+    {
+        std::cout << "SDL_Init Error: " << SDL_GetError() << std::endl;
+        return false;
+    }
+    m_cleanupStack.addCleanupTask([]() {
+        std::cerr << "SDL_Quit()" << std::endl;
+        SDL_Quit();
+    });
+    std::cerr << "SDL_Init()" << std::endl;
+    return true;
+}
+
+
+bool App::initTTF() {
+    if (TTF_Init() == -1) {
+        std::cerr << "TTF_Init Error: " << SDL_GetError() << std::endl;
+        return false;
+    }
+    m_cleanupStack.addCleanupTask([]() {
+        std::cerr << "TTF_Quit()" << std::endl;
+        TTF_Quit();
+    });
+    std::cerr << "TTF_Init()" << std::endl;
+    return true;
+}
+
+
+bool App::initWindow() {
+    m_window = SDL_CreateWindow("SDL2 Window", SDL_WINDOWPOS_CENTERED,
+                                SDL_WINDOWPOS_CENTERED, 1024, 768, 0);
+    if(!m_window)
+    {
+        std::cerr << "Failed to create window: " << SDL_GetError() << std::endl;
+        return false;
+    }
+    m_cleanupStack.addCleanupTask([this]() {
+        std::cerr << "SDL_DestroyWindow(m_window)" << std::endl;
+        SDL_DestroyWindow(m_window);
+    });
+    std::cerr << "SDL_CreateWindow()" << std::endl;
+    return true;
+}
+
+bool App::initRenderer() {
+    m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED);
+    if (!m_renderer) {
+        std::cerr << "SDL_CreateRenderer Error: " << SDL_GetError() << std::endl;
+        return false;
+    }
+    m_cleanupStack.addCleanupTask([this]() {
+        std::cerr << "SDL_DestroyRenderer(m_renderer)" << std::endl;
+        SDL_DestroyRenderer(m_renderer);
+    });
+    std::cerr << "SDL_CreateRenderer()" << std::endl;
+    return true;
+}
+
+
+void App::processEvents() {
+    SDL_Event sdlEvent;
+    while(SDL_PollEvent(&sdlEvent) > 0)
+    {
+        if (sdlEvent.type == SDL_QUIT) {
+            m_running = false;
+        } else if (sdlEvent.type == SDL_KEYDOWN) {
+            handleKeyPress(sdlEvent.key.keysym.sym);
+        }
+    }
+}
+
+
+void App::handleKeyPress(SDL_Keycode key) {
+    switch (key) {
+    case SDLK_w:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::W));
+        break;
+    case SDLK_a:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::A));
+        break;
+    case SDLK_s:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::S));
+        break;
+    case SDLK_d:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::D));
+        break;
+    }
+}
+
+
 void App::loop()
 {
     const int targetFPS = 60;
     const int frameDelay = 1000 / targetFPS;
     Uint32 frameStart;
     int frameTime;
-    SDL_Event sdlEvent;
     while(m_running) {
         frameStart = SDL_GetTicks();
-        while(SDL_PollEvent(&sdlEvent) > 0)
-        {
-            if (sdlEvent.type == SDL_QUIT) {
-                m_running = false;
-            } else if (sdlEvent.type == SDL_KEYDOWN) {
-                switch (sdlEvent.key.keysym.sym) {
-                case SDLK_w:
-                    m_eventManager.sendEvent(KeyEvent(KeyEvent::W));
-                    break;
-                case SDLK_a:
-                    m_eventManager.sendEvent(KeyEvent(KeyEvent::A));
-                    break;
-                case SDLK_s:
-                    m_eventManager.sendEvent(KeyEvent(KeyEvent::S));
-                    break;
-                case SDLK_d:
-                    m_eventManager.sendEvent(KeyEvent(KeyEvent::D));
-                    break;
-                default:
-                    continue; // Игнорируем другие клавиши
-                }
-            }
-        }
-        update(1.0 / targetFPS); // Обновление с фиксированным временным шагом
+        processEvents();
+        update(1.0 / targetFPS);
         draw();
         frameTime = SDL_GetTicks() - frameStart;
         if (frameDelay > frameTime) {
-            SDL_Delay(frameDelay - frameTime); // Задержка для достижения целевого FPS
+            SDL_Delay(frameDelay - frameTime);
         }
     }
 }
+
 
 void App::update(double delta_time)
 {
@@ -142,6 +167,7 @@ void App::update(double delta_time)
         m_player->update(delta_time);
     }
 }
+
 
 void App::draw()
 {
