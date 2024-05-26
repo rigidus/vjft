@@ -7,6 +7,8 @@
 #include <optional>
 #include "stick_figure.hpp"
 #include "utilities.hpp"
+#include "TextRenderer.hpp"
+
 
 class App
 {
@@ -31,4 +33,7 @@ private:
     SDL_Rect      dstrect;
     SDL_Rect      m_sprite_srcRect;
     SDL_Rect      m_sprite_dstRect;
+    TextRenderer* m_text_renderer;
+    SDL_Texture*  m_text_texture;
+    SDL_Rect      m_text_rect;
 };

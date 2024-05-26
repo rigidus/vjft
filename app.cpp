@@ -54,39 +54,10 @@ App::App()
 
     std::cerr << "HERE: m_stick_figure initialized" << std::endl;
 
-
-    // // ------------------------
-
-    // SDL_Surface* surface_bmp = SDL_LoadBMP("spritesheet.bmp");
-    // if (!surface_bmp) {
-    //     std::cerr << "SDL_LoadBMP Error: " << SDL_GetError() << std::endl;
-    //     SDL_DestroyRenderer(m_renderer);
-    //     SDL_DestroyWindow(m_window);
-    //     TTF_Quit();
-    //     SDL_Quit();
-    //     return;
-    // }
-
-    // m_sprite_texture = SDL_CreateTextureFromSurface(m_renderer, surface_bmp);
-    // SDL_FreeSurface(surface_bmp); // Освобождаем поверхность после создания текстуры
-    // if (!m_sprite_texture) {
-    //     std::cerr << "SDL_CreateTextureFromSurface Error: " << SDL_GetError() << std::endl;
-    //     SDL_DestroyRenderer(m_renderer);
-    //     SDL_DestroyWindow(m_window);
-    //     TTF_Quit();
-    //     SDL_Quit();
-    //     return;
-    // }
-
-    // // Начальная позиция и размер спрайта
-    // m_sprite_srcRect = {0, 0, 64, 64};
-    // // Позиция и размер спрайта на экране
-    // m_sprite_dstRect = {0, 0, m_sprite_srcRect.w, m_sprite_srcRect.h} ;
-
-    // // -------------------------
-
-    TextRenderer textRenderer(m_renderer);
-    if (!textRenderer.loadFont("16x8pxl-mono.ttf", 24)) {
+    // Инициализация TextRenderer
+    m_text_renderer = new TextRenderer(m_renderer);
+    if (!m_text_renderer->loadFont("16x8pxl-mono.ttf", 24)) {
+        std::cerr << "Failed to load font" << std::endl;
         SDL_DestroyRenderer(m_renderer);
         SDL_DestroyWindow(m_window);
         TTF_Quit();
@@ -96,22 +67,34 @@ App::App()
 
     SDL_Color color = {127, 127, 127, 127};
     int width, height;
-    m_texture = textRenderer.renderText("Hello, SDL2!", color, width, height);
-    if (!m_texture) {
-        std::cerr << "Failed to load text texture\n";
+    m_text_texture = m_text_renderer->renderText("Hello, SDL2!", color, width, height);
+    if (!m_text_texture) {
+        std::cerr << "Failed to render text texture" << std::endl;
         SDL_DestroyRenderer(m_renderer);
         SDL_DestroyWindow(m_window);
         TTF_Quit();
         SDL_Quit();
         return;
     }
-    SDL_Rect dstrect = {100, 100, width, height};
+    m_text_rect = {100, 100, width, height};  // Установка позиции и размера текста
+
+    // if (!m_texture) {
+    //     std::cerr << "Failed to load text texture\n";
+    //     SDL_DestroyRenderer(m_renderer);
+    //     SDL_DestroyWindow(m_window);
+    //     TTF_Quit();
+    //     SDL_Quit();
+    //     return;
+    // }
+    // SDL_Rect dstrect = {100, 100, width, height};
 }
 
 App::~App()
 {
     SDL_DestroyTexture(m_texture);
     SDL_DestroyTexture(m_sprite_texture);
+    SDL_DestroyTexture(m_text_texture);
+    delete m_text_renderer;
     SDL_DestroyRenderer(m_renderer);
     SDL_DestroyWindow(m_window);
     TTF_Quit();
@@ -150,14 +133,18 @@ void App::update(double delta_time)
 
 void App::draw()
 {
-    SDL_SetRenderDrawColor(m_renderer, 127, 127, 127, 0);
+    SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 0);
     SDL_RenderClear(m_renderer);
 
     if (m_stick_figure) {
         m_stick_figure->draw(m_renderer);
     }
 
+    // Отрисовка текстуры спрайта
     SDL_RenderCopy(m_renderer, m_sprite_texture, &m_sprite_srcRect, &m_sprite_dstRect);
-    SDL_RenderCopy(m_renderer, m_texture, nullptr, &dstrect);
+
+    // Отрисовка текстуры текста
+    SDL_RenderCopy(m_renderer, m_text_texture, nullptr, &m_text_rect);
+
     SDL_RenderPresent(m_renderer);
 }
