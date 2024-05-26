@@ -18,6 +18,7 @@ public:
     App();
     ~App();
 
+    void Cleanup();
     bool initSDL();
     bool initTTF();
     bool initWindow();

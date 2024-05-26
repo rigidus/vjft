@@ -16,8 +16,6 @@ StickFigure::StickFigure(SDL_Renderer* renderer)
 
     position = {0, 0, 22, 43};
 
-    direction = Direction::NONE;
-
     spriteSheet.select_sprite(0, 0);
     spriteSheetColumn = 0;
 }

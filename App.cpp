@@ -9,6 +9,7 @@ App::App()
       m_running(true)
 {
     if (!initSDL() || !initTTF() || !initWindow() || !initRenderer()) {
+        Cleanup();
         throw std::runtime_error("Failed to initialize SDL components");
     }
 
@@ -29,6 +30,7 @@ App::App()
     m_text_texture = m_text_renderer->renderText("Hello, SDL2!", color, width, height);
     if (!m_text_texture) {
         std::cerr << "Failed to render text texture" << std::endl;
+        Cleanup();
         return;
     }
     m_cleanupStack.addCleanupTask([this]() {
@@ -37,13 +39,16 @@ App::App()
     });
     std::cerr << "m_test_texture" << std::endl;
 
-
-    m_text_rect = {100, 100, width, height};  // Установка позиции и размера текста
+    m_text_rect = {100, 100, width, height};
 
     std::cout << ":: App initialized successfully." << std::endl;
 }
 
-App::~App()
+
+App::~App() {}
+
+
+void App::Cleanup()
 {
     std::cout << ":: App destruction started" << std::endl;
     m_cleanupStack.executeAll();
@@ -96,6 +101,7 @@ bool App::initWindow() {
     return true;
 }
 
+
 bool App::initRenderer() {
     m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED);
     if (!m_renderer) {
@@ -145,7 +151,7 @@ void App::handleKeyPress(SDL_Keycode key) {
 void App::loop()
 {
     const int targetFPS = 60;
-    const int frameDelay = 1000 / targetFPS;
+    const int frameDelay = 5000 / targetFPS;
     Uint32 frameStart;
     int frameTime;
     while(m_running) {
@@ -158,6 +164,7 @@ void App::loop()
             SDL_Delay(frameDelay - frameTime);
         }
     }
+    Cleanup();
 }
 
 
