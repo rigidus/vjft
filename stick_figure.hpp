@@ -1,3 +1,4 @@
+// stick_figure.hpp
 #pragma once
 
 #include <iostream>
@@ -22,6 +23,12 @@ public:
     void handle_events(SDL_Event const &event);
     void update(double delta_time);
     void draw(SDL_Renderer *renderer);
+
+    void moveUp();
+    void moveDown();
+    void moveLeft();
+    void moveRight();
+
 private:
     Spritesheet  m_spritesheet;
     int          m_spritesheet_column;

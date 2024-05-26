@@ -8,12 +8,6 @@
 
 int main(int argc, char *argv[])
 {
-    EventManager eventManager;
-    Player player;
-    eventManager.addListener(&player);
-    KeyEvent event(87); // Симулируем нажатие клавиши 'W'
-    eventManager.sendEvent(event);
-
     App app;
     app.loop();
     return 0;

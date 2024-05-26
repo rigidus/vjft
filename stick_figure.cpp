@@ -1,3 +1,4 @@
+// stick_figure.cpp
 #include "stick_figure.hpp"
 
 int const SPRITESHEET_UP = 0;
@@ -21,24 +22,24 @@ StickFigure::StickFigure(SDL_Renderer* renderer)
     m_spritesheet_column = 0;
 }
 
-void StickFigure::handle_events(SDL_Event const &event)
-{
-    switch(event.type)
-    {
-        case SDL_KEYDOWN:
-            Uint8 const *keys = SDL_GetKeyboardState(nullptr);
+// void StickFigure::handle_events(SDL_Event const &event)
+// {
+//     switch(event.type)
+//     {
+//         case SDL_KEYDOWN:
+//             Uint8 const *keys = SDL_GetKeyboardState(nullptr);
 
-            if(keys[SDL_SCANCODE_W] == 1)
-                m_direction = Direction::UP;
-            else if(keys[SDL_SCANCODE_S] == 1)
-                m_direction = Direction::DOWN;
-            else if(keys[SDL_SCANCODE_A] == 1)
-                m_direction = Direction::LEFT;
-            else if(keys[SDL_SCANCODE_D] == 1)
-                m_direction = Direction::RIGHT;
-            break;
-    }
-}
+//             if(keys[SDL_SCANCODE_W] == 1)
+//                 m_direction = Direction::UP;
+//             else if(keys[SDL_SCANCODE_S] == 1)
+//                 m_direction = Direction::DOWN;
+//             else if(keys[SDL_SCANCODE_A] == 1)
+//                 m_direction = Direction::LEFT;
+//             else if(keys[SDL_SCANCODE_D] == 1)
+//                 m_direction = Direction::RIGHT;
+//             break;
+//     }
+// }
 
 void StickFigure::update(double delta_time)
 {
@@ -87,4 +88,25 @@ void StickFigure::draw(SDL_Renderer *renderer)
 
     // std::cout << "Drawing sprite at position (" << m_position.x << ", " << m_position.y << ")" << std::endl;
     SDL_Delay(100);
+}
+
+
+void StickFigure::moveUp()
+{
+    m_direction = Direction::UP;
+}
+
+void StickFigure::moveDown()
+{
+    m_direction = Direction::DOWN;
+}
+
+void StickFigure::moveLeft()
+{
+    m_direction = Direction::LEFT;
+}
+
+void StickFigure::moveRight()
+{
+    m_direction = Direction::RIGHT;
 }

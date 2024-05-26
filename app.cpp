@@ -1,11 +1,14 @@
 #include "app.hpp"
 #include "TextRenderer.hpp"
 #include "stick_figure.hpp"
+#include "EventManager.hpp"
+#include "Player.hpp"
+#include "KeyEvent.hpp"
 
 App::App()
     : m_window(nullptr),
       m_renderer(nullptr), m_texture(nullptr),
-      m_sprite_texture(nullptr), // m_stick_figure(nullptr),
+      m_sprite_texture(nullptr),
       m_sprite_srcRect({0, 0, 64, 64}), m_sprite_dstRect({0, 0, 64, 64}),
       dstrect({0, 0, 0, 0})
 {
@@ -54,6 +57,11 @@ App::App()
 
     std::cerr << "HERE: m_stick_figure initialized" << std::endl;
 
+    m_player.emplace(*m_stick_figure);
+
+    std::cerr << "HERE: m_player initialized" << std::endl;
+
+
     // Инициализация TextRenderer
     m_text_renderer = new TextRenderer(m_renderer);
     if (!m_text_renderer->loadFont("16x8pxl-mono.ttf", 24)) {
@@ -78,15 +86,10 @@ App::App()
     }
     m_text_rect = {100, 100, width, height};  // Установка позиции и размера текста
 
-    // if (!m_texture) {
-    //     std::cerr << "Failed to load text texture\n";
-    //     SDL_DestroyRenderer(m_renderer);
-    //     SDL_DestroyWindow(m_window);
-    //     TTF_Quit();
-    //     SDL_Quit();
-    //     return;
-    // }
-    // SDL_Rect dstrect = {100, 100, width, height};
+
+    m_eventManager.addListener(&(*m_player));
+
+    std::cout << ":: App initialized successfully." << std::endl;
 }
 
 App::~App()
@@ -103,16 +106,34 @@ App::~App()
 
 void App::loop()
 {
+    SDL_Event sdlEvent;
     bool keep_window_open = true;
     while(keep_window_open)
     {
-        while(SDL_PollEvent(&m_window_event) > 0)
+        while(SDL_PollEvent(&sdlEvent) > 0)
         {
-            if (m_stick_figure) {
-                m_stick_figure->handle_events(m_window_event);
+            if (sdlEvent.type == SDL_KEYDOWN) {
+                switch (sdlEvent.key.keysym.sym) {
+                case SDLK_w:
+                    m_eventManager.sendEvent(KeyEvent(KeyEvent::W));
+                    break;
+                case SDLK_a:
+                    m_eventManager.sendEvent(KeyEvent(KeyEvent::A));
+                    break;
+                case SDLK_s:
+                    m_eventManager.sendEvent(KeyEvent(KeyEvent::S));
+                    break;
+                case SDLK_d:
+                    m_eventManager.sendEvent(KeyEvent(KeyEvent::D));
+                    break;
+                default:
+                    continue; // Игнорируем другие клавиши
+                }
             }
-            switch(m_window_event.type)
-            {
+            // if (m_stick_figure) {
+            //     m_stick_figure->handle_events(m_window_event);
+            // }
+            switch(sdlEvent.type) {
             case SDL_QUIT:
                 keep_window_open = false;
                 break;
@@ -141,7 +162,8 @@ void App::draw()
     }
 
     // Отрисовка текстуры спрайта
-    SDL_RenderCopy(m_renderer, m_sprite_texture, &m_sprite_srcRect, &m_sprite_dstRect);
+    // SDL_RenderCopy(m_renderer, m_sprite_texture, &m_sprite_srcRect, &m_sprite_dstRect);
+    m_stick_figure->draw(m_renderer); // Отрисовка StickFigure
 
     // Отрисовка текстуры текста
     SDL_RenderCopy(m_renderer, m_text_texture, nullptr, &m_text_rect);
