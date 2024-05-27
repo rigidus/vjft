@@ -6,12 +6,13 @@ int const SPRITESHEET_LEFT = 9;
 int const SPRITESHEET_RIGHT = 11;
 int const SPRITESHEET_DOWN = 10;
 
-StickFigure::StickFigure(SDL_Renderer* renderer)
-    : spriteSheet("sprites_orange.png", 46, 13, renderer),
+
+StickFigure::StickFigure(SDL_Renderer* renderer, const char* spritePath, int startX, int startY)
+    : spriteSheet(spritePath, 46, 13, renderer),
       spriteSheetColumn(0), direction(Direction::NONE),
-      m_x(0), m_y(0)
+      m_x(startX), m_y(startY)
 {
-    position = {0, 0, 64, 64};
+    position = {startX, startY, 64, 64};
     spriteSheet.select_sprite(0, 0);
     spriteSheetColumn = 0;
 }

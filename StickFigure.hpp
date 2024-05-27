@@ -16,7 +16,7 @@ public:
         RIGHT
     };
 
-    StickFigure(SDL_Renderer* renderer);
+    StickFigure(SDL_Renderer* renderer, const char* spritePath, int startX, int startY);
     ~StickFigure() = default;
 
     void update(double delta_time);

@@ -13,9 +13,22 @@ App::App()
         throw std::runtime_error("Failed to initialize SDL components");
     }
 
-    m_stick_figure.emplace(m_renderer);
-    m_player.emplace(*m_stick_figure);
-    m_eventManager.addListener(&(*m_player));
+    m_stick_figure1.emplace(m_renderer, "sprites_orange.png", 100, 100);
+    m_stick_figure2.emplace(m_renderer, "sprites_blue.png", 300, 300);
+
+    m_player1.emplace(
+        *m_stick_figure1,
+        std::vector<KeyEvent::KeyCode>{
+            KeyEvent::W, KeyEvent::A, KeyEvent::S, KeyEvent::D},
+        "Player1");
+    m_player2.emplace(
+        *m_stick_figure2,
+        std::vector<KeyEvent::KeyCode>{
+            KeyEvent::I, KeyEvent::J, KeyEvent::K, KeyEvent::L},
+        "Player2");
+
+    m_eventManager.addListener(&(*m_player1));
+    m_eventManager.addListener(&(*m_player2));
 
     m_text_renderer.emplace(m_renderer, "16x8pxl-mono.ttf", 20);
     m_cleanupStack.addCleanupTask([this]() {
@@ -158,6 +171,18 @@ void App::handleKeyPress(SDL_Keycode key) {
     case SDLK_d:
         m_eventManager.sendEvent(KeyEvent(KeyEvent::D));
         break;
+    case SDLK_i:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::I));
+        break;
+    case SDLK_j:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::J));
+        break;
+    case SDLK_k:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::K));
+        break;
+    case SDLK_l:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::L));
+        break;
     }
 }
 
@@ -184,8 +209,11 @@ void App::loop()
 
 void App::update(double delta_time)
 {
-    if (m_player) {
-        m_player->update(delta_time);
+    if (m_player1) {
+        m_player1->update(delta_time);
+    }
+    if (m_player2) {
+        m_player2->update(delta_time);
     }
 }
 
@@ -195,8 +223,11 @@ void App::draw()
     SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 0);
     SDL_RenderClear(m_renderer);
 
-    if (m_stick_figure) {
-        m_stick_figure->draw(m_renderer);
+    if (m_stick_figure1) {
+        m_stick_figure1->draw(m_renderer);
+    }
+    if (m_stick_figure2) {
+        m_stick_figure2->draw(m_renderer);
     }
 
     if (m_text_texture) {

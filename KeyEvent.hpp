@@ -5,7 +5,7 @@
 class KeyEvent : public Event {
 public:
     enum KeyCode {
-        W, A, S, D
+        W, A, S, D, I, J, K, L
     };
 
     KeyEvent(int keyCode) : keyCode(keyCode) {}
