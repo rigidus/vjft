@@ -7,7 +7,8 @@
 App::App()
     : m_window(nullptr),
       m_renderer(nullptr),
-      m_running(true)
+      m_running(true),
+      m_viewport(std::make_shared<Viewport>(0, 0, 1024, 768))
 {
     if (!initSDL() || !initIMG() || !initTTF() || !initWindow() || !initRenderer()) {
         Cleanup();
@@ -261,6 +262,13 @@ void App::update(double delta_time)
 }
 
 
+bool App::isVisible(const SDL_Rect& objectRect, std::shared_ptr<Viewport> viewport) {
+    return (objectRect.x + objectRect.w > viewport->getX() &&
+            objectRect.x < viewport->getX() + viewport->getWidth() &&
+            objectRect.y + objectRect.h > viewport->getY() &&
+            objectRect.y < viewport->getY() + viewport->getHeight());
+}
+
 void App::draw()
 {
     SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 0);
@@ -273,7 +281,12 @@ void App::draw()
     //     m_figure2->draw(m_renderer);
     // }
 
-    m_scene.draw(m_renderer);
+    // m_scene.draw(m_renderer, m_viewport);
+    for (const auto& object : m_scene.getObjects()) {
+        if (isVisible(object->getBoundingBox(), m_viewport)) {
+            object->draw(m_renderer, m_viewport);
+        }
+    }
 
     if (m_text_texture) {
         SDL_RenderCopy(m_renderer, m_text_texture, nullptr, &m_text_rect);

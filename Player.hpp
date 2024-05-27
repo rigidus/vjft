@@ -40,7 +40,7 @@ public:
     }
 
 
-    void update(double delta_time) {
+    void update(double delta_time) override {
         if (activeKeys.empty()) {
             figure.setDirection(Figure::Direction::NONE);
         } else {
@@ -64,10 +64,15 @@ public:
         figure.update(delta_time);
     }
 
-
-    void draw(SDL_Renderer* renderer) override {
-        figure.draw(renderer);
+    void draw(SDL_Renderer* renderer, std::shared_ptr<Viewport> viewport) override {
+        SDL_Rect renderRect = figure.getBoundingBox();
+        renderRect.x -= viewport->getX();
+        renderRect.y -= viewport->getY();
+        figure.draw(renderer, renderRect);
     }
+    // void draw(SDL_Renderer* renderer) override {
+    //     figure.draw(renderer);
+    // }
 
 
     SDL_Rect getBoundingBox() const override {

@@ -53,7 +53,7 @@ void Figure::update(double delta_time)
     }
 }
 
-void Figure::draw(SDL_Renderer *renderer)
+void Figure::draw(SDL_Renderer *renderer, SDL_Rect renderRect)
 {
     if (renderer == nullptr) {
         std::cerr << "Invalid renderer passed to Figure::draw" << std::endl;

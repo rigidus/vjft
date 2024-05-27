@@ -13,6 +13,7 @@
 #include "Player.hpp"
 #include "StackCleanup.hpp"
 #include "Scene.hpp"
+#include "Viewport.hpp"
 
 class App
 {
@@ -31,8 +32,8 @@ public:
     void handleKeyRelease(SDL_Keycode key);
     void loop();
     void update(double delta_time);
+    bool isVisible(const SDL_Rect& objectRect, std::shared_ptr<Viewport> viewport);
     void draw();
-    // void addSceneObject(std::shared_ptr<SceneObject> object);
 
 private:
     bool                         m_running;
@@ -48,4 +49,5 @@ private:
     EventManager                 m_eventManager;
     StackCleanup                 m_cleanupStack;
     Scene                        m_scene;
+    std::shared_ptr<Viewport>    m_viewport;
 };

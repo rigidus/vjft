@@ -20,10 +20,16 @@ void Scene::update(double delta_time) {
 }
 
 
-void Scene::draw(SDL_Renderer* renderer) {
-    for (auto& object : objects) {
-        object->draw(renderer);
+void Scene::draw(SDL_Renderer* renderer, std::shared_ptr<Viewport> viewport) {
+    for (const auto& object : this->getObjects()) {
+        if (viewport->isVisible(object->getBoundingBox())) {
+            object->draw(renderer, viewport);
+        }
     }
+    // // old:
+    // for (auto& object : objects) {
+    //     object->draw(renderer);
+    // }
 }
 
 

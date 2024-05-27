@@ -20,7 +20,7 @@ public:
     ~Figure() = default;
 
     void update(double delta_time);
-    void draw(SDL_Renderer *renderer);
+    void draw(SDL_Renderer *renderer, SDL_Rect renderRect);
 
     void moveUp();
     void moveDown();
