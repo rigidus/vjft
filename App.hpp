@@ -7,11 +7,12 @@
 #include <iostream>
 #include <memory>
 #include <optional>
-#include "StickFigure.hpp"
+#include "Figure.hpp"
 #include "TextRenderer.hpp"
 #include "EventManager.hpp"
 #include "Player.hpp"
 #include "StackCleanup.hpp"
+#include "Scene.hpp"
 
 class App
 {
@@ -31,17 +32,20 @@ public:
     void loop();
     void update(double delta_time);
     void draw();
+    // void addSceneObject(std::shared_ptr<SceneObject> object);
+
 private:
     bool                         m_running;
     SDL_Window*                  m_window;
     SDL_Renderer*                m_renderer;
-    std::optional<StickFigure>   m_stick_figure1;
-    std::optional<StickFigure>   m_stick_figure2;
-    std::optional<Player>        m_player1;
-    std::optional<Player>        m_player2;
+    std::shared_ptr<Figure>      m_figure1;
+    std::shared_ptr<Figure>      m_figure2;
+    std::shared_ptr<Player>      m_player1;
+    std::shared_ptr<Player>      m_player2;
     std::optional<TextRenderer>  m_text_renderer;
     SDL_Texture*                 m_text_texture;
     SDL_Rect                     m_text_rect;
     EventManager                 m_eventManager;
     StackCleanup                 m_cleanupStack;
+    Scene                        m_scene;
 };

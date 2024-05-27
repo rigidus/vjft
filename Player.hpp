@@ -2,19 +2,21 @@
 #pragma once
 #include "EventListener.hpp"
 #include "KeyEvent.hpp"
-#include "StickFigure.hpp"
+#include "Figure.hpp"
+#include "SceneObject.hpp"
 #include <string>
 #include <vector>
 #include <unordered_set>
 
-class Player : public EventListener {
+class Player : public EventListener, public SceneObject {
 public:
-    Player(StickFigure& stickFigure,
+    Player(Figure& figure,
            const std::vector<KeyEvent::KeyCode>& keys,
            const std::string& name)
-        : stickFigure(stickFigure),
+        : figure(figure),
           controlKeys(keys),
           playerName(name) {}
+
 
     void onEvent(const Event& event) override {
         const KeyEvent* keyEvent = dynamic_cast<const KeyEvent*>(&event);
@@ -22,6 +24,7 @@ public:
             handleKeyEvent(*keyEvent);
         }
     }
+
 
     void handleKeyEvent(const KeyEvent& keyEvent) {
         KeyEvent::KeyCode keyCode = static_cast<KeyEvent::KeyCode>(keyEvent.getKeyCode());
@@ -36,29 +39,41 @@ public:
         }
     }
 
+
     void update(double delta_time) {
         if (activeKeys.empty()) {
-            stickFigure.setDirection(StickFigure::Direction::NONE);
+            figure.setDirection(Figure::Direction::NONE);
         } else {
             if (activeKeys.count(KeyEvent::W) || activeKeys.count(KeyEvent::I)) {
                 std::cout << playerName << " moves up" << std::endl;
-                stickFigure.moveUp();
+                figure.moveUp();
             }
             if (activeKeys.count(KeyEvent::A) || activeKeys.count(KeyEvent::J)) {
                 std::cout << playerName << " moves left" << std::endl;
-                stickFigure.moveLeft();
+                figure.moveLeft();
             }
             if (activeKeys.count(KeyEvent::S) || activeKeys.count(KeyEvent::K)) {
                 std::cout << playerName << " moves down" << std::endl;
-                stickFigure.moveDown();
+                figure.moveDown();
             }
             if (activeKeys.count(KeyEvent::D) || activeKeys.count(KeyEvent::L)) {
                 std::cout << playerName << " moves right" << std::endl;
-                stickFigure.moveRight();
+                figure.moveRight();
             }
         }
-        stickFigure.update(delta_time);
+        figure.update(delta_time);
     }
+
+
+    void draw(SDL_Renderer* renderer) override {
+        figure.draw(renderer);
+    }
+
+
+    SDL_Rect getBoundingBox() const override {
+        return figure.getBoundingBox();
+    }
+
 
     void printActiveKeys() const {
         std::cout << playerName << " active keys: ";
@@ -69,7 +84,7 @@ public:
     }
 
 private:
-    StickFigure& stickFigure;
+    Figure& figure;
     std::vector<KeyEvent::KeyCode> controlKeys;
     std::unordered_set<KeyEvent::KeyCode> activeKeys;
     std::string playerName;

@@ -2,6 +2,7 @@
 
 #include "App.hpp"
 #include "KeyEvent.hpp"
+#include "Scene.hpp"
 
 App::App()
     : m_window(nullptr),
@@ -13,19 +14,26 @@ App::App()
         throw std::runtime_error("Failed to initialize SDL components");
     }
 
-    m_stick_figure1.emplace(m_renderer, "sprites_orange.png", 100, 100);
-    m_stick_figure2.emplace(m_renderer, "sprites_blue.png", 300, 300);
+    m_scene = Scene();
 
-    m_player1.emplace(
-        *m_stick_figure1,
+    m_figure1 =
+        std::make_shared<Figure>(m_renderer, "sprites_orange.png", 100, 100);
+    m_figure2 =
+        std::make_shared<Figure>(m_renderer, "sprites_blue.png", 300, 300);
+
+    m_player1 = std::make_shared<Player>(
+        *m_figure1,
         std::vector<KeyEvent::KeyCode>{
             KeyEvent::W, KeyEvent::A, KeyEvent::S, KeyEvent::D},
         "Player1");
-    m_player2.emplace(
-        *m_stick_figure2,
+    m_player2 = std::make_shared<Player>(
+        *m_figure2,
         std::vector<KeyEvent::KeyCode>{
             KeyEvent::I, KeyEvent::J, KeyEvent::K, KeyEvent::L},
         "Player2");
+
+    m_scene.addObject(m_player1);
+    m_scene.addObject(m_player2);
 
     m_eventManager.addListener(&(*m_player1));
     m_eventManager.addListener(&(*m_player2));
@@ -243,12 +251,13 @@ void App::loop()
 
 void App::update(double delta_time)
 {
-    if (m_player1) {
-        m_player1->update(delta_time);
-    }
-    if (m_player2) {
-        m_player2->update(delta_time);
-    }
+    // if (m_player1) {
+    //     m_player1->update(delta_time);
+    // }
+    // if (m_player2) {
+    //     m_player2->update(delta_time);
+    // }
+    m_scene.update(delta_time);
 }
 
 
@@ -257,12 +266,14 @@ void App::draw()
     SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 0);
     SDL_RenderClear(m_renderer);
 
-    if (m_stick_figure1) {
-        m_stick_figure1->draw(m_renderer);
-    }
-    if (m_stick_figure2) {
-        m_stick_figure2->draw(m_renderer);
-    }
+    // if (m_figure1) {
+    //     m_figure1->draw(m_renderer);
+    // }
+    // if (m_figure2) {
+    //     m_figure2->draw(m_renderer);
+    // }
+
+    m_scene.draw(m_renderer);
 
     if (m_text_texture) {
         SDL_RenderCopy(m_renderer, m_text_texture, nullptr, &m_text_rect);

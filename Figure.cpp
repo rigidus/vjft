@@ -1,5 +1,5 @@
-// StickFigure.cpp
-#include "StickFigure.hpp"
+// Figure.cpp
+#include "Figure.hpp"
 
 int const SPRITESHEET_UP = 8;
 int const SPRITESHEET_LEFT = 9;
@@ -7,7 +7,7 @@ int const SPRITESHEET_RIGHT = 11;
 int const SPRITESHEET_DOWN = 10;
 
 
-StickFigure::StickFigure(SDL_Renderer* renderer, const char* spritePath, int startX, int startY)
+Figure::Figure(SDL_Renderer* renderer, const char* spritePath, int startX, int startY)
     : spriteSheet(spritePath, 46, 13, renderer),
       spriteSheetColumn(0), direction(Direction::NONE),
       m_x(startX), m_y(startY)
@@ -18,7 +18,7 @@ StickFigure::StickFigure(SDL_Renderer* renderer, const char* spritePath, int sta
 }
 
 
-void StickFigure::update(double delta_time)
+void Figure::update(double delta_time)
 {
     switch(direction) {
     case Direction::NONE:
@@ -53,10 +53,10 @@ void StickFigure::update(double delta_time)
     }
 }
 
-void StickFigure::draw(SDL_Renderer *renderer)
+void Figure::draw(SDL_Renderer *renderer)
 {
     if (renderer == nullptr) {
-        std::cerr << "Invalid renderer passed to StickFigure::draw" << std::endl;
+        std::cerr << "Invalid renderer passed to Figure::draw" << std::endl;
         return;
     }
 
@@ -66,27 +66,31 @@ void StickFigure::draw(SDL_Renderer *renderer)
 }
 
 
-void StickFigure::moveUp()
+void Figure::moveUp()
 {
     direction = Direction::UP;
 }
 
-void StickFigure::moveDown()
+void Figure::moveDown()
 {
     direction = Direction::DOWN;
 }
 
-void StickFigure::moveLeft()
+void Figure::moveLeft()
 {
     direction = Direction::LEFT;
 }
 
-void StickFigure::moveRight()
+void Figure::moveRight()
 {
     direction = Direction::RIGHT;
 }
 
-void StickFigure::setDirection(Direction newDirection)
+void Figure::setDirection(Direction newDirection)
 {
     direction = newDirection;
+}
+
+SDL_Rect Figure::getBoundingBox() const {
+    return position;
 }

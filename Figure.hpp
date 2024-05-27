@@ -1,10 +1,10 @@
-// StickFigure.hpp
+// Figure.hpp
 #pragma once
 
 #include <SDL2/SDL.h>
 #include "SpriteSheet.hpp"
 
-class StickFigure
+class Figure
 {
 public:
     enum class Direction
@@ -16,8 +16,8 @@ public:
         RIGHT
     };
 
-    StickFigure(SDL_Renderer* renderer, const char* spritePath, int startX, int startY);
-    ~StickFigure() = default;
+    Figure(SDL_Renderer* renderer, const char* spritePath, int startX, int startY);
+    ~Figure() = default;
 
     void update(double delta_time);
     void draw(SDL_Renderer *renderer);
@@ -27,6 +27,8 @@ public:
     void moveLeft();
     void moveRight();
     void setDirection(Direction newDirection);
+
+    SDL_Rect getBoundingBox() const;
 
 private:
     Spritesheet  spriteSheet;
