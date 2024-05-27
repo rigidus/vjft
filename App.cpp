@@ -40,7 +40,7 @@ App::App()
 
     SDL_Color color = {127, 127, 127, 127};
     int width, height;
-    m_text_texture = m_text_renderer->renderText("Hello, SDL2!", color, width, height);
+    m_text_texture = m_text_renderer->renderText("Control: WASD, IJKL", color, width, height);
     if (!m_text_texture) {
         std::cerr << "Failed to render text texture" << std::endl;
         Cleanup();
