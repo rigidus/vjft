@@ -3,6 +3,7 @@
 
 #include <SDL2/SDL.h>
 #include <SDL_ttf.h>
+#include <SDL_image.h>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -20,6 +21,7 @@ public:
 
     void Cleanup();
     bool initSDL();
+    bool initIMG();
     bool initTTF();
     bool initWindow();
     bool initRenderer();

@@ -1,21 +1,17 @@
 // StickFigure.cpp
 #include "StickFigure.hpp"
 
-int const SPRITESHEET_UP = 0;
-int const SPRITESHEET_LEFT = 1;
-int const SPRITESHEET_RIGHT = 2;
-int const SPRITESHEET_DOWN = 3;
+int const SPRITESHEET_UP = 8;
+int const SPRITESHEET_LEFT = 9;
+int const SPRITESHEET_RIGHT = 11;
+int const SPRITESHEET_DOWN = 10;
 
 StickFigure::StickFigure(SDL_Renderer* renderer)
-    : spriteSheet("spritesheet.bmp", 4, 9, renderer),
+    : spriteSheet("sprites_orange.png", 46, 13, renderer),
       spriteSheetColumn(0), direction(Direction::NONE),
       m_x(0), m_y(0)
 {
-
-    std::cerr << "HERE: m_stick_figure INSIDE" << std::endl;
-
-    position = {0, 0, 22, 43};
-
+    position = {0, 0, 64, 64};
     spriteSheet.select_sprite(0, 0);
     spriteSheetColumn = 0;
 }

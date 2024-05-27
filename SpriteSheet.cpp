@@ -4,7 +4,7 @@
 
 Spritesheet::Spritesheet(char const *path, int row, int column, SDL_Renderer* renderer)
 {
-    m_spritesheet_image = load_bmp(path);
+    m_spritesheet_image = load_image(path);
     if (m_spritesheet_image == nullptr) {
         std::cerr << "Failed to load spritesheet image: " << SDL_GetError() << std::endl;
         throw std::runtime_error("Failed to load spritesheet image");
@@ -19,8 +19,8 @@ Spritesheet::Spritesheet(char const *path, int row, int column, SDL_Renderer* re
         throw std::runtime_error("Failed to create texture from surface");
     }
 
-    std::cout << "Column: " << column << std::endl;
-    std::cout << "Row: " << row << std::endl;
+    std::cout << "Columns: " << column << std::endl;
+    std::cout << "Rows: " << row << std::endl;
 
     m_clip.w = m_spritesheet_image->w / column;
     m_clip.h = m_spritesheet_image->h / row;

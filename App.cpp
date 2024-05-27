@@ -8,7 +8,7 @@ App::App()
       m_renderer(nullptr),
       m_running(true)
 {
-    if (!initSDL() || !initTTF() || !initWindow() || !initRenderer()) {
+    if (!initSDL() || !initIMG() || !initTTF() || !initWindow() || !initRenderer()) {
         Cleanup();
         throw std::runtime_error("Failed to initialize SDL components");
     }
@@ -67,6 +67,20 @@ bool App::initSDL() {
         SDL_Quit();
     });
     std::cerr << "SDL_Init()" << std::endl;
+    return true;
+}
+
+
+bool App::initIMG() {
+    if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG))
+    {
+        std::cerr << "IMG_Init Error: " << IMG_GetError() << std::endl;
+        return false;
+    }
+    m_cleanupStack.addCleanupTask([]() {
+        std::cerr << "IMG_Quit()" << std::endl;
+        IMG_Quit();
+    });
     return true;
 }
 
