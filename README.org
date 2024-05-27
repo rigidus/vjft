@@ -9,7 +9,8 @@ Tends to evolve into an emacs-like editor with a set of useful features
 
 #+BEGIN_SRC sh
   sudo apt-get install libsdl2-dev libsdl2-ttf-dev
-  make
+  make prepare
+  make compile
   make run
 #+END_SRC
 
