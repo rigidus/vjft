@@ -152,6 +152,10 @@ void App::processEvents() {
             m_running = false;
         } else if (sdlEvent.type == SDL_KEYDOWN) {
             handleKeyPress(sdlEvent.key.keysym.sym);
+            std::cerr << "Press: " << sdlEvent.key.keysym.sym << std::endl;
+        } else if (sdlEvent.type == SDL_KEYUP) {
+            handleKeyRelease(sdlEvent.key.keysym.sym);
+            std::cerr << "Release: " << sdlEvent.key.keysym.sym << std::endl;
         }
     }
 }
@@ -160,28 +164,58 @@ void App::processEvents() {
 void App::handleKeyPress(SDL_Keycode key) {
     switch (key) {
     case SDLK_w:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::W));
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::W, true));
         break;
     case SDLK_a:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::A));
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::A, true));
         break;
     case SDLK_s:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::S));
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::S, true));
         break;
     case SDLK_d:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::D));
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::D, true));
         break;
     case SDLK_i:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::I));
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::I, true));
         break;
     case SDLK_j:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::J));
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::J, true));
         break;
     case SDLK_k:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::K));
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::K, true));
         break;
     case SDLK_l:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::L));
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::L, true));
+        break;
+    }
+}
+
+
+void App::handleKeyRelease(SDL_Keycode key) {
+    switch (key) {
+    case SDLK_w:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::W, false));
+        break;
+    case SDLK_a:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::A, false));
+        break;
+    case SDLK_s:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::S, false));
+        break;
+    case SDLK_d:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::D, false));
+        break;
+    case SDLK_i:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::I, false));
+        break;
+    case SDLK_j:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::J, false));
+        break;
+    case SDLK_k:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::K, false));
+        break;
+    case SDLK_l:
+        m_eventManager.sendEvent(KeyEvent(KeyEvent::L, false));
         break;
     }
 }

@@ -27,6 +27,7 @@ public:
     bool initRenderer();
     void processEvents();
     void handleKeyPress(SDL_Keycode key);
+    void handleKeyRelease(SDL_Keycode key);
     void loop();
     void update(double delta_time);
     void draw();

@@ -20,29 +20,28 @@ StickFigure::StickFigure(SDL_Renderer* renderer, const char* spritePath, int sta
 
 void StickFigure::update(double delta_time)
 {
-    switch(direction)
-    {
-        case Direction::NONE:
-            m_x += 0.0;
-            m_y += 0.0;
-            spriteSheet.select_sprite(0, 0);
-            break;
-        case Direction::UP:
-            m_y = m_y - (500.0 * delta_time);
-            spriteSheet.select_sprite(spriteSheetColumn, SPRITESHEET_UP);
-            break;
-        case Direction::DOWN:
-            m_y = m_y + (500.0 * delta_time);
-            spriteSheet.select_sprite(spriteSheetColumn, SPRITESHEET_DOWN);
-            break;
-        case Direction::LEFT:
-            m_x = m_x - (500.0 * delta_time);
-            spriteSheet.select_sprite(spriteSheetColumn, SPRITESHEET_LEFT);
-            break;
-        case Direction::RIGHT:
-            m_x = m_x + (500.0 * delta_time);
-            spriteSheet.select_sprite(spriteSheetColumn, SPRITESHEET_RIGHT);
-            break;
+    switch(direction) {
+    case Direction::NONE:
+        m_x += 0.0;
+        m_y += 0.0;
+        spriteSheet.select_sprite(0, 0);
+        break;
+    case Direction::UP:
+        m_y = m_y - (500.0 * delta_time);
+        spriteSheet.select_sprite(spriteSheetColumn, SPRITESHEET_UP);
+        break;
+    case Direction::DOWN:
+        m_y = m_y + (500.0 * delta_time);
+        spriteSheet.select_sprite(spriteSheetColumn, SPRITESHEET_DOWN);
+        break;
+    case Direction::LEFT:
+        m_x = m_x - (500.0 * delta_time);
+        spriteSheet.select_sprite(spriteSheetColumn, SPRITESHEET_LEFT);
+        break;
+    case Direction::RIGHT:
+        m_x = m_x + (500.0 * delta_time);
+        spriteSheet.select_sprite(spriteSheetColumn, SPRITESHEET_RIGHT);
+        break;
     }
 
     position.x = m_x;
@@ -85,4 +84,9 @@ void StickFigure::moveLeft()
 void StickFigure::moveRight()
 {
     direction = Direction::RIGHT;
+}
+
+void StickFigure::setDirection(Direction newDirection)
+{
+    direction = newDirection;
 }

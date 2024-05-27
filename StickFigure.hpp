@@ -26,6 +26,7 @@ public:
     void moveDown();
     void moveLeft();
     void moveRight();
+    void setDirection(Direction newDirection);
 
 private:
     Spritesheet  spriteSheet;

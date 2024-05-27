@@ -8,9 +8,11 @@ public:
         W, A, S, D, I, J, K, L
     };
 
-    KeyEvent(int keyCode) : keyCode(keyCode) {}
+    KeyEvent(int keyCode, bool pressed) : keyCode(keyCode), pressed(pressed) {}
     int getKeyCode() const { return keyCode; }
+    bool isPressed() const { return pressed; }
 
 private:
     int keyCode;
+    bool pressed;
 };
