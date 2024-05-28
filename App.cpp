@@ -124,8 +124,7 @@ bool App::initTTF() {
 bool App::initWindow() {
     m_window = SDL_CreateWindow("SDL2 Window", SDL_WINDOWPOS_CENTERED,
                                 SDL_WINDOWPOS_CENTERED, 1024, 768, 0);
-    if(!m_window)
-    {
+    if(!m_window) {
         std::cerr << "Failed to create window: " << SDL_GetError() << std::endl;
         return false;
     }
@@ -252,12 +251,6 @@ void App::loop()
 
 void App::update(double delta_time)
 {
-    // if (m_player1) {
-    //     m_player1->update(delta_time);
-    // }
-    // if (m_player2) {
-    //     m_player2->update(delta_time);
-    // }
     m_scene.update(delta_time);
 }
 
@@ -273,24 +266,13 @@ void App::draw()
 {
     SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 0);
     SDL_RenderClear(m_renderer);
-
-    // if (m_figure1) {
-    //     m_figure1->draw(m_renderer);
-    // }
-    // if (m_figure2) {
-    //     m_figure2->draw(m_renderer);
-    // }
-
-    // m_scene.draw(m_renderer, m_viewport);
     for (const auto& object : m_scene.getObjects()) {
         if (isVisible(object->getBoundingBox(), m_viewport)) {
             object->draw(m_renderer, m_viewport);
         }
     }
-
     if (m_text_texture) {
         SDL_RenderCopy(m_renderer, m_text_texture, nullptr, &m_text_rect);
     }
-
     SDL_RenderPresent(m_renderer);
 }

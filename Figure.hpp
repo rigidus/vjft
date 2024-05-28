@@ -2,7 +2,10 @@
 #pragma once
 
 #include <SDL2/SDL.h>
+#include <memory>
 #include "SpriteSheet.hpp"
+#include "Viewport.hpp"
+
 
 class Figure
 {
@@ -20,7 +23,7 @@ public:
     ~Figure() = default;
 
     void update(double delta_time);
-    void draw(SDL_Renderer *renderer, SDL_Rect renderRect);
+    void draw(SDL_Renderer *renderer, std::shared_ptr<Viewport> viewport);
 
     void moveUp();
     void moveDown();

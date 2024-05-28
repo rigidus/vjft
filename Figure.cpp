@@ -53,7 +53,7 @@ void Figure::update(double delta_time)
     }
 }
 
-void Figure::draw(SDL_Renderer *renderer, SDL_Rect renderRect)
+void Figure::draw(SDL_Renderer *renderer, std::shared_ptr<Viewport>)
 {
     if (renderer == nullptr) {
         std::cerr << "Invalid renderer passed to Figure::draw" << std::endl;
@@ -61,8 +61,6 @@ void Figure::draw(SDL_Renderer *renderer, SDL_Rect renderRect)
     }
 
     spriteSheet.draw_selected_sprite(renderer, &position);
-
-    // std::cout << "Drawing sprite at position (" << position.x << ", " << position.y << ")" << std::endl;
 }
 
 

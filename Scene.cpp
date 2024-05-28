@@ -26,10 +26,6 @@ void Scene::draw(SDL_Renderer* renderer, std::shared_ptr<Viewport> viewport) {
             object->draw(renderer, viewport);
         }
     }
-    // // old:
-    // for (auto& object : objects) {
-    //     object->draw(renderer);
-    // }
 }
 
 
