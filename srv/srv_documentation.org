@@ -1,0 +1,175 @@
+Общая структура сервера
+
+Сервер реализован на основе библиотеки Boost.Asio, которая предоставляет средства для асинхронного ввода-вывода. Сервер использует базу данных SQLite для хранения сообщений.
+Основные классы:
+
+    ChatServer - Класс, отвечающий за приём входящих подключений.
+    Session - Класс, представляющий сессию соединения с клиентом.
+
+Подробный разбор
+1. Инициализация сервера
+
+В функции main создаётся объект ChatServer, который начинает прослушивать указанный порт.
+
+cpp
+
+int main(int argc, char* argv[]) {
+    try {
+        if (argc != 2) {
+            std::cerr << "Usage: ChatServer <port>\n";
+            return 1;
+        }
+
+        boost::asio::io_service io_service;
+        ChatServer server(io_service, std::atoi(argv[1]));
+        io_service.run();
+    }
+    catch (std::exception& e) {
+        std::cerr << "Exception: " << e.what() << "\n";
+    }
+
+    return 0;
+}
+
+2. Конструктор ChatServer
+
+В конструкторе создаётся acceptor (приёмник), который начинает прослушивать входящие соединения.
+
+cpp
+
+ChatServer::ChatServer(boost::asio::io_service& io_service, short port)
+    : acceptor_(io_service, tcp::endpoint(tcp::v4(), port)), socket_(io_service), db_("chat.db") {
+    start_accept();
+}
+
+3. Метод start_accept
+
+Метод start_accept начинает асинхронный приём входящих соединений. При поступлении соединения будет вызван метод handle_accept.
+
+cpp
+
+void ChatServer::start_accept() {
+    acceptor_.async_accept(socket_, boost::bind(&ChatServer::handle_accept, this, boost::asio::placeholders::error));
+}
+
+4. Метод handle_accept
+
+Метод handle_accept вызывается при успешном приёме входящего соединения. Создаётся новый объект Session, который начинает обрабатывать соединение. Затем start_accept вызывается снова для приёма следующего соединения.
+
+cpp
+
+void ChatServer::handle_accept(const boost::system::error_code& error) {
+    if (!error) {
+        std::make_shared<Session>(std::move(socket_), db_)->start();
+    }
+    start_accept();
+}
+
+5. Класс Session
+
+Класс Session обрабатывает отдельное соединение с клиентом.
+Конструктор Session
+
+Конструктор принимает сокет и ссылку на базу данных.
+
+cpp
+
+Session::Session(tcp::socket socket, Database& db) : socket_(std::move(socket)), db_(db) {}
+
+Метод start
+
+Метод start запускает асинхронное чтение данных из сокета.
+
+cpp
+
+void Session::start() {
+    read();
+}
+
+Метод read
+
+Метод read выполняет асинхронное чтение данных из сокета до символа новой строки ('\n'). Когда данные получены, вызывается метод handle_message.
+
+cpp
+
+void Session::read() {
+    auto self(shared_from_this());
+    boost::asio::async_read_until(socket_, boost::asio::dynamic_buffer(data_), '\n',
+        [this, self](boost::system::error_code ec, std::size_t length) {
+            if (!ec) {
+                std::string message(data_.substr(0, length));
+                data_.erase(0, length);
+                handle_message(message);
+                read();
+            }
+        });
+}
+
+Метод handle_message
+
+Метод handle_message обрабатывает полученное сообщение. Сообщение сохраняется в базу данных, и сервер выводит его на консоль.
+
+cpp
+
+void Session::handle_message(const std::string& message) {
+    // Сохраняем сообщение в базе данных
+    db_.storeMessage("anonymous", message);
+
+    // Обработка сообщения (например, отправка другим пользователям)
+    std::cout << "Received message: " << message << std::endl;
+}
+
+Работа с базой данных
+
+Класс Database отвечает за взаимодействие с базой данных SQLite. Он открывает базу данных и создаёт таблицу для хранения сообщений, если она не существует.
+Конструктор Database
+
+cpp
+
+Database::Database(const std::string& db_name) {
+    if (sqlite3_open(db_name.c_str(), &db_) != SQLITE_OK) {
+        std::cerr << "Can't open database: " << sqlite3_errmsg(db_) << "\n";
+        sqlite3_close(db_);
+    }
+
+    std::string create_messages_table = "CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, username TEXT, message TEXT);";
+    executeQuery(create_messages_table);
+}
+
+Метод storeMessage
+
+Метод storeMessage сохраняет сообщение в базу данных.
+
+cpp
+
+bool Database::storeMessage(const std::string& username, const std::string& message) {
+    std::string query = "INSERT INTO messages (username, message) VALUES ('" + username + "', '" + message + "');";
+    return executeQuery(query);
+}
+
+Метод executeQuery
+
+Метод executeQuery выполняет произвольный SQL-запрос.
+
+cpp
+
+bool Database::executeQuery(const std::string& query) {
+    char* errMsg = nullptr;
+    if (sqlite3_exec(db_, query.c_str(), nullptr, nullptr, &errMsg) != SQLITE_OK) {
+        std::cerr << "SQL error: " << errMsg << "\n";
+        sqlite3_free(errMsg);
+        return false;
+    }
+    return true;
+}
+
+Резюме
+
+    Запуск сервера: В main создаётся объект ChatServer, который начинает прослушивание указанного порта.
+    Приём соединений: В ChatServer метод start_accept начинает асинхронный приём входящих соединений.
+    Обработка соединений: В handle_accept создаётся объект Session, который обрабатывает соединение.
+    Чтение данных: В Session метод read выполняет асинхронное чтение данных из сокета.
+    Обработка сообщений: Метод handle_message сохраняет полученные сообщения в базу данных и выводит их на консоль.
+    Работа с базой данных: Класс Database отвечает за взаимодействие с базой данных SQLite, включая создание таблиц и сохранение сообщений.
+
+Этот сервер обрабатывает подключение клиентов, принимает сообщения и сохраняет их в базу данных без необходимости аутентификации.
