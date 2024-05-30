@@ -8,9 +8,11 @@ App::App()
     : m_window(nullptr),
       m_renderer(nullptr),
       m_running(true),
-      m_viewport(std::make_shared<Viewport>(0, 0, 1024, 768))
+      m_viewport(std::make_shared<Viewport>(0, 0, 1024, 768)),
+      m_dialogActive(false)
 {
-    if (!initSDL() || !initIMG() || !initTTF() || !initWindow() || !initRenderer()) {
+    if ( !initSDL() || !initIMG() || !initTTF() || !initWindow() || !initRenderer() ||
+         !initFont() ) {
         Cleanup();
         throw std::runtime_error("Failed to initialize SDL components");
     }
@@ -39,13 +41,15 @@ App::App()
     m_eventManager.addListener(&(*m_player1));
     m_eventManager.addListener(&(*m_player2));
 
-    m_text_renderer.emplace(m_renderer, "16x8pxl-mono.ttf", 20);
+    m_text_renderer.emplace(m_renderer, m_font);
     m_cleanupStack.addCleanupTask([this]() {
         std::cerr << "TextRenderer destructor manually" << std::endl;
         m_text_renderer.reset();
     });
     std::cerr << "TextRenderer" << std::endl;
 
+    m_dialog = std::make_unique<Dialog>(m_renderer, m_text_renderer->getFont());
+    m_dialog->setCloseCallback([this]() { onDialogClose(); });
 
     SDL_Color color = {127, 127, 127, 127};
     int width, height;
@@ -151,33 +155,54 @@ bool App::initRenderer() {
     return true;
 }
 
+bool App::initFont() {
+    m_font = TTF_OpenFont("16x8pxl-mono.ttf", 20);
+    if (!m_font)
+    {
+        std::cerr << "TTF_OpenFont Error: " << TTF_GetError() << std::endl;
+        throw std::runtime_error(std::string("TTF_OpenFont Error: ") + TTF_GetError());
+    }
+    m_cleanupStack.addCleanupTask([this]() {
+        std::cerr << "TTF_CloseFont()" << std::endl;
+        TTF_CloseFont(m_font);
+    });
+    std::cerr << "TTF_OpenFont()" << std::endl;
+    return true;
+}
+
+
 
 void App::handleKeyPress(SDL_Keycode key) {
-    switch (key) {
-    case SDLK_w:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::W, true));
-        break;
-    case SDLK_a:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::A, true));
-        break;
-    case SDLK_s:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::S, true));
-        break;
-    case SDLK_d:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::D, true));
-        break;
-    case SDLK_i:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::I, true));
-        break;
-    case SDLK_j:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::J, true));
-        break;
-    case SDLK_k:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::K, true));
-        break;
-    case SDLK_l:
-        m_eventManager.sendEvent(KeyEvent(KeyEvent::L, true));
-        break;
+    if (key == SDLK_g) {
+        m_dialog->show();
+        m_dialogActive = true;
+    } else {
+        switch (key) {
+        case SDLK_w:
+            m_eventManager.sendEvent(KeyEvent(KeyEvent::W, true));
+            break;
+        case SDLK_a:
+            m_eventManager.sendEvent(KeyEvent(KeyEvent::A, true));
+            break;
+        case SDLK_s:
+            m_eventManager.sendEvent(KeyEvent(KeyEvent::S, true));
+            break;
+        case SDLK_d:
+            m_eventManager.sendEvent(KeyEvent(KeyEvent::D, true));
+            break;
+        case SDLK_i:
+            m_eventManager.sendEvent(KeyEvent(KeyEvent::I, true));
+            break;
+        case SDLK_j:
+            m_eventManager.sendEvent(KeyEvent(KeyEvent::J, true));
+            break;
+        case SDLK_k:
+            m_eventManager.sendEvent(KeyEvent(KeyEvent::K, true));
+            break;
+        case SDLK_l:
+            m_eventManager.sendEvent(KeyEvent(KeyEvent::L, true));
+            break;
+        }
     }
 }
 
@@ -227,46 +252,57 @@ void App::processEvents() {
     {
         if (sdlEvent.type == SDL_QUIT) {
             m_running = false;
-        } else if (sdlEvent.type == SDL_KEYDOWN) {
-            handleKeyPress(sdlEvent.key.keysym.sym);
-            std::cerr << "Press: " << sdlEvent.key.keysym.sym << std::endl;
-        } else if (sdlEvent.type == SDL_KEYUP) {
-            handleKeyRelease(sdlEvent.key.keysym.sym);
-            std::cerr << "Release: " << sdlEvent.key.keysym.sym << std::endl;
-        } else if (sdlEvent.type == SDL_MOUSEBUTTONDOWN) {
-            MouseEvent::Button button;
-            switch (sdlEvent.button.button) {
-            case SDL_BUTTON_LEFT:
-                button = MouseEvent::LEFT;
-                break;
-            case SDL_BUTTON_MIDDLE:
-                button = MouseEvent::MIDDLE;
-                break;
-            case SDL_BUTTON_RIGHT:
-                button = MouseEvent::RIGHT;
-                break;
-            default:
-                return;
+        } else {
+            if (m_dialogActive) {
+                m_dialog->handleEvent(sdlEvent);
+            } else {
+                if (sdlEvent.type == SDL_KEYDOWN) {
+                    handleKeyPress(sdlEvent.key.keysym.sym);
+                    std::cerr << "Press: " << sdlEvent.key.keysym.sym << std::endl;
+                } else if (sdlEvent.type == SDL_KEYUP) {
+                    handleKeyRelease(sdlEvent.key.keysym.sym);
+                    std::cerr << "Release: " << sdlEvent.key.keysym.sym << std::endl;
+                } else if (sdlEvent.type == SDL_MOUSEBUTTONDOWN) {
+                    MouseEvent::Button button;
+                    switch (sdlEvent.button.button) {
+                    case SDL_BUTTON_LEFT:
+                        button = MouseEvent::LEFT;
+                        break;
+                    case SDL_BUTTON_MIDDLE:
+                        button = MouseEvent::MIDDLE;
+                        break;
+                    case SDL_BUTTON_RIGHT:
+                        button = MouseEvent::RIGHT;
+                        break;
+                    default:
+                        return;
+                    }
+                    handleMousePress(sdlEvent.button.x, sdlEvent.button.y, button);
+                } else if (sdlEvent.type == SDL_MOUSEBUTTONUP) {
+                    MouseEvent::Button button;
+                    switch (sdlEvent.button.button) {
+                    case SDL_BUTTON_LEFT:
+                        button = MouseEvent::LEFT;
+                        break;
+                    case SDL_BUTTON_MIDDLE:
+                        button = MouseEvent::MIDDLE;
+                        break;
+                    case SDL_BUTTON_RIGHT:
+                        button = MouseEvent::RIGHT;
+                        break;
+                    default:
+                        return;
+                    }
+                    handleMouseRelease(sdlEvent.button.x, sdlEvent.button.y, button);
+                }
             }
-            handleMousePress(sdlEvent.button.x, sdlEvent.button.y, button);
-        } else if (sdlEvent.type == SDL_MOUSEBUTTONUP) {
-            MouseEvent::Button button;
-            switch (sdlEvent.button.button) {
-            case SDL_BUTTON_LEFT:
-                button = MouseEvent::LEFT;
-                break;
-            case SDL_BUTTON_MIDDLE:
-                button = MouseEvent::MIDDLE;
-                break;
-            case SDL_BUTTON_RIGHT:
-                button = MouseEvent::RIGHT;
-                break;
-            default:
-                return;
-            }
-            handleMouseRelease(sdlEvent.button.x, sdlEvent.button.y, button);
         }
     }
+}
+
+
+void App::onDialogClose() {
+    m_dialogActive = false;
 }
 
 
@@ -292,7 +328,11 @@ void App::loop()
 
 void App::update(double delta_time)
 {
-    m_scene.update(delta_time);
+    if (m_dialogActive) {
+        // freeze game process when dialog active
+    } else {
+        m_scene.update(delta_time);
+    }
 }
 
 
@@ -311,6 +351,9 @@ void App::draw()
         if (isVisible(object->getBoundingBox(), m_viewport)) {
             object->draw(m_renderer, m_viewport);
         }
+    }
+    if (m_dialogActive) {
+        m_dialog->render(m_renderer);
     }
     if (m_text_texture) {
         SDL_RenderCopy(m_renderer, m_text_texture, nullptr, &m_text_rect);

@@ -15,6 +15,7 @@
 #include "StackCleanup.hpp"
 #include "Scene.hpp"
 #include "Viewport.hpp"
+#include "Dialog.hpp"
 
 class App
 {
@@ -28,6 +29,7 @@ public:
     bool initTTF();
     bool initWindow();
     bool initRenderer();
+    bool initFont();
     void processEvents();
     void handleKeyPress(SDL_Keycode key);
     void handleKeyRelease(SDL_Keycode key);
@@ -37,7 +39,7 @@ public:
     void update(double delta_time);
     bool isVisible(const SDL_Rect& objectRect, std::shared_ptr<Viewport> viewport);
     void draw();
-
+    void onDialogClose();
 private:
     bool                         m_running;
     SDL_Window*                  m_window;
@@ -49,8 +51,12 @@ private:
     std::optional<TextRenderer>  m_text_renderer;
     SDL_Texture*                 m_text_texture;
     SDL_Rect                     m_text_rect;
+    TTF_Font*                    m_font;
     EventManager                 m_eventManager;
     StackCleanup                 m_cleanupStack;
     Scene                        m_scene;
     std::shared_ptr<Viewport>    m_viewport;
+    bool                         m_dialogActive;
+    std::unique_ptr<Dialog>      m_dialog;
+
 };
