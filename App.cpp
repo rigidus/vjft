@@ -152,23 +152,6 @@ bool App::initRenderer() {
 }
 
 
-void App::processEvents() {
-    SDL_Event sdlEvent;
-    while(SDL_PollEvent(&sdlEvent) > 0)
-    {
-        if (sdlEvent.type == SDL_QUIT) {
-            m_running = false;
-        } else if (sdlEvent.type == SDL_KEYDOWN) {
-            handleKeyPress(sdlEvent.key.keysym.sym);
-            std::cerr << "Press: " << sdlEvent.key.keysym.sym << std::endl;
-        } else if (sdlEvent.type == SDL_KEYUP) {
-            handleKeyRelease(sdlEvent.key.keysym.sym);
-            std::cerr << "Release: " << sdlEvent.key.keysym.sym << std::endl;
-        }
-    }
-}
-
-
 void App::handleKeyPress(SDL_Keycode key) {
     switch (key) {
     case SDLK_w:
@@ -225,6 +208,64 @@ void App::handleKeyRelease(SDL_Keycode key) {
     case SDLK_l:
         m_eventManager.sendEvent(KeyEvent(KeyEvent::L, false));
         break;
+    }
+}
+
+
+void App::handleMousePress(int x, int y, MouseEvent::Button button) {
+    m_eventManager.sendEvent(MouseEvent(x, y, button, true));
+}
+
+void App::handleMouseRelease(int x, int y, MouseEvent::Button button) {
+    m_eventManager.sendEvent(MouseEvent(x, y, button, false));
+}
+
+
+void App::processEvents() {
+    SDL_Event sdlEvent;
+    while(SDL_PollEvent(&sdlEvent) > 0)
+    {
+        if (sdlEvent.type == SDL_QUIT) {
+            m_running = false;
+        } else if (sdlEvent.type == SDL_KEYDOWN) {
+            handleKeyPress(sdlEvent.key.keysym.sym);
+            std::cerr << "Press: " << sdlEvent.key.keysym.sym << std::endl;
+        } else if (sdlEvent.type == SDL_KEYUP) {
+            handleKeyRelease(sdlEvent.key.keysym.sym);
+            std::cerr << "Release: " << sdlEvent.key.keysym.sym << std::endl;
+        } else if (sdlEvent.type == SDL_MOUSEBUTTONDOWN) {
+            MouseEvent::Button button;
+            switch (sdlEvent.button.button) {
+            case SDL_BUTTON_LEFT:
+                button = MouseEvent::LEFT;
+                break;
+            case SDL_BUTTON_MIDDLE:
+                button = MouseEvent::MIDDLE;
+                break;
+            case SDL_BUTTON_RIGHT:
+                button = MouseEvent::RIGHT;
+                break;
+            default:
+                return;
+            }
+            handleMousePress(sdlEvent.button.x, sdlEvent.button.y, button);
+        } else if (sdlEvent.type == SDL_MOUSEBUTTONUP) {
+            MouseEvent::Button button;
+            switch (sdlEvent.button.button) {
+            case SDL_BUTTON_LEFT:
+                button = MouseEvent::LEFT;
+                break;
+            case SDL_BUTTON_MIDDLE:
+                button = MouseEvent::MIDDLE;
+                break;
+            case SDL_BUTTON_RIGHT:
+                button = MouseEvent::RIGHT;
+                break;
+            default:
+                return;
+            }
+            handleMouseRelease(sdlEvent.button.x, sdlEvent.button.y, button);
+        }
     }
 }
 

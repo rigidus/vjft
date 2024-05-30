@@ -11,6 +11,7 @@
 #include "TextRenderer.hpp"
 #include "EventManager.hpp"
 #include "Player.hpp"
+#include "MouseEvent.hpp"
 #include "StackCleanup.hpp"
 #include "Scene.hpp"
 #include "Viewport.hpp"
@@ -30,6 +31,8 @@ public:
     void processEvents();
     void handleKeyPress(SDL_Keycode key);
     void handleKeyRelease(SDL_Keycode key);
+    void handleMousePress(int x, int y, MouseEvent::Button button);
+    void handleMouseRelease(int x, int y, MouseEvent::Button button);
     void loop();
     void update(double delta_time);
     bool isVisible(const SDL_Rect& objectRect, std::shared_ptr<Viewport> viewport);

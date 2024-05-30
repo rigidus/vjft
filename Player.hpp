@@ -4,6 +4,7 @@
 #include "KeyEvent.hpp"
 #include "Figure.hpp"
 #include "SceneObject.hpp"
+#include "MouseEvent.hpp"
 #include <string>
 #include <vector>
 #include <unordered_set>
@@ -22,6 +23,8 @@ public:
         const KeyEvent* keyEvent = dynamic_cast<const KeyEvent*>(&event);
         if (keyEvent) {
             handleKeyEvent(*keyEvent);
+        } else if (const MouseEvent* mouseEvent = dynamic_cast<const MouseEvent*>(&event)) {
+            handleMouseEvent(*mouseEvent);
         }
     }
 
@@ -36,6 +39,14 @@ public:
                 activeKeys.erase(keyCode);
             }
             printActiveKeys();
+        }
+    }
+
+    void handleMouseEvent(const MouseEvent& mouseEvent) {
+        if (mouseEvent.isPressed()) {
+            std::cout << playerName << " mouse clicked at (" << mouseEvent.getX() << ", " << mouseEvent.getY() << ")" << std::endl;
+        } else {
+            std::cout << playerName << " mouse released at (" << mouseEvent.getX() << ", " << mouseEvent.getY() << ")" << std::endl;
         }
     }
 

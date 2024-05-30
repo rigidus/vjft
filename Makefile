@@ -16,5 +16,8 @@ compile: $(SRC)
 run: $(PROGRAM)
 	./$(PROGRAM)
 
+emcc:
+	~/src/emsdk/upstream/emscripten/emcc emcc_test.cpp -s USE_SDL=2 -o index.html
+
 clean:
 	rm -f $(PROGRAM)
