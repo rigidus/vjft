@@ -41,7 +41,6 @@ public:
     bool isVisible(const SDL_Rect& objectRect, std::shared_ptr<Viewport> viewport);
     void draw();
     void onDialogClose();
-    void testWrapLine();
 private:
     bool                         m_running;
     SDL_Window*                  m_window;

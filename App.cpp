@@ -3,7 +3,7 @@
 #include "App.hpp"
 #include "KeyEvent.hpp"
 #include "Scene.hpp"
-#include <new>
+// #include <new>
 
 App::App()
     : m_window(nullptr),
@@ -68,33 +68,7 @@ App::App()
     m_dialog = std::make_unique<Dialog>(m_renderer, m_text_renderer->getFont());
     m_dialog->setCloseCallback([this]() { onDialogClose(); });
 
-    testWrapLine();
-
     std::cout << ":: App initialized successfully." << std::endl;
-}
-
-
-void App::testWrapLine() {
-    // Инициализация тестовых данных
-    TTF_Font* font = TTF_OpenFont("16x8pxl-mono.ttf", 20); // Замените на путь к вашему шрифту
-    SDL_Color textColor = {255, 255, 255, 255};
-    int width = 100; // Предположим, что ширина текстового поля равна 100 пикселей
-
-    // Создание объекта TextField
-    TextField textField(0, 0, width, 100, font, textColor, 10);
-
-    // Установка начальной строки для теста
-    textField.setInitialLine("This is a long text that needs wrapping");
-
-    // Вызов метода wrapLine
-    textField.wrapLine();
-
-    // Вывод результата
-    for (const auto& line : textField.lines) {
-        std::cout << line << std::endl;
-    }
-
-    TTF_CloseFont(font);
 }
 
 

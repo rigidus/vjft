@@ -4,7 +4,6 @@
 #include <iostream>
 #include <string>
 #include <functional>
-// #include "TextRenderer.hpp"
 #include "TextField.hpp"
 
 class Dialog {
