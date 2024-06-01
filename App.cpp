@@ -3,6 +3,7 @@
 #include "App.hpp"
 #include "KeyEvent.hpp"
 #include "Scene.hpp"
+#include <new>
 
 App::App()
     : m_window(nullptr),
@@ -48,9 +49,6 @@ App::App()
     });
     std::cerr << "TextRenderer" << std::endl;
 
-    m_dialog = std::make_unique<Dialog>(m_renderer, m_text_renderer->getFont());
-    m_dialog->setCloseCallback([this]() { onDialogClose(); });
-
     SDL_Color color = {127, 127, 127, 127};
     int width, height;
     m_text_texture = m_text_renderer->renderText("Control: WASD, IJKL", color, width, height);
@@ -67,7 +65,36 @@ App::App()
 
     m_text_rect = {100, 100, width, height};
 
+    m_dialog = std::make_unique<Dialog>(m_renderer, m_text_renderer->getFont());
+    m_dialog->setCloseCallback([this]() { onDialogClose(); });
+
+    testWrapLine();
+
     std::cout << ":: App initialized successfully." << std::endl;
+}
+
+
+void App::testWrapLine() {
+    // Инициализация тестовых данных
+    TTF_Font* font = TTF_OpenFont("16x8pxl-mono.ttf", 20); // Замените на путь к вашему шрифту
+    SDL_Color textColor = {255, 255, 255, 255};
+    int width = 100; // Предположим, что ширина текстового поля равна 100 пикселей
+
+    // Создание объекта TextField
+    TextField textField(0, 0, width, 100, font, textColor, 10);
+
+    // Установка начальной строки для теста
+    textField.setInitialLine("This is a long text that needs wrapping");
+
+    // Вызов метода wrapLine
+    textField.wrapLine();
+
+    // Вывод результата
+    for (const auto& line : textField.lines) {
+        std::cout << line << std::endl;
+    }
+
+    TTF_CloseFont(font);
 }
 
 
@@ -257,11 +284,19 @@ void App::processEvents() {
                 m_dialog->handleEvent(sdlEvent);
             } else {
                 if (sdlEvent.type == SDL_KEYDOWN) {
-                    handleKeyPress(sdlEvent.key.keysym.sym);
                     std::cerr << "Press: " << sdlEvent.key.keysym.sym << std::endl;
+                    if (true == m_dialogActive) {
+                        m_dialog->handleEvent(sdlEvent);
+                    } else {
+                        handleKeyPress(sdlEvent.key.keysym.sym);
+                    }
                 } else if (sdlEvent.type == SDL_KEYUP) {
-                    handleKeyRelease(sdlEvent.key.keysym.sym);
                     std::cerr << "Release: " << sdlEvent.key.keysym.sym << std::endl;
+                    if (true == m_dialogActive) {
+                        m_dialog->handleEvent(sdlEvent);
+                    } else {
+                        handleKeyRelease(sdlEvent.key.keysym.sym);
+                    }
                 } else if (sdlEvent.type == SDL_MOUSEBUTTONDOWN) {
                     MouseEvent::Button button;
                     switch (sdlEvent.button.button) {

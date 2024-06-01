@@ -16,6 +16,7 @@
 #include "Scene.hpp"
 #include "Viewport.hpp"
 #include "Dialog.hpp"
+#include "TextField.hpp"
 
 class App
 {
@@ -40,6 +41,7 @@ public:
     bool isVisible(const SDL_Rect& objectRect, std::shared_ptr<Viewport> viewport);
     void draw();
     void onDialogClose();
+    void testWrapLine();
 private:
     bool                         m_running;
     SDL_Window*                  m_window;

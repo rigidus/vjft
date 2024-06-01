@@ -26,3 +26,19 @@ SDL_Surface* load_image(const char* path)
     }
     return image_surface;
 }
+
+std::vector<std::string> splitString(const std::string& str, char delimiter) {
+    std::vector<std::string> tokens;
+    std::stringstream ss(str);
+    std::string token;
+    while (std::getline(ss, token, delimiter)) {
+        tokens.push_back(token);
+    }
+    return tokens;
+}
+
+namespace Utils {
+    void Bell() {
+        std::cout << '\a';
+    }
+}
