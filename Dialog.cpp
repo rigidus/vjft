@@ -41,9 +41,7 @@ bool Dialog::isActive() const {
 
 
 void Dialog::handleEvent(SDL_Event& event) {
-    std::cerr << "-> Dialog::handleEvent [5]" << std::endl;
     if (!active) return;
-    std::cerr << "-> Dialog::handleEvent+active [5]" << std::endl;
 
     if (event.type == SDL_KEYDOWN) {
         if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_ESCAPE) {

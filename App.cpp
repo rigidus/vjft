@@ -157,7 +157,8 @@ bool App::initRenderer() {
 }
 
 bool App::initFont() {
-    m_font = TTF_OpenFont("16x8pxl-mono.ttf", 20);
+    // m_font = TTF_OpenFont("16x8pxl-mono.ttf", 20);
+    m_font = TTF_OpenFont("NotoSansMono/NotoSansMono-Regular.ttf", 20);
     if (!m_font)
     {
         std::cerr << "TTF_OpenFont Error: " << TTF_GetError() << std::endl;
