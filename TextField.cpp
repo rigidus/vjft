@@ -74,13 +74,33 @@ std::vector<std::string> TextField::wrapSplitted(const std::vector<std::string>&
 }
 
 
+std::string joinStrings(const std::list<std::string>& lst, const std::string& delimiter) {
+    std::ostringstream oss;
+    for (auto it = lst.begin(); it != lst.end(); ++it) {
+        if (it != lst.begin()) {
+            oss << delimiter;
+        }
+        oss << *it;
+    }
+    return oss.str();
+}
+
+
 void TextField::handleEvent(SDL_Event& e) {
     if (!focused) return;
     if (e.type == SDL_TEXTINPUT) {
         std::cerr << "----> Textnput=\"" << e.text.text << "\"" << std::endl;
 
-        std::vector<std::string> wrapped = wrapSplitted(splitString("Getting text input from the keyboard is a common task in games"));
+        // Join-им строки
+        std::string contents = joinStrings(lines, "");
+
+        // Добавляем введенную букву к строке
+        contents += e.text.text;
+
+        std::vector<std::string> wrapped = wrapSplitted(splitString(contents));
         lines.assign(wrapped.begin(), wrapped.end());
+
+
 
         // // Если строк нет, добавляем пустую строку
         // if (lines.empty()) {
@@ -90,8 +110,6 @@ void TextField::handleEvent(SDL_Event& e) {
         // // Сохраняем текущее состяние для возможного отката
         // std::list<std::string> linesBackup = lines;
 
-        // // Добавляем введенную букву к последней строке
-        // lines.back() += e.text.text;
 
         // // Отладочный Вывод lines
         // for (const auto& line : lines) {
