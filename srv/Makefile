@@ -14,7 +14,6 @@ chat_client: MainClient.o Client.o
 test_crypto: test_crypto.o Client.o
 	$(CXX) $(CXXFLAGS) -o test_crypto test_crypto.o Client.o -lpthread -lboost_system -lssl -lcrypto
 
-
 MainServer.o: MainServer.cpp WorkerThread.hpp Server.hpp PersonInRoom.hpp ChatRoom.hpp Participant.hpp Protocol.hpp
 	$(CXX) $(CXXFLAGS) -c MainServer.cpp
 

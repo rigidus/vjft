@@ -14,6 +14,7 @@
 #include <openssl/rand.h>
 #include <boost/bind.hpp>
 #include <stdexcept>
+#include <iomanip>
 #include "Protocol.hpp"
 
 using namespace boost::placeholders;
@@ -42,9 +43,10 @@ private:
     void CloseImpl();
 
     EVP_PKEY* LoadPrivateKey(const std::string& key_file, const std::string& password);
-    // std::vector<unsigned char> EncryptMessage(const std::string& message, EVP_PKEY* public_key);
-    // std::string DecryptMessage(const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key);
 
+    // Методы для вычисления и проверки контрольной суммы
+    std::string CalculateChecksum(const std::string& message);
+    bool VerifyChecksum(const std::string& message, const std::string& checksum);
 
     boost::asio::io_service& io_service_;
     tcp::socket socket_;
