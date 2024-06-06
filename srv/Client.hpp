@@ -10,6 +10,8 @@
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
+#include <openssl/evp.h>
+#include <openssl/rand.h>
 #include <boost/bind.hpp>
 #include "Protocol.hpp"
 
@@ -36,7 +38,8 @@ private:
     void CloseImpl();
 
     EVP_PKEY* LoadPrivateKey(const std::string& key_file, const std::string& password);
-
+    std::vector<unsigned char> EncryptMessage(const std::string& message, EVP_PKEY* public_key);
+    std::string DecryptMessage(const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key);
 
     boost::asio::io_service& io_service_;
     tcp::socket socket_;
