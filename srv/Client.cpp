@@ -171,6 +171,11 @@ std::vector<unsigned char> Client::EncryptMessage(const std::string& message, EV
         throw std::runtime_error("Error initializing encryption");
     }
 
+    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        throw std::runtime_error("Error setting RSA padding");
+    }
+
     size_t outlen;
     if (EVP_PKEY_encrypt(ctx, nullptr, &outlen, reinterpret_cast<const unsigned char*>(message.c_str()), message.size()) <= 0) {
         EVP_PKEY_CTX_free(ctx);
@@ -187,6 +192,7 @@ std::vector<unsigned char> Client::EncryptMessage(const std::string& message, EV
     return out;
 }
 
+
 std::string Client::DecryptMessage(const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key) {
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(private_key, nullptr);
     if (!ctx) {
@@ -196,6 +202,11 @@ std::string Client::DecryptMessage(const std::vector<unsigned char>& encrypted_m
     if (EVP_PKEY_decrypt_init(ctx) <= 0) {
         EVP_PKEY_CTX_free(ctx);
         throw std::runtime_error("Error initializing decryption");
+    }
+
+    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        throw std::runtime_error("Error setting RSA padding");
     }
 
     size_t outlen;
@@ -211,5 +222,5 @@ std::string Client::DecryptMessage(const std::vector<unsigned char>& encrypted_m
     }
 
     EVP_PKEY_CTX_free(ctx);
-    return std::string(out.begin(), out.end());
+    return std::string(out.begin(), out.begin() + outlen);
 }

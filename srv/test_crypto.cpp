@@ -1,4 +1,4 @@
-#include "CryptoHelper.hpp"
+#include "Client.hpp"
 #include <iostream>
 #include <vector>
 #include <openssl/evp.h>
@@ -49,7 +49,7 @@ int main() {
     // Шифрование сообщения
     std::vector<unsigned char> encrypted_message;
     try {
-        encrypted_message = CryptoHelper::EncryptMessage(message, public_key);
+        encrypted_message = Client::EncryptMessage(message, public_key);
         std::cout << "Message encrypted successfully." << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Encryption error: " << e.what() << std::endl;
@@ -61,7 +61,7 @@ int main() {
     // Расшифровывание сообщения
     std::string decrypted_message;
     try {
-        decrypted_message = CryptoHelper::DecryptMessage(encrypted_message, private_key);
+        decrypted_message = Client::DecryptMessage(encrypted_message, private_key);
         std::cout << "Message decrypted successfully: " << decrypted_message << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Decryption error: " << e.what() << std::endl;

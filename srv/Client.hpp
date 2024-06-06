@@ -13,6 +13,7 @@
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <boost/bind.hpp>
+#include <stdexcept>
 #include "Protocol.hpp"
 
 using namespace boost::placeholders;
@@ -30,6 +31,9 @@ public:
     void Write(const std::array<char, MAX_IP_PACK_SIZE>& msg);
     void Close();
 
+    static std::vector<unsigned char> EncryptMessage(const std::string& message, EVP_PKEY* public_key);
+    static std::string DecryptMessage(const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key);
+
 private:
     void OnConnect(const boost::system::error_code& error);
     void ReadHandler(const boost::system::error_code& error);
@@ -38,8 +42,9 @@ private:
     void CloseImpl();
 
     EVP_PKEY* LoadPrivateKey(const std::string& key_file, const std::string& password);
-    std::vector<unsigned char> EncryptMessage(const std::string& message, EVP_PKEY* public_key);
-    std::string DecryptMessage(const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key);
+    // std::vector<unsigned char> EncryptMessage(const std::string& message, EVP_PKEY* public_key);
+    // std::string DecryptMessage(const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key);
+
 
     boost::asio::io_service& io_service_;
     tcp::socket socket_;
