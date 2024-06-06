@@ -30,7 +30,7 @@ EVP_PKEY* LoadKeyFromFile(const std::string& key_file, bool is_private, const st
 int main() {
     // Загрузка ключей
     std::string private_key_file = "client_private_key.pem";
-    std::string public_key_file = "recipient_public_key.pem";
+    std::string public_key_file = "client_public_key.pem";
     std::string password;
 
     std::cout << "Enter password for private key: ";
