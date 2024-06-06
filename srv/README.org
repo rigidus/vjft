@@ -1,0 +1,35 @@
+* Key generation
+
+** Client
+
+#+BEGIN_SRC sh
+  openssl genpkey -algorithm RSA -out client_private_key.pem -aes256 -pass pass:mypassword123
+  openssl rsa -pubout -in client_private_key.pem -out client_public_key.pem -passin pass:mypassword123
+#+END_SRC
+
+** Recipient
+
+#+BEGIN_SRC sh
+  openssl genpkey -algorithm RSA -out recipient_private_key.pem -aes256 -pass pass:mypassword123
+  openssl rsa -pubout -in recipient_private_key.pem -out recipient_public_key.pem -passin pass:mypassword123
+#+END_SRC
+
+* Start server
+
+#+BEGIN_SRC sh
+  ./chat_server 8888
+#+END_SRC
+
+* Start Client
+
+#+BEGIN_SRC sh
+  ./chat_client ClientNickName 127.0.0.1 8888 client_private_key.pem recipient_public_key.pem
+#+END_SRC
+
+* Start Recipient
+
+#+BEGIN_SRC sh
+  ./chat_client nokla 127.0.0.1 8888 recipient_private_key.pem client_public_key.pem
+#+END_SRC
+
+* Let`s chat

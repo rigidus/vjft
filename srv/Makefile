@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++11 -DBOOST_BIND_GLOBAL_PLACEHOLDERS -I.
+CXXFLAGS = -std=c++11  -DBOOST_BIND_GLOBAL_PLACEHOLDERS -I.
 
 TARGETS = chat_server chat_client
 
@@ -9,7 +9,7 @@ chat_server: MainServer.o Server.o PersonInRoom.o ChatRoom.o WorkerThread.o
 	$(CXX) $(CXXFLAGS) -o chat_server MainServer.o Server.o PersonInRoom.o ChatRoom.o WorkerThread.o -lpthread -lboost_system -lboost_thread
 
 chat_client: MainClient.o Client.o
-	$(CXX) $(CXXFLAGS) -o chat_client MainClient.o Client.o -lpthread -lboost_system
+	$(CXX) $(CXXFLAGS) -o chat_client MainClient.o Client.o -lpthread -lboost_system -lssl -lcrypto
 
 MainServer.o: MainServer.cpp WorkerThread.hpp Server.hpp PersonInRoom.hpp ChatRoom.hpp Participant.hpp Protocol.hpp
 	$(CXX) $(CXXFLAGS) -c MainServer.cpp

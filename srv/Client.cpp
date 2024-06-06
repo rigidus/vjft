@@ -1,6 +1,9 @@
 // Client.cpp
 #include "Client.hpp"
 
+std::string client_private_key_file;
+std::vector<std::string> recipient_public_key_files;
+
 
 Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
                boost::asio::io_service& io_service,
@@ -8,6 +11,12 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
     : io_service_(io_service), socket_(io_service) {
     strcpy(nickname_.data(), nickname.data());
     memset(read_msg_.data(), '\0', MAX_IP_PACK_SIZE);
+
+    std::string password;
+    std::cout << "Enter password for private key: ";
+    std::cin >> password;
+    client_private_key_ = LoadPrivateKey(client_private_key_file, password);
+
     boost::asio::async_connect(socket_, endpoint_iterator, boost::bind(&Client::OnConnect, this, _1));
 }
 
@@ -63,4 +72,22 @@ void Client::WriteHandler(const boost::system::error_code& error) {
 
 void Client::CloseImpl() {
     socket_.close();
+}
+
+EVP_PKEY* Client::LoadPrivateKey(const std::string& key_file, const std::string& password) {
+    FILE* fp = fopen(key_file.c_str(), "r");
+    if (!fp) {
+        std::cerr << "Error opening private key file: " << key_file << std::endl;
+        return nullptr;
+    }
+
+    EVP_PKEY* pkey = nullptr;
+    pkey = PEM_read_PrivateKey(fp, nullptr, nullptr, const_cast<char*>(password.c_str()));
+    fclose(fp);
+
+    if (!pkey) {
+        std::cerr << "Error loading private key: " << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
+    }
+
+    return pkey;
 }

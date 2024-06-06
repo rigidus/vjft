@@ -9,9 +9,14 @@ using boost::asio::ip::tcp;
 
 int main(int argc, char* argv[]) {
     try {
-        if (argc != 4) {
-            std::cerr << "Usage: chat_client <nickname> <host> <port>\n";
+        if (argc < 5) { // Изменено для проверки количества аргументов
+            std::cerr << "Usage: chat_client <nickname> <host> <port> <client_priv_key_file> <recipient_pub_key_file_1> [<recipient_pub_key_file_2> ...]\n";
             return 1;
+        }
+
+        client_private_key_file = argv[4];
+        for (int i = 5; i < argc; ++i) {
+            recipient_public_key_files.push_back(argv[i]);
         }
 
         boost::asio::io_service io_service;
