@@ -16,6 +16,7 @@
 #include <stdexcept>
 #include <iomanip>
 #include "Protocol.hpp"
+#include "Message.hpp"
 
 using namespace boost::placeholders;
 using boost::asio::ip::tcp;

@@ -13,9 +13,11 @@
 #include "Participant.hpp"
 #include "Protocol.hpp"
 #include "Utils.hpp"
+#include "Message.hpp"
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <map>
 
 
 class ChatRoom {
