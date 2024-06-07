@@ -15,7 +15,7 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
     std::string password;
     std::cout << "Enter password for private key: ";
     std::cin >> password;
-    client_private_key_ = LoadPrivateKey(client_private_key_file, password);
+    client_private_key_ = LoadKeyFromFile(client_private_key_file, true, password);
 
     boost::asio::async_connect(socket_, endpoint_iterator, boost::bind(&Client::OnConnect, this, _1));
 }
@@ -105,9 +105,19 @@ void Client::WriteImpl(std::array<char, MAX_IP_PACK_SIZE> msg) {
     bool write_in_progress = !write_msgs_.empty();
 
     std::string message(msg.data());
-    std::string to = "recipient";
     std::string checksum = CalculateChecksum(message);
     bool encrypted = false;
+
+    // Вычислить fingerprint публичного ключа получателя
+    std::string to;
+    if (!recipient_public_key_files.empty()) {
+        EVP_PKEY* recipient_public_key = LoadKeyFromFile(recipient_public_key_files[0], false); // Предполагается, что есть хотя бы один получатель
+        to = "user<" + GetPublicKeyFingerprint(recipient_public_key) + ">";
+        EVP_PKEY_free(recipient_public_key);
+    } else {
+        to = "user<unknown>"; // Если публичный ключ получателя не задан
+    }
+
     std::string env =
         "to:" + to +
         "|checksum:" + checksum +
@@ -176,24 +186,6 @@ void Client::WriteHandler(const boost::system::error_code& error) {
 
 void Client::CloseImpl() {
     socket_.close();
-}
-
-EVP_PKEY* Client::LoadPrivateKey(const std::string& key_file, const std::string& password) {
-    FILE* fp = fopen(key_file.c_str(), "r");
-    if (!fp) {
-        std::cerr << "Error opening private key file: " << key_file << std::endl;
-        return nullptr;
-    }
-
-    EVP_PKEY* pkey = nullptr;
-    pkey = PEM_read_PrivateKey(fp, nullptr, nullptr, const_cast<char*>(password.c_str()));
-    fclose(fp);
-
-    if (!pkey) {
-        std::cerr << "Error loading private key: " << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
-    }
-
-    return pkey;
 }
 
 std::vector<unsigned char> Client::EncryptMessage(const std::string& message, EVP_PKEY* public_key) {
@@ -297,4 +289,49 @@ std::string Client::CalculateChecksum(const std::string& message) {
 
 bool Client::VerifyChecksum(const std::string& message, const std::string& checksum) {
     return CalculateChecksum(message) == checksum;
+}
+
+std::string Client::GetPublicKeyFingerprint(EVP_PKEY* public_key) {
+    unsigned char* der = nullptr;
+    int len = i2d_PUBKEY(public_key, &der);
+    if (len < 0) {
+        throw std::runtime_error("Failed to convert public key to DER format");
+    }
+
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int hash_len;
+    if (!EVP_Digest(der, len, hash, &hash_len, EVP_sha256(), nullptr)) {
+        OPENSSL_free(der);
+        throw std::runtime_error("Failed to compute SHA-256 hash of public key");
+    }
+    OPENSSL_free(der);
+
+    std::stringstream ss;
+    for (unsigned int i = 0; i < hash_len; ++i) {
+        ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(hash[i]);
+    }
+    return ss.str();
+}
+
+
+EVP_PKEY* Client::LoadKeyFromFile(const std::string& key_file, bool is_private, const std::string& password) {
+    FILE* fp = fopen(key_file.c_str(), "r");
+    if (!fp) {
+        std::cerr << "Error opening key file: " << key_file << std::endl;
+        return nullptr;
+    }
+
+    EVP_PKEY* key = nullptr;
+    if (is_private) {
+        key = PEM_read_PrivateKey(fp, nullptr, nullptr, const_cast<char*>(password.c_str()));
+    } else {
+        key = PEM_read_PUBKEY(fp, nullptr, nullptr, nullptr);
+    }
+    fclose(fp);
+
+    if (!key) {
+        std::cerr << "Error loading key: " << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
+    }
+
+    return key;
 }

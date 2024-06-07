@@ -42,11 +42,13 @@ private:
     void WriteHandler(const boost::system::error_code& error);
     void CloseImpl();
 
-    EVP_PKEY* LoadPrivateKey(const std::string& key_file, const std::string& password);
+    static EVP_PKEY* LoadKeyFromFile(const std::string& key_file, bool is_private, const std::string& password = "");
 
     // Методы для вычисления и проверки контрольной суммы
     std::string CalculateChecksum(const std::string& message);
     bool VerifyChecksum(const std::string& message, const std::string& checksum);
+
+    std::string GetPublicKeyFingerprint(EVP_PKEY* public_key);
 
     boost::asio::io_service& io_service_;
     tcp::socket socket_;
@@ -56,5 +58,4 @@ private:
 
     EVP_PKEY* client_private_key_;
 };
-
 #endif // CLIENT_HPP
