@@ -36,6 +36,10 @@ public:
     static std::vector<unsigned char> EncryptMessage(const std::string& message, EVP_PKEY* public_key);
     static std::string DecryptMessage(const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key);
 
+    // Методы для вычисления и проверки контрольной суммы
+    static std::string CalculateChecksum(const std::string& message);
+    static bool VerifyChecksum(const std::string& message, const std::string& checksum);
+
 private:
     void OnConnect(const boost::system::error_code& error);
     void ReadHandler(const boost::system::error_code& error);
@@ -45,9 +49,6 @@ private:
 
     static EVP_PKEY* LoadKeyFromFile(const std::string& key_file, bool is_private, const std::string& password = "");
 
-    // Методы для вычисления и проверки контрольной суммы
-    std::string CalculateChecksum(const std::string& message);
-    bool VerifyChecksum(const std::string& message, const std::string& checksum);
 
     std::string GetPublicKeyFingerprint(EVP_PKEY* public_key);
 

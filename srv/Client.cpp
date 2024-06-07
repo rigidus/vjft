@@ -42,43 +42,28 @@ void Client::ReadHandler(const boost::system::error_code& error) {
     if (!error) {
         std::string to, checksum, message;
         bool encrypted;
+        if (encrypted) {
+            // Handle decryption
+            // std::vector<unsigned char> encrypted_msg(read_msg_.begin(), read_msg_.end());
+            // try {
+            //     std::string decrypted_msg = Client::DecryptMessage(encrypted_msg, client_private_key_);
+            //     std::string checksum = decrypted_msg.substr(decrypted_msg.size() - SHA256_DIGEST_LENGTH * 2);
+            //     decrypted_msg = decrypted_msg.substr(0, decrypted_msg.size() - SHA256_DIGEST_LENGTH * 2);
 
-        try {
-            std::vector<std::string> keys = {"to", "checksum", "encrypted", "content"};
-            std::map<std::string, std::string> data = Message::unpack(msg_data, keys);
-
-            std::string to = data["to"];
-            std::string checksum = data["checksum"];
-            bool encrypted = data["encrypted"] == "true";
-            std::string message = data["content"];
-
-            if (to.empty() || checksum.empty() || message.empty()) {
-                std::cerr << "Error: Invalid message format: \"" << msg_data << "\"" << std::endl;
-            } else {
-                if (encrypted) {
-                    // Handle decryption
-                    // std::vector<unsigned char> encrypted_msg(read_msg_.begin(), read_msg_.end());
-                    // try {
-                    //     std::string decrypted_msg = Client::DecryptMessage(encrypted_msg, client_private_key_);
-                    //     std::string checksum = decrypted_msg.substr(decrypted_msg.size() - SHA256_DIGEST_LENGTH * 2);
-                    //     decrypted_msg = decrypted_msg.substr(0, decrypted_msg.size() - SHA256_DIGEST_LENGTH * 2);
-
-                    //     if (VerifyChecksum(decrypted_msg, checksum)) {
-                    //         std::cout << "Message received successfully: " << decrypted_msg << std::endl;
-                    //     } else {
-                    //         std::cerr << "Checksum verification failed." << std::endl;
-                    //     }
-                    // } catch (const std::exception& e) {
-                    //     std::cerr << "Decryption error: " << e.what() << std::endl;
-                    // }
-                } else {
-                    std::cout << "To: " << to << "\nChecksum: " << checksum << "\nEncrypted: " << (encrypted ? "true" : "false") << "\nMessage: " << message << std::endl;
-                }
+            //     if (VerifyChecksum(decrypted_msg, checksum)) {
+            //         std::cout << "Message received successfully: " << decrypted_msg << std::endl;
+            //     } else {
+            //         std::cerr << "Checksum verification failed." << std::endl;
+            //     }
+            // } catch (const std::exception& e) {
+            //     std::cerr << "Decryption error: " << e.what() << std::endl;
+            // }
+        } else {
+            std::map<std::string, std::string> data = Message::unpack(msg_data);
+            for (const auto& pair : data) {
+                std::cout << pair.first << ": " << pair.second << std::endl;
             }
-        } catch (const std::exception& e) {
-            std::cerr << "Exception: " << e.what() << std::endl;
         }
-
         boost::asio::async_read(socket_,
                                 boost::asio::buffer(read_msg_, read_msg_.size()),
                                 boost::bind(&Client::ReadHandler, this, _1));
@@ -87,11 +72,11 @@ void Client::ReadHandler(const boost::system::error_code& error) {
     }
 }
 
-
 void Client::WriteImpl(std::array<char, MAX_IP_PACK_SIZE> msg) {
     bool write_in_progress = !write_msgs_.empty();
 
     std::string message(msg.data());
+    std::string length = std::to_string(message.size());
     std::string checksum = CalculateChecksum(message);
     bool encrypted = false;
 
@@ -105,14 +90,9 @@ void Client::WriteImpl(std::array<char, MAX_IP_PACK_SIZE> msg) {
         to = "user<unknown>"; // Если публичный ключ получателя не задан
     }
 
-    // std::string env =
-    //     "to:" + to +
-    //     "|checksum:" + checksum +
-    //     "|encrypted:" + (encrypted ? "true" : "false") +
-    //     "|message:" + message;
-
     std::map<std::string, std::string> data = {
         {"to", to},
+        {"len", length},
         {"checksum", checksum},
         {"encrypted", encrypted ? "true" : "false"},
         {"content", message}

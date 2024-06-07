@@ -37,7 +37,9 @@ int main(int argc, char* argv[]) {
             if (!std::cin.getline(msg.data(), MAX_IP_PACK_SIZE - PADDING - MAX_NICKNAME)) {
                 std::cin.clear(); //clean up error bit and try to finish reading
             }
-            cli.Write(msg);
+            if (strlen(msg.data()) > 0) { // Проверка на пустое сообщение
+                cli.Write(msg);
+            }
         }
 
         // Uncomment the following and comment out the above while(true), for testing purpose
