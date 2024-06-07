@@ -36,25 +36,6 @@ void Client::OnConnect(const boost::system::error_code& error) {
     }
 }
 
-// void Client::ReadHandler(const boost::system::error_code& error) {
-//     std::cout << "\n[[[<<<" << read_msg_.data() << ">>>]]]\n" << std::endl;
-//     if (!error) {
-//         std::vector<unsigned char> encrypted_msg(read_msg_.begin(), read_msg_.end());
-//         try {
-//             std::string decrypted_msg = DecryptMessage(encrypted_msg, client_private_key_);
-//             std::cout << decrypted_msg << std::endl;
-//         } catch (const std::exception& e) {
-//             std::cerr << "Decryption error: " << e.what() << std::endl;
-//         }
-
-//         boost::asio::async_read(socket_,
-//                                 boost::asio::buffer(read_msg_, read_msg_.size()),
-//                                 boost::bind(&Client::ReadHandler, this, _1));
-//     } else {
-//         CloseImpl();
-//     }
-// }
-
 void Client::ReadHandler(const boost::system::error_code& error) {
     std::string msg_data = read_msg_.data();
     std::cout << "\nReadHandler:\"" << msg_data << "\"" << std::endl;
@@ -76,63 +57,28 @@ void Client::ReadHandler(const boost::system::error_code& error) {
             } else {
                 if (encrypted) {
                     // Handle decryption
+                    // std::vector<unsigned char> encrypted_msg(read_msg_.begin(), read_msg_.end());
+                    // try {
+                    //     std::string decrypted_msg = Client::DecryptMessage(encrypted_msg, client_private_key_);
+                    //     std::string checksum = decrypted_msg.substr(decrypted_msg.size() - SHA256_DIGEST_LENGTH * 2);
+                    //     decrypted_msg = decrypted_msg.substr(0, decrypted_msg.size() - SHA256_DIGEST_LENGTH * 2);
+
+                    //     if (VerifyChecksum(decrypted_msg, checksum)) {
+                    //         std::cout << "Message received successfully: " << decrypted_msg << std::endl;
+                    //     } else {
+                    //         std::cerr << "Checksum verification failed." << std::endl;
+                    //     }
+                    // } catch (const std::exception& e) {
+                    //     std::cerr << "Decryption error: " << e.what() << std::endl;
+                    // }
+                } else {
+                    std::cout << "To: " << to << "\nChecksum: " << checksum << "\nEncrypted: " << (encrypted ? "true" : "false") << "\nMessage: " << message << std::endl;
                 }
-                std::cout << "To: " << to << "\nChecksum: " << checksum << "\nEncrypted: " << (encrypted ? "true" : "false") << "\nMessage: " << message << std::endl;
             }
         } catch (const std::exception& e) {
             std::cerr << "Exception: " << e.what() << std::endl;
         }
 
-
-        // Message::unpack(msg_data, to, checksum, encrypted, message);
-
-        // if (to.empty() || checksum.empty() || message.empty()) {
-        //     std::cerr << "Error: Invalid message format: \"" << msg_data << "\"" << std::endl;
-        // } else {
-        //     if (encrypted) {
-        //         // std::vector<unsigned char> encrypted_msg(read_msg_.begin(), read_msg_.end());
-        //         // try {
-        //         //     // std::string decrypted_msg = Client::DecryptMessage(encrypted_msg, client_private_key_);
-        //         //     // std::string checksum = decrypted_msg.substr(decrypted_msg.size() - SHA256_DIGEST_LENGTH * 2);
-        //         //     // decrypted_msg = decrypted_msg.substr(0, decrypted_msg.size() - SHA256_DIGEST_LENGTH * 2);
-
-        //         //     // if (VerifyChecksum(decrypted_msg, checksum)) {
-        //         //     //     std::cout << "Message received successfully: " << decrypted_msg << std::endl;
-        //         //     // } else {
-        //         //     //     std::cerr << "Checksum verification failed." << std::endl;
-        //         //     // }
-
-        //         //     // Используем сообщение напрямую без расшифровки и проверки контрольной суммы
-        //         //     std::cout << "Message received: " << std::string(read_msg_.data()) << std::endl;
-
-        //         // } catch (const std::exception& e) {
-        //         //     std::cerr << "Decryption error: " << e.what() << std::endl;
-        //         // }
-        //     }
-        //     std::cout << "To: " << to << "\nChecksum: " << checksum << "\nEncrypted: " << (encrypted ? "true" : "false") << "\nMessage: " << message << std::endl;
-        // }
-
-        // size_t to_pos = msg_data.find("to:");
-        // size_t checksum_pos = msg_data.find("|checksum:");
-        // size_t encrypted_pos = msg_data.find("|encrypted:");
-        // size_t message_pos = msg_data.find("|message:");
-
-        // if (to_pos == std::string::npos || checksum_pos == std::string::npos ||
-        //     encrypted_pos == std::string::npos || message_pos == std::string::npos) {
-        //     std::cerr << "Error: Invalid message format: \"" << msg_data << "\"" <<std::endl;
-        // } else {
-        //     std::string to = msg_data.substr(to_pos + 3, checksum_pos - to_pos - 3);
-        //     std::string checksum = msg_data.substr(checksum_pos + 9, encrypted_pos - checksum_pos - 9);
-        //     std::string encrypted_str = msg_data.substr(encrypted_pos + 10, message_pos - encrypted_pos - 10);
-        //     bool encrypted = encrypted_str == "true";
-        //     std::string message = msg_data.substr(message_pos + 9);
-
-        //     if (encrypted) {
-        //     }
-
-        //     std::cout << "To: " << to << "\nChecksum: " << checksum << "\nEncrypted: " << (encrypted ? "true" : "false") << "\nMessage: " << message << std::endl;
-
-        // }
         boost::asio::async_read(socket_,
                                 boost::asio::buffer(read_msg_, read_msg_.size()),
                                 boost::bind(&Client::ReadHandler, this, _1));
@@ -153,62 +99,76 @@ void Client::WriteImpl(std::array<char, MAX_IP_PACK_SIZE> msg) {
     std::string to;
     if (!recipient_public_key_files.empty()) {
         EVP_PKEY* recipient_public_key = LoadKeyFromFile(recipient_public_key_files[0], false); // Предполагается, что есть хотя бы один получатель
-        to = "user<" + GetPublicKeyFingerprint(recipient_public_key) + ">";
+        to = GetPublicKeyFingerprint(recipient_public_key);
         EVP_PKEY_free(recipient_public_key);
     } else {
         to = "user<unknown>"; // Если публичный ключ получателя не задан
     }
 
-    std::string env =
-        "to:" + to +
-        "|checksum:" + checksum +
-        "|encrypted:" + (encrypted ? "true" : "false") +
-        "|message:" + message;
+    // std::string env =
+    //     "to:" + to +
+    //     "|checksum:" + checksum +
+    //     "|encrypted:" + (encrypted ? "true" : "false") +
+    //     "|message:" + message;
 
-    // // Зашифровать сообщение для каждого получателя
-    // std::vector<unsigned char> encrypted_msg;
-    // try {
-    //     for (const auto& pubkey_file : recipient_public_key_files) {
-    //         FILE* pubkey_fp = fopen(pubkey_file.c_str(), "r");
-    //         if (!pubkey_fp) {
-    //             std::cerr << "Error opening public key file: " << pubkey_file << std::endl;
-    //             continue;
-    //         }
+    std::map<std::string, std::string> data = {
+        {"to", to},
+        {"checksum", checksum},
+        {"encrypted", encrypted ? "true" : "false"},
+        {"content", message}
+    };
 
-    //         EVP_PKEY* public_key = PEM_read_PUBKEY(pubkey_fp, nullptr, nullptr, nullptr);
-    //         fclose(pubkey_fp);
+    if (encrypted) {
+        // // Зашифровать сообщение для каждого получателя
+        // std::vector<unsigned char> encrypted_msg;
+        // try {
+        //     for (const auto& pubkey_file : recipient_public_key_files) {
+        //         FILE* pubkey_fp = fopen(pubkey_file.c_str(), "r");
+        //         if (!pubkey_fp) {
+        //             std::cerr << "Error opening public key file: " << pubkey_file << std::endl;
+        //             continue;
+        //         }
 
-    //         if (!public_key) {
-    //             std::cerr << "Error loading public key: " << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
-    //             continue;
-    //         }
+        //         EVP_PKEY* public_key = PEM_read_PUBKEY(pubkey_fp, nullptr, nullptr, nullptr);
+        //         fclose(pubkey_fp);
 
-    //         encrypted_msg = Client::EncryptMessage(message, public_key);
-    //         EVP_PKEY_free(public_key);
+        //         if (!public_key) {
+        //             std::cerr << "Error loading public key: " << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
+        //             continue;
+        //         }
 
-    //         // Конвертировать зашифрованное сообщение обратно в std::array<char, MAX_IP_PACK_SIZE>
-    //         if (encrypted_msg.size() > MAX_IP_PACK_SIZE) {
-    //             std::cerr << "Encrypted message is too large to fit in the buffer" << std::endl;
-    //             continue;
-    //         }
-    //         std::array<char, MAX_IP_PACK_SIZE> encrypted_array;
-    //         std::copy(encrypted_msg.begin(), encrypted_msg.end(), encrypted_array.begin());
-    //         write_msgs_.push_back(encrypted_array);
-    //     }
-    // } catch (const std::exception& e) {
-    //     std::cerr << "Encryption error: " << e.what() << std::endl;
-    //     return;
-    // }
+        //         encrypted_msg = Client::EncryptMessage(message, public_key);
+        //         EVP_PKEY_free(public_key);
 
-    // Используем сообщение напрямую без шифрования
-    std::array<char, MAX_IP_PACK_SIZE> plain_array;
-    std::copy(env.begin(), env.end(), plain_array.begin());
-    write_msgs_.push_back(plain_array);
+        //         // Конвертировать зашифрованное сообщение обратно в std::array<char, MAX_IP_PACK_SIZE>
+        //         if (encrypted_msg.size() > MAX_IP_PACK_SIZE) {
+        //             std::cerr << "Encrypted message is too large to fit in the buffer" << std::endl;
+        //             continue;
+        //         }
+        //         std::array<char, MAX_IP_PACK_SIZE> encrypted_array;
+        //         std::copy(encrypted_msg.begin(), encrypted_msg.end(), encrypted_array.begin());
+        //         write_msgs_.push_back(encrypted_array);
+        //     }
+        // } catch (const std::exception& e) {
+        //     std::cerr << "Encryption error: " << e.what() << std::endl;
+        //     return;
+        // }
+    } else {
+        // Используем сообщение напрямую без шифрования
+        std::string packed_message = Message::pack(data);
+        std::array<char, MAX_IP_PACK_SIZE> formatted_msg;
+        std::copy(packed_message.begin(), packed_message.end(), formatted_msg.begin());
+        write_msgs_.push_back(formatted_msg);
 
-    if (!write_in_progress) {
-        boost::asio::async_write(socket_,
-                                 boost::asio::buffer(write_msgs_.front(), write_msgs_.front().size()),
-                                 boost::bind(&Client::WriteHandler, this, _1));
+        // std::array<char, MAX_IP_PACK_SIZE> plain_array;
+        // std::copy(env.begin(), env.end(), plain_array.begin());
+        // write_msgs_.push_back(plain_array);
+
+        if (!write_in_progress) {
+            boost::asio::async_write(socket_,
+                                     boost::asio::buffer(write_msgs_.front(), write_msgs_.front().size()),
+                                     boost::bind(&Client::WriteHandler, this, _1));
+        }
     }
 }
 
