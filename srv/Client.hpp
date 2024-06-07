@@ -13,8 +13,6 @@
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <boost/bind.hpp>
-#include <stdexcept>
-#include <iomanip>
 #include "Protocol.hpp"
 #include "Message.hpp"
 
@@ -46,18 +44,16 @@ private:
     void WriteImpl(std::array<char, MAX_IP_PACK_SIZE> msg);
     void WriteHandler(const boost::system::error_code& error);
     void CloseImpl();
-
     static EVP_PKEY* LoadKeyFromFile(const std::string& key_file, bool is_private, const std::string& password = "");
-
-
     std::string GetPublicKeyFingerprint(EVP_PKEY* public_key);
+    std::vector<unsigned char> SignMessage(const std::string& message, EVP_PKEY* private_key);
+    bool VerifySignature(const std::string& message, const std::vector<unsigned char>& signature, EVP_PKEY* public_key);
 
     boost::asio::io_service& io_service_;
     tcp::socket socket_;
     std::array<char, MAX_IP_PACK_SIZE> read_msg_;
     std::deque<std::array<char, MAX_IP_PACK_SIZE>> write_msgs_;
     std::array<char, MAX_NICKNAME> nickname_;
-
     EVP_PKEY* client_private_key_;
 };
 #endif // CLIENT_HPP

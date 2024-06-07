@@ -1,3 +1,4 @@
+// test_crypto.cpp
 #include "Client.hpp"
 #include <iostream>
 #include <vector>
@@ -26,6 +27,53 @@ EVP_PKEY* LoadKeyFromFile(const std::string& key_file, bool is_private, const st
 
     return key;
 }
+
+// Функция для подписывания сообщения
+std::vector<unsigned char> SignMessage(const std::string& message, EVP_PKEY* private_key) {
+    EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
+    if (EVP_DigestSignInit(mdctx, nullptr, EVP_sha256(), nullptr, private_key) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        throw std::runtime_error("Error initializing signing");
+    }
+
+    if (EVP_DigestSignUpdate(mdctx, message.c_str(), message.size()) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        throw std::runtime_error("Error updating signing");
+    }
+
+    size_t siglen;
+    if (EVP_DigestSignFinal(mdctx, nullptr, &siglen) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        throw std::runtime_error("Error finalizing signing");
+    }
+
+    std::vector<unsigned char> sig(siglen);
+    if (EVP_DigestSignFinal(mdctx, sig.data(), &siglen) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        throw std::runtime_error("Error getting signature");
+    }
+
+    EVP_MD_CTX_free(mdctx);
+    return sig;
+}
+
+// Функция для проверки подписи
+    bool VerifySignature(const std::string& message, const std::vector<unsigned char>& signature, EVP_PKEY* public_key) {
+        EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
+        if (EVP_DigestVerifyInit(mdctx, nullptr, EVP_sha256(), nullptr, public_key) <= 0) {
+            EVP_MD_CTX_free(mdctx);
+            throw std::runtime_error("Error initializing verification");
+        }
+
+        if (EVP_DigestVerifyUpdate(mdctx, message.c_str(), message.size()) <= 0) {
+            EVP_MD_CTX_free(mdctx);
+            throw std::runtime_error("Error updating verification");
+        }
+
+        int ret = EVP_DigestVerifyFinal(mdctx, signature.data(), signature.size());
+        EVP_MD_CTX_free(mdctx);
+        return ret == 1;
+    }
 
 int main() {
     // Загрузка ключей
@@ -58,6 +106,18 @@ int main() {
         return 1;
     }
 
+    // Подписывание сообщения
+    std::vector<unsigned char> signature;
+    try {
+        signature = SignMessage(message, private_key);
+        std::cout << "Message signed successfully." << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Signing error: " << e.what() << std::endl;
+        EVP_PKEY_free(private_key);
+        EVP_PKEY_free(public_key);
+        return 1;
+    }
+
     // Расшифровывание сообщения
     std::string decrypted_message;
     try {
@@ -65,6 +125,20 @@ int main() {
         std::cout << "Message decrypted successfully: " << decrypted_message << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Decryption error: " << e.what() << std::endl;
+        EVP_PKEY_free(private_key);
+        EVP_PKEY_free(public_key);
+        return 1;
+    }
+
+    // Проверка подписи
+    try {
+        if (VerifySignature(decrypted_message, signature, public_key)) {
+            std::cout << "Signature verified successfully." << std::endl;
+        } else {
+            std::cerr << "Signature verification failed." << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Verification error: " << e.what() << std::endl;
         EVP_PKEY_free(private_key);
         EVP_PKEY_free(public_key);
         return 1;

@@ -40,24 +40,30 @@ void Client::ReadHandler(const boost::system::error_code& error) {
     std::string msg_data = read_msg_.data();
     std::cout << "\nReadHandler:\"" << msg_data << "\"" << std::endl;
     if (!error) {
-        std::string to, checksum, message;
+        std::map<std::string, std::string> data = Message::unpack(msg_data);
         bool encrypted;
         if (encrypted) {
-            // Handle decryption
-            // std::vector<unsigned char> encrypted_msg(read_msg_.begin(), read_msg_.end());
-            // try {
-            //     std::string decrypted_msg = Client::DecryptMessage(encrypted_msg, client_private_key_);
-            //     std::string checksum = decrypted_msg.substr(decrypted_msg.size() - SHA256_DIGEST_LENGTH * 2);
-            //     decrypted_msg = decrypted_msg.substr(0, decrypted_msg.size() - SHA256_DIGEST_LENGTH * 2);
-
-            //     if (VerifyChecksum(decrypted_msg, checksum)) {
-            //         std::cout << "Message received successfully: " << decrypted_msg << std::endl;
-            //     } else {
-            //         std::cerr << "Checksum verification failed." << std::endl;
-            //     }
-            // } catch (const std::exception& e) {
-            //     std::cerr << "Decryption error: " << e.what() << std::endl;
-            // }
+            std::string decrypted_message;
+            try {
+                decrypted_message = Client::DecryptMessage(std::vector<unsigned char>(read_msg_.begin(), read_msg_.end()), client_private_key_);
+            } catch (const std::exception& e) {
+                std::cerr << "Decryption error: " << e.what() << std::endl;
+                CloseImpl();
+                return;
+            }
+            std::string signature_str = data["signature"];
+            std::vector<unsigned char> signature(signature_str.begin(), signature_str.end());
+            EVP_PKEY* sender_public_key = LoadKeyFromFile(recipient_public_key_files[0], false);
+            try {
+                if (VerifySignature(decrypted_message, signature, sender_public_key)) {
+                    std::cout << "Signature verified successfully." << std::endl;
+                } else {
+                    std::cerr << "Signature verification failed." << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Verification error: " << e.what() << std::endl;
+            }
+            EVP_PKEY_free(sender_public_key);
         } else {
             std::map<std::string, std::string> data = Message::unpack(msg_data);
             for (const auto& pair : data) {
@@ -98,41 +104,32 @@ void Client::WriteImpl(std::array<char, MAX_IP_PACK_SIZE> msg) {
         {"content", message}
     };
 
+    // Подписывание сообщения
+    std::vector<unsigned char> signature;
+    try {
+        signature = SignMessage(message, client_private_key_);
+        data["signature"] = std::string(signature.begin(), signature.end());
+    } catch (const std::exception& e) {
+        std::cerr << "Signing error: " << e.what() << std::endl;
+        return;
+    }
+
     if (encrypted) {
-        // // Зашифровать сообщение для каждого получателя
-        // std::vector<unsigned char> encrypted_msg;
-        // try {
-        //     for (const auto& pubkey_file : recipient_public_key_files) {
-        //         FILE* pubkey_fp = fopen(pubkey_file.c_str(), "r");
-        //         if (!pubkey_fp) {
-        //             std::cerr << "Error opening public key file: " << pubkey_file << std::endl;
-        //             continue;
-        //         }
-
-        //         EVP_PKEY* public_key = PEM_read_PUBKEY(pubkey_fp, nullptr, nullptr, nullptr);
-        //         fclose(pubkey_fp);
-
-        //         if (!public_key) {
-        //             std::cerr << "Error loading public key: " << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
-        //             continue;
-        //         }
-
-        //         encrypted_msg = Client::EncryptMessage(message, public_key);
-        //         EVP_PKEY_free(public_key);
-
-        //         // Конвертировать зашифрованное сообщение обратно в std::array<char, MAX_IP_PACK_SIZE>
-        //         if (encrypted_msg.size() > MAX_IP_PACK_SIZE) {
-        //             std::cerr << "Encrypted message is too large to fit in the buffer" << std::endl;
-        //             continue;
-        //         }
-        //         std::array<char, MAX_IP_PACK_SIZE> encrypted_array;
-        //         std::copy(encrypted_msg.begin(), encrypted_msg.end(), encrypted_array.begin());
-        //         write_msgs_.push_back(encrypted_array);
-        //     }
-        // } catch (const std::exception& e) {
-        //     std::cerr << "Encryption error: " << e.what() << std::endl;
-        //     return;
-        // }
+        std::vector<unsigned char> encrypted_msg;
+        try {
+            // Зашифровать сообщение для каждого получателя
+            for (const auto& pubkey_file : recipient_public_key_files) {
+                EVP_PKEY* public_key = LoadKeyFromFile(pubkey_file, false);
+                encrypted_msg = Client::EncryptMessage(message, public_key);
+                EVP_PKEY_free(public_key);
+                std::array<char, MAX_IP_PACK_SIZE> encrypted_array;
+                std::copy(encrypted_msg.begin(), encrypted_msg.end(), encrypted_array.begin());
+                write_msgs_.push_back(encrypted_array);
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Encryption error: " << e.what() << std::endl;
+            return;
+        }
     } else {
         // Используем сообщение напрямую без шифрования
         std::string packed_message = Message::pack(data);
@@ -315,4 +312,77 @@ EVP_PKEY* Client::LoadKeyFromFile(const std::string& key_file, bool is_private, 
     }
 
     return key;
+}
+
+
+std::vector<unsigned char> Client::SignMessage(const std::string& message, EVP_PKEY* private_key) {
+    // Создаем контекст для подписи
+    EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
+    if (mdctx == nullptr) {
+        throw std::runtime_error("Failed to create EVP_MD_CTX");
+    }
+
+    // Инициализируем контекст для подписи с использованием алгоритма SHA-256
+    if (EVP_DigestSignInit(mdctx, nullptr, EVP_sha256(), nullptr, private_key) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        throw std::runtime_error("Error initializing signing: " + std::string(ERR_error_string(ERR_get_error(), nullptr)));
+    }
+
+    // Обновляем контекст данными сообщения
+    if (EVP_DigestSignUpdate(mdctx, message.c_str(), message.size()) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        throw std::runtime_error("Error updating signing: " + std::string(ERR_error_string(ERR_get_error(), nullptr)));
+    }
+
+    // Определяем размер подписи
+    size_t siglen;
+    if (EVP_DigestSignFinal(mdctx, nullptr, &siglen) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        throw std::runtime_error("Error finalizing signing: " + std::string(ERR_error_string(ERR_get_error(), nullptr)));
+    }
+
+    // Получаем подпись
+    std::vector<unsigned char> signature(siglen);
+    if (EVP_DigestSignFinal(mdctx, signature.data(), &siglen) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        throw std::runtime_error("Error getting signature: " + std::string(ERR_error_string(ERR_get_error(), nullptr)));
+    }
+
+    // Освобождаем контекст
+    EVP_MD_CTX_free(mdctx);
+
+    // Возвращаем подпись
+    return signature;
+}
+
+
+bool Client::VerifySignature(const std::string& message, const std::vector<unsigned char>& signature, EVP_PKEY* public_key) {
+    // Создаем контекст для проверки подписи
+    EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
+    if (mdctx == nullptr) {
+        throw std::runtime_error("Failed to create EVP_MD_CTX");
+    }
+
+    // Инициализируем контекст для проверки подписи с использованием алгоритма SHA-256
+    if (EVP_DigestVerifyInit(mdctx, nullptr, EVP_sha256(), nullptr, public_key) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        throw std::runtime_error("Error initializing verification: " + std::string(ERR_error_string(ERR_get_error(), nullptr)));
+    }
+
+    // Обновляем контекст данными сообщения
+    if (EVP_DigestVerifyUpdate(mdctx, message.c_str(), message.size()) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        throw std::runtime_error("Error updating verification: " + std::string(ERR_error_string(ERR_get_error(), nullptr)));
+    }
+
+    // Проверяем подпись
+    int ret = EVP_DigestVerifyFinal(mdctx, signature.data(), signature.size());
+    EVP_MD_CTX_free(mdctx);
+
+    if (ret < 0) {
+        throw std::runtime_error("Error finalizing verification: " + std::string(ERR_error_string(ERR_get_error(), nullptr)));
+    }
+
+    // Возвращаем true, если подпись верна, иначе false
+    return ret == 1;
 }
