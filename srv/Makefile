@@ -17,13 +17,13 @@ test_crypto: test_crypto.o Client.o Message.o
 MainServer.o: MainServer.cpp WorkerThread.hpp Server.hpp PersonInRoom.hpp ChatRoom.hpp Participant.hpp Protocol.hpp
 	$(CXX) $(CXXFLAGS) -c MainServer.cpp
 
-Server.o: Server.cpp Server.hpp PersonInRoom.hpp ChatRoom.hpp Participant.hpp
+Server.o: Server.cpp Server.hpp PersonInRoom.hpp ChatRoom.hpp Participant.hpp Protocol.hpp
 	$(CXX) $(CXXFLAGS) -c Server.cpp
 
 PersonInRoom.o: PersonInRoom.cpp PersonInRoom.hpp ChatRoom.hpp Participant.hpp Protocol.hpp
 	$(CXX) $(CXXFLAGS) -c PersonInRoom.cpp
 
-ChatRoom.o: ChatRoom.cpp ChatRoom.hpp Participant.hpp Protocol.hpp Utils.hpp Message.hpp
+ChatRoom.o: ChatRoom.cpp ChatRoom.hpp Participant.hpp Utils.hpp Message.hpp Protocol.hpp
 	$(CXX) $(CXXFLAGS) -c ChatRoom.cpp
 
 WorkerThread.o: WorkerThread.cpp WorkerThread.hpp

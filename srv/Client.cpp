@@ -16,6 +16,9 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
     std::cout << "Enter password for private key: ";
     std::cin >> password;
     client_private_key_ = LoadKeyFromFile(client_private_key_file, true, password);
+    if (!client_private_key_) {
+        abort();
+    }
 
     // Загружаем публичные ключи получателей
     if (!recipient_public_key_files.empty()) {
@@ -166,26 +169,44 @@ void Client::WriteImpl(std::array<char, MAX_IP_PACK_SIZE> msg) {
     }
 
     std::string packed_message = Message::pack(data);
+
+    // Проверка длины упакованного сообщения
+    if (packed_message.size() > MAX_IP_PACK_SIZE) {
+        // TODO: тут нужно разбивать сообщение на блоки, шифровать их по отдельности,
+        // нумеровать и отправлять в сокет, но пока мы просто не отправляем
+        std::cerr << "Error: Message is too large to fit in the buffer" << std::endl;
+        return;
+    }
+
     std::array<char, MAX_IP_PACK_SIZE> formatted_msg;
     std::copy(packed_message.begin(), packed_message.end(), formatted_msg.begin());
     write_msgs_.push_back(formatted_msg);
 
+    // Если в данный момент запись не идет, инициируется асинхронная запись
+    // сообщения в сокет. Когда асинхронная запись завершится, вызывается
+    // функция-обработчик WriteHandler. Она проверит есть ли еще что-то
+    // в очереди, и если есть - отправит сообщения асинхронно.
     if (!write_in_progress) {
-        boost::asio::async_write(socket_,
-                                 boost::asio::buffer(write_msgs_.front(), write_msgs_.front().size()),
-                                 boost::bind(&Client::WriteHandler, this, _1));
+        boost::asio::async_write(
+            socket_,
+            boost::asio::buffer(write_msgs_.front(), write_msgs_.front().size()),
+            boost::bind(&Client::WriteHandler, this, _1));
     }
 
-    std::cout << "\nClient::WriteImplEnd";
+    std::cout << "Client::WriteImplEnd" << std::endl;
 }
 
 void Client::WriteHandler(const boost::system::error_code& error) {
     if (!error) {
+        // Удаляем только что отправленное сообщение из очереди
         write_msgs_.pop_front();
+        // Если очередь не пуста, инициируем новую асинхронную
+        // запись следующего сообщения в сокет.
         if (!write_msgs_.empty()) {
-            boost::asio::async_write(socket_,
-                                     boost::asio::buffer(write_msgs_.front(), write_msgs_.front().size()),
-                                     boost::bind(&Client::WriteHandler, this, _1));
+            boost::asio::async_write(
+                socket_,
+                boost::asio::buffer(write_msgs_.front(), write_msgs_.front().size()),
+                boost::bind(&Client::WriteHandler, this, _1));
         }
     } else {
         CloseImpl();
@@ -375,10 +396,12 @@ EVP_PKEY* Client::LoadKeyFromFile(const std::string& key_file, bool is_private,
     if (!key) {
         std::cerr << "Error loading key: "
                   << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
+        return nullptr;
     }
 
     return key;
-    // TODO: Надо освобождать ключи с помощью EVP_PKEY_free(key);
+    // TODO: Надо освобождать (если удалось загрузить) ключи
+    // с помощью EVP_PKEY_free(key);
 }
 
 

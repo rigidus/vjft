@@ -1,3 +1,6 @@
+#+STARTUP: showall indent hidestars
+#+TOC: headlines 3
+
 * Key generation
 
 ** Client
@@ -37,4 +40,5 @@ Enjoy
 
 * Todo List
 
-signature
+- signature
+- autoupdate
