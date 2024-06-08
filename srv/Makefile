@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++11  -DBOOST_BIND_GLOBAL_PLACEHOLDERS -I.
+CXXFLAGS = -std=c++17  -DBOOST_BIND_GLOBAL_PLACEHOLDERS -I.
 
 TARGETS = chat_server chat_client test_crypto
 

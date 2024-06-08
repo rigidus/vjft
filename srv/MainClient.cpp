@@ -9,7 +9,7 @@ using boost::asio::ip::tcp;
 
 int main(int argc, char* argv[]) {
     try {
-        if (argc < 5) { // Изменено для проверки количества аргументов
+        if (argc < 5) {
             std::cerr << "Usage: chat_client <nickname> <host> <port> <client_priv_key_file> <recipient_pub_key_file_1> [<recipient_pub_key_file_2> ...]\n";
             return 1;
         }
@@ -37,6 +37,7 @@ int main(int argc, char* argv[]) {
             if (!std::cin.getline(msg.data(), MAX_IP_PACK_SIZE - PADDING - MAX_NICKNAME)) {
                 std::cin.clear(); //clean up error bit and try to finish reading
             }
+            std::cout << "\nMainClient::main(): Msg.data size: " << strlen(msg.data());
             if (strlen(msg.data()) > 0) { // Проверка на пустое сообщение
                 cli.Write(msg);
             }
