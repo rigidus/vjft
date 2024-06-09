@@ -247,9 +247,10 @@ std::string Client::GetPubKeyFingerprint(EVP_PKEY* public_key) {
     return ss.str();
 }
 
+#define _CHUNK_SIZE 127
 
 std::vector<std::string> splitString(
-    const std::string& input, std::size_t chunk_size = 400)
+    const std::string& input, std::size_t chunk_size)
 {
     std::vector<std::string> chunks;
     std::size_t length = input.size();
@@ -261,11 +262,15 @@ std::vector<std::string> splitString(
     return chunks;
 }
 
+#define _BLOCK_SIZE 512
 
-std::string joinChunks(const std::vector<std::string>& chunks) {
-    std::string result;
+std::string joinChunks(
+    const std::vector<std::string>& chunks, std::size_t original_size) {
+    std::string result = "";
     for (const auto& chunk : chunks) {
-        result += chunk;
+        std::string subchunk = chunk;
+        subchunk.resize(original_size);
+        result += subchunk;
     }
     return result;
 }
@@ -327,8 +332,8 @@ std::optional<std::vector<unsigned char>> Client::EncryptChunk(
 std::optional<std::vector<unsigned char>> Client::EncryptMessage(
     const std::string& message, EVP_PKEY* public_key)
 {
-
-    std::vector<std::string> chunks = splitString(message);
+    // Разбиваем по _CHUNK_SIZE байт, т.к. нужно оставить место на padding
+    std::vector<std::string> chunks = splitString(message, _CHUNK_SIZE);
     std::vector<std::string> chunks_enc;
 
     std::cout << "Total chunks: " << chunks.size() << std::endl;
@@ -341,6 +346,7 @@ std::optional<std::vector<unsigned char>> Client::EncryptMessage(
         if (out) {
             std::vector<unsigned char> out_vec = *out;
             std::string out_str = std::string(out_vec.begin(), out_vec.end());
+            std::cerr << "out_str: " << out_str.size() << std::endl;
             chunks_enc.push_back(out_str);
         } else {
             std::cerr << "Encryption of chunk failed." << std::endl;
@@ -348,7 +354,7 @@ std::optional<std::vector<unsigned char>> Client::EncryptMessage(
         }
     }
 
-    std::string encrypted_message = joinChunks(chunks_enc);
+    std::string encrypted_message = joinChunks(chunks_enc, _BLOCK_SIZE);
 
     std::vector<unsigned char> ret(encrypted_message.begin(), encrypted_message.end());
 
@@ -415,7 +421,7 @@ std::optional<std::string> Client::DecryptMessage(
     const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key)
 {
     std::string encrypted_str(encrypted_message.begin(), encrypted_message.end());
-    std::vector<std::string> encrypted_chunks = splitString(encrypted_str, 512);
+    std::vector<std::string> encrypted_chunks = splitString(encrypted_str, _BLOCK_SIZE);
     std::vector<std::string> decrypted_chunks;
 
     for (const auto& chunk : encrypted_chunks) {
@@ -433,7 +439,7 @@ std::optional<std::string> Client::DecryptMessage(
         }
     }
 
-    std::string decrypted_message = joinChunks(decrypted_chunks);
+    std::string decrypted_message = joinChunks(decrypted_chunks, _CHUNK_SIZE);
     return decrypted_message;
 }
 
