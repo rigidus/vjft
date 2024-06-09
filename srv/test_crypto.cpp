@@ -4,17 +4,10 @@
 
 bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key) {
     std::string original_message = "This is a test message.";
-    std::string checksum;
-    std::map<std::string, std::string> data;
-    std::string packed_message;
-    std::optional<std::vector<unsigned char>> encrypted_optional;
-    std::vector<unsigned char> encrypted_message;
-    std::string base64_encrypted_message;
-    std::map<std::string, std::string> envelope;
     bool result = false;
 
     // Контрольная сумма сообщения
-    checksum = Client::CalculateChecksum(original_message);
+    std::string checksum = Client::CalculateChecksum(original_message);
 
     // Подписание сообщения
     std::string signature = "";
@@ -25,7 +18,7 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key) {
     signature = Client::Base64Encode(*optSign);
 
     // Упаковка сообщения
-    data = {
+    std::map<std::string, std::string> data = {
         {"crc", checksum},
         {"msg", original_message},
         {"sign", signature}
@@ -33,20 +26,21 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key) {
     for (const auto& pair : data) { // dbgout
         std::cout << "\n" << pair.first << ": " << pair.second << std::endl;
     }
-    packed_message = Message::pack(data);
+    std::string packed_message = Message::pack(data);
     std::cout << "\n" << "packed_message: " << packed_message << std::endl; // dbgout
 
     // Шифрование упакованного сообщения
-    encrypted_optional = Client::EncryptMessage(packed_message, public_key);
+    std::optional<std::vector<unsigned char>> encrypted_optional =
+        Client::EncryptMessage(packed_message, public_key);
     if (!(encrypted_optional)) {
         std::cerr << "Error: Encryption Failed" << std::endl;
         return result;
     }
-    encrypted_message = *encrypted_optional;
+    std::vector<unsigned char> encrypted_message = *encrypted_optional;
 
-    base64_encrypted_message = Client::Base64Encode(encrypted_message);
+    std::string base64_encrypted_message = Client::Base64Encode(encrypted_message);
 
-    envelope = {
+    std::map<std::string, std::string> envelope = {
         {"beem", base64_encrypted_message}
     };
 
@@ -55,7 +49,6 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key) {
     }
 
     // ------------------------
-
 
     // Декодирование из Base64
     std::vector<unsigned char> decoded_message =
@@ -73,8 +66,8 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key) {
 
     // Распаковка сообщения
     std::map<std::string, std::string> unpacked_data = Message::unpack(decrypted_message);
-    for (const auto& pair : data) { // dbgout
-        std::cout << "\n" << pair.first << ": " << pair.second << std::endl;
+    for (const auto& pair : unpacked_data) { // dbgout
+        std::cout << "\n%" << pair.first << ": " << pair.second << std::endl;
     }
 
     // Проверка контрольной суммы
@@ -86,20 +79,20 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key) {
     }
 
     // Проверка подписи
-    std::vector<unsigned char> unpacked_signature =
-        Client::Base64Decode(unpacked_data["sign"]);
-    std::cout << "Original Signature: "
-              << Client::Base64Encode(*optSign) << std::endl;
-    std::cout << "Unpacked Signature: "
-              << Client::Base64Encode(unpacked_signature) << std::endl;
-    if (*optSign == unpacked_signature) {
-        std::cerr << "Signature equ!!!" << std::endl;
-    } else {
-        std::cerr << "sign1: " << unpacked_data["sign"] << std::endl;
-        std::cerr << "sign2: " << signature << std::endl;
+    std::string unpacked_signature = unpacked_data["sign"];
 
+    // std::vector<unsigned char> unpacked_signature =
+    //     Client::Base64Decode(unpacked_data["sign"]);
+    std::cout << "Original Signature: " << signature << std::endl;
+    std::cout << "Unpacked Signature: " << unpacked_signature << std::endl;
+    if (signature != unpacked_signature) {
+        std::cerr << "Signature NOT EQU" << std::endl;
+        return result;
     }
-    if (!Client::VerifySignature(unpacked_message, unpacked_signature, public_key)) {
+    std::cerr << "Signature EQU" << std::endl;
+
+    if (!Client::VerifySignature(
+            unpacked_message, Client::Base64Decode(unpacked_signature), public_key)) {
         std::cerr << "Error: Signature verification failed" << std::endl;
         return result;
     }
@@ -107,7 +100,7 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key) {
     // Если все проверки прошли успешно
     result = (original_message == unpacked_message);
 
-    std::cout << "\nTest Full Sequence: " << std::endl;
+    std::cout << "\nTest Full Sequence End" << std::endl;
 
     return result;
 }
