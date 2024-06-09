@@ -59,39 +59,39 @@ void Client::ReadHandler(const boost::system::error_code& error) {
 
         bool encrypted = true;
         if (encrypted) {
-            std::string decoded_content, decrypted_message, signature_str;
-            std::vector<unsigned char> decoded_message, signature;
+            // std::string decoded_content, decrypted_message, signature_str;
+            // std::vector<unsigned char> decoded_message, signature;
 
-                decoded_message = Base64Decode(data["content"]);
-                decrypted_message =
-                    Client::DecryptMessage(decoded_message, client_private_key_);
-                if (decrypted_message.empty()) {
-                    std::cerr << "Decryption error: " << std::endl;
-                }
+            //     decoded_message = Base64Decode(data["content"]);
+            //     decrypted_message =
+            //         Client::DecryptMessage(decoded_message, client_private_key_);
+            //     if (decrypted_message.empty()) {
+            //         std::cerr << "Decryption error: " << std::endl;
+            //     }
 
-            if (CalculateChecksum(decrypted_message) != data["checksum"]) {
-                std::cerr << "Checksum verification failed." << std::endl;
-            }
+            // if (CalculateChecksum(decrypted_message) != data["checksum"]) {
+            //     std::cerr << "Checksum verification failed." << std::endl;
+            // }
 
-            for (const auto& pair : data) {
-                std::cout << pair.first << ": " << pair.second << std::endl;
-            }
+            // for (const auto& pair : data) {
+            //     std::cout << pair.first << ": " << pair.second << std::endl;
+            // }
 
-            signature_str = data["signature"];
-            signature =
-                std::vector<unsigned char>(signature_str.begin(), signature_str.end());
-            // TODO:заменить на выбор пабкея и убрать освобождение ключа
-            // PubKey выбирать по его фингерпринту!
-            EVP_PKEY* sender_public_key =
-                LoadKeyFromFile(recipient_public_key_files[0], false);
+            // signature_str = data["signature"];
+            // signature =
+            //     std::vector<unsigned char>(signature_str.begin(), signature_str.end());
+            // // TODO:заменить на выбор пабкея и убрать освобождение ключа
+            // // PubKey выбирать по его фингерпринту!
+            // EVP_PKEY* sender_public_key =
+            //     LoadKeyFromFile(recipient_public_key_files[0], false);
 
-            if (!VerifySignature(decrypted_message, signature, sender_public_key)) {
-                std::cerr << "Signature verification failed." << std::endl;
-            }
-            EVP_PKEY_free(sender_public_key);
+            // if (!VerifySignature(decrypted_message, signature, sender_public_key)) {
+            //     std::cerr << "Signature verification failed." << std::endl;
+            // }
+            // EVP_PKEY_free(sender_public_key);
 
-            std::cout << "Message received successfully: " << decrypted_message
-                      << std::endl;
+            // std::cout << "Message received successfully: " << decrypted_message
+            //           << std::endl;
         } else {
             std::map<std::string, std::string> data = Message::unpack(msg_data);
             for (const auto& pair : data) {
@@ -247,7 +247,30 @@ std::string Client::GetPubKeyFingerprint(EVP_PKEY* public_key) {
 }
 
 
-std::optional<std::vector<unsigned char>> Client::EncryptMessage(
+std::vector<std::string> splitString(
+    const std::string& input, std::size_t chunk_size = 400)
+{
+    std::vector<std::string> chunks;
+    std::size_t length = input.size();
+
+    for (std::size_t i = 0; i < length; i += chunk_size) {
+        chunks.push_back(input.substr(i, chunk_size));
+    }
+
+    return chunks;
+}
+
+
+std::string joinChunks(const std::vector<std::string>& chunks) {
+    std::string result;
+    for (const auto& chunk : chunks) {
+        result += chunk;
+    }
+    return result;
+}
+
+
+std::optional<std::vector<unsigned char>> Client::EncryptChunk(
     const std::string& message, EVP_PKEY* public_key)
 {
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(public_key, nullptr);
@@ -281,17 +304,105 @@ std::optional<std::vector<unsigned char>> Client::EncryptMessage(
         return std::nullopt;
     }
 
+    std::cout << "Outlen: " << outlen << std::endl;
+
     std::vector<unsigned char> out(outlen);
-    if (EVP_PKEY_encrypt(
-            ctx, out.data(), &outlen,
-            reinterpret_cast<const unsigned char*>(message.c_str()), message.size())
-        <= 0)
-    {
+    int encrypt_status = EVP_PKEY_encrypt(
+        ctx, out.data(), &outlen,
+        reinterpret_cast<const unsigned char*>(message.c_str()), message.size());
+    if (encrypt_status <= 0) {
         EVP_PKEY_CTX_free(ctx);
         std::cerr << "EncryptMessage error: "
-                  << "Error encrypting message" << std::endl;
+                  << "Error encrypting message: " << encrypt_status
+                  << std::endl;
+        ERR_print_errors_fp(stderr);
         return std::nullopt;
+    }
 
+    EVP_PKEY_CTX_free(ctx);
+    return out;
+}
+
+std::optional<std::vector<unsigned char>> Client::EncryptMessage(
+    const std::string& message, EVP_PKEY* public_key)
+{
+
+    std::vector<std::string> chunks = splitString(message);
+    std::vector<std::string> chunks_enc;
+
+    std::cout << "Total chunks: " << chunks.size() << std::endl;
+    for (const auto& chunk : chunks) {
+        std::cout << "Chunk (" << chunk.size() << " bytes): " << chunk << std::endl;
+
+        std::optional<std::vector<unsigned char>> out =
+            EncryptChunk(chunk, public_key);
+
+        if (out) {
+            std::vector<unsigned char> out_vec = *out;
+            std::string out_str = std::string(out_vec.begin(), out_vec.end());
+            chunks_enc.push_back(out_str);
+        } else {
+            std::cerr << "Encryption of chunk failed." << std::endl;
+            return std::nullopt;
+        }
+    }
+
+    std::string encrypted_message = joinChunks(chunks_enc);
+
+    std::vector<unsigned char> ret(encrypted_message.begin(), encrypted_message.end());
+
+    return ret;
+}
+
+
+std::optional<std::vector<unsigned char>> Client::DecryptChunk(
+    const std::vector<unsigned char>& encrypted_chunk, EVP_PKEY* private_key)
+{
+    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(private_key, nullptr);
+    if (!ctx) {
+        std::cerr << "DecryptChunk error: "
+                  << "Error creating context for decryption" << std::endl;
+        ERR_print_errors_fp(stderr);
+        return std::nullopt;
+    }
+
+    if (EVP_PKEY_decrypt_init(ctx) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        std::cerr << "DecryptChunk error: "
+                  << "Error initializing decryption" << std::endl;
+        ERR_print_errors_fp(stderr);
+        return std::nullopt;
+    }
+
+    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        std::cerr << "DecryptChunk error: "
+                  << "Error setting RSA padding" << std::endl;
+        ERR_print_errors_fp(stderr);
+        return std::nullopt;
+    }
+
+    size_t outlen;
+    if (EVP_PKEY_decrypt(ctx, nullptr, &outlen,
+                         encrypted_chunk.data(), encrypted_chunk.size()) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        std::cerr << "DecryptChunk error: "
+                  << "Error determining buffer length for decryption" << std::endl;
+        ERR_print_errors_fp(stderr);
+        return std::nullopt;
+    }
+
+    std::vector<unsigned char> out(outlen);
+    int decrypt_status = EVP_PKEY_decrypt(
+        ctx, out.data(), &outlen,
+        encrypted_chunk.data(), encrypted_chunk.size());
+    if (decrypt_status <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        std::cerr << "DecryptChunk error: "
+                  << "Error decrypting chunk: " << decrypt_status
+                  << std::endl;
+        ERR_print_errors_fp(stderr);
+        return std::nullopt;
     }
 
     EVP_PKEY_CTX_free(ctx);
@@ -299,42 +410,68 @@ std::optional<std::vector<unsigned char>> Client::EncryptMessage(
 }
 
 
-std::string Client::DecryptMessage(const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key) {
-    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(private_key, nullptr);
-    if (!ctx) {
-        std::cout << "Error creating context for decryption" << std::endl;
-        return "";
+std::optional<std::string> Client::DecryptMessage(
+    const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key)
+{
+    std::string encrypted_str(encrypted_message.begin(), encrypted_message.end());
+    std::vector<std::string> encrypted_chunks = splitString(encrypted_str, 512);
+    std::vector<std::string> decrypted_chunks;
+
+    for (const auto& chunk : encrypted_chunks) {
+        std::vector<unsigned char> chunk_vec(chunk.begin(), chunk.end());
+        std::optional<std::vector<unsigned char>> decrypted_chunk =
+            DecryptChunk(chunk_vec, private_key);
+
+        if (decrypted_chunk) {
+            std::vector<unsigned char> decrypted_vec = *decrypted_chunk;
+            std::string decrypted_str(decrypted_vec.begin(), decrypted_vec.end());
+            decrypted_chunks.push_back(decrypted_str);
+        } else {
+            std::cerr << "Decryption of chunk failed." << std::endl;
+            return std::nullopt;
+        }
     }
 
-    if (EVP_PKEY_decrypt_init(ctx) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cout << "Error initializing decryption" << std::endl;
-        return "";
-    }
-
-    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cout << "Error setting RSA padding" << std::endl;
-        return "";
-    }
-
-    size_t outlen;
-    if (EVP_PKEY_decrypt(ctx, nullptr, &outlen, encrypted_message.data(), encrypted_message.size()) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cout << "Error determining buffer length for decryption" << std::endl;
-        return "";
-    }
-
-    std::vector<unsigned char> out(outlen);
-    if (EVP_PKEY_decrypt(ctx, out.data(), &outlen, encrypted_message.data(), encrypted_message.size()) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cout << "Error decrypting message" << std::endl;
-        return "";
-    }
-
-    EVP_PKEY_CTX_free(ctx);
-    return std::string(out.begin(), out.begin() + outlen);
+    std::string decrypted_message = joinChunks(decrypted_chunks);
+    return decrypted_message;
 }
+
+// std::string Client::DecryptMessage(const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key) {
+//     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(private_key, nullptr);
+//     if (!ctx) {
+//         std::cout << "Error creating context for decryption" << std::endl;
+//         return "";
+//     }
+
+//     if (EVP_PKEY_decrypt_init(ctx) <= 0) {
+//         EVP_PKEY_CTX_free(ctx);
+//         std::cout << "Error initializing decryption" << std::endl;
+//         return "";
+//     }
+
+//     if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
+//         EVP_PKEY_CTX_free(ctx);
+//         std::cout << "Error setting RSA padding" << std::endl;
+//         return "";
+//     }
+
+//     size_t outlen;
+//     if (EVP_PKEY_decrypt(ctx, nullptr, &outlen, encrypted_message.data(), encrypted_message.size()) <= 0) {
+//         EVP_PKEY_CTX_free(ctx);
+//         std::cout << "Error determining buffer length for decryption" << std::endl;
+//         return "";
+//     }
+
+//     std::vector<unsigned char> out(outlen);
+//     if (EVP_PKEY_decrypt(ctx, out.data(), &outlen, encrypted_message.data(), encrypted_message.size()) <= 0) {
+//         EVP_PKEY_CTX_free(ctx);
+//         std::cout << "Error decrypting message" << std::endl;
+//         return "";
+//     }
+
+//     EVP_PKEY_CTX_free(ctx);
+//     return std::string(out.begin(), out.begin() + outlen);
+// }
 
 
 std::string Client::CalculateChecksum(const std::string& message) {

@@ -38,7 +38,7 @@ Client.o: Client.cpp Client.hpp Protocol.hpp
 Message.o: Message.cpp Message.hpp
 	$(CXX) $(CXXFLAGS) -c Message.cpp
 
-test_crypto.o: test_crypto.cpp Client.hpp
+test_crypto.o: test_crypto.cpp test_crypto.hpp Client.hpp
 	$(CXX) $(CXXFLAGS) -c test_crypto.cpp
 
 .PHONY: clean

@@ -3,18 +3,22 @@
 
 * Key generation
 
+First, you should generate the keys. We use keys of size 4096 because this affects the size of the message block that can be encrypted in one go.
+
+Of course you should use a stronger password for the key.
+
 ** Client
 
 #+BEGIN_SRC sh
-  openssl genpkey -algorithm RSA -out client_private_key.pem -aes256 -pass pass:mypassword123
-  openssl rsa -pubout -in client_private_key.pem -out client_public_key.pem -passin pass:mypassword123
+  openssl genpkey -algorithm RSA -out client_private_key.pem -pkeyopt rsa_keygen_bits:4096 -aes256 -pass pass:qwe123
+  openssl rsa -pubout -in client_private_key.pem -out client_public_key.pem -passin pass:qwe123
 #+END_SRC
 
 ** Recipient
 
 #+BEGIN_SRC sh
-  openssl genpkey -algorithm RSA -out recipient_private_key.pem -aes256 -pass pass:mypassword123
-  openssl rsa -pubout -in recipient_private_key.pem -out recipient_public_key.pem -passin pass:mypassword123
+  openssl genpkey -algorithm RSA -out recipient_private_key.pem -pkeyopt rsa_keygen_bits:4096 -aes256 -pass pass:qwe123
+  openssl rsa -pubout -in recipient_private_key.pem -out recipient_public_key.pem -passin pass:qwe123
 #+END_SRC
 
 * Start server
@@ -42,3 +46,7 @@ Enjoy
 
 - signature
 - autoupdate
+- screensharing
+- videochat
+- websocket
+- auth on server (avoid spam)

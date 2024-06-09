@@ -35,15 +35,37 @@ public:
     void Write(const std::array<char, MAX_IP_PACK_SIZE>& msg);
     void Close();
 
+    // Метод для загрузки ключей из файла и получения fingerprint
+    static EVP_PKEY* LoadKeyFromFile(
+        const std::string& key_file, bool is_private, const std::string& password = "");
+    static std::string GetPubKeyFingerprint(EVP_PKEY* public_key);
+
     // Методы для шифрования и рассшифровывания сообщения
+    static std::optional<std::vector<unsigned char>> EncryptChunk(
+        const std::string& message, EVP_PKEY* public_key);
     static std::optional<std::vector<unsigned char>> EncryptMessage(
         const std::string& message, EVP_PKEY* public_key);
-    static std::string DecryptMessage(
+    static std::optional<std::vector<unsigned char>> DecryptChunk(
+        const std::vector<unsigned char>& encrypted_chunk, EVP_PKEY* private_key);
+    static std::optional<std::string> DecryptMessage(
         const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key);
+    // static std::string DecryptMessage(
+    //     const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key);
 
     // Методы для вычисления и проверки контрольной суммы
     static std::string CalculateChecksum(const std::string& message);
     static bool VerifyChecksum(const std::string& message, const std::string& checksum);
+
+    // Методы для кодирования и декодирования в base64
+    static std::string Base64Encode(const std::vector<unsigned char>& buffer);
+    static std::vector<unsigned char> Base64Decode(const std::string& encoded);
+
+    // Методы для подписания сообщения и проверки подписи
+    static std::optional<std::vector<unsigned char>> SignMsg(
+        const std::string& message, EVP_PKEY* private_key);
+    static bool VerifySignature(
+        const std::string& message, const std::vector<unsigned char>& signature,
+        EVP_PKEY* public_key);
 
 private:
     void OnConnect(const boost::system::error_code& error);
@@ -51,16 +73,6 @@ private:
     void WriteImpl(std::array<char, MAX_IP_PACK_SIZE> msg);
     void WriteHandler(const boost::system::error_code& error);
     void CloseImpl();
-    static EVP_PKEY* LoadKeyFromFile(
-        const std::string& key_file, bool is_private, const std::string& password = "");
-    std::string GetPubKeyFingerprint(EVP_PKEY* public_key);
-    std::optional<std::vector<unsigned char>> SignMsg(
-        const std::string& message, EVP_PKEY* private_key);
-    bool VerifySignature(
-        const std::string& message, const std::vector<unsigned char>& signature,
-        EVP_PKEY* public_key);
-    std::string Base64Encode(const std::vector<unsigned char>& buffer);
-    std::vector<unsigned char> Base64Decode(const std::string& encoded);
 
     boost::asio::io_service& io_service_;
     tcp::socket socket_;
