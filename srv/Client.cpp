@@ -59,6 +59,7 @@ void Client::ReadHandler(const boost::system::error_code& error) {
 
         bool encrypted = true;
         if (encrypted) {
+            // TODO: bugfix
             // std::string decoded_content, decrypted_message, signature_str;
             // std::vector<unsigned char> decoded_message, signature;
 
@@ -435,43 +436,6 @@ std::optional<std::string> Client::DecryptMessage(
     std::string decrypted_message = joinChunks(decrypted_chunks);
     return decrypted_message;
 }
-
-// std::string Client::DecryptMessage(const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key) {
-//     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(private_key, nullptr);
-//     if (!ctx) {
-//         std::cout << "Error creating context for decryption" << std::endl;
-//         return "";
-//     }
-
-//     if (EVP_PKEY_decrypt_init(ctx) <= 0) {
-//         EVP_PKEY_CTX_free(ctx);
-//         std::cout << "Error initializing decryption" << std::endl;
-//         return "";
-//     }
-
-//     if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
-//         EVP_PKEY_CTX_free(ctx);
-//         std::cout << "Error setting RSA padding" << std::endl;
-//         return "";
-//     }
-
-//     size_t outlen;
-//     if (EVP_PKEY_decrypt(ctx, nullptr, &outlen, encrypted_message.data(), encrypted_message.size()) <= 0) {
-//         EVP_PKEY_CTX_free(ctx);
-//         std::cout << "Error determining buffer length for decryption" << std::endl;
-//         return "";
-//     }
-
-//     std::vector<unsigned char> out(outlen);
-//     if (EVP_PKEY_decrypt(ctx, out.data(), &outlen, encrypted_message.data(), encrypted_message.size()) <= 0) {
-//         EVP_PKEY_CTX_free(ctx);
-//         std::cout << "Error decrypting message" << std::endl;
-//         return "";
-//     }
-
-//     EVP_PKEY_CTX_free(ctx);
-//     return std::string(out.begin(), out.begin() + outlen);
-// }
 
 
 std::string Client::CalculateChecksum(const std::string& message) {
