@@ -38,12 +38,15 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key) {
     }
     std::vector<unsigned char> encrypted_message = *encrypted_optional;
 
+    // Base64-кодирование упакованного сообщения
     std::string base64_encrypted_message = Client::Base64Encode(encrypted_message);
 
+    // Помещаем base64 в хэшмпап-конверт для удобства
     std::map<std::string, std::string> envelope = {
         {"beem", base64_encrypted_message}
     };
 
+    // И выводим для отладки
     for (const auto& pair : envelope) { // dbgout
         std::cout << "\n" << pair.first << ": " << pair.second << std::endl;
     }
@@ -62,6 +65,7 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key) {
     }
     std::string decrypted_message = *decrypted_optional;
 
+    // Отладочный вывод
     std::cout << "\ndecrypted_message: " << decrypted_message << std::endl;
 
     // Распаковка сообщения
@@ -78,11 +82,8 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key) {
         return result;
     }
 
-    // Проверка подписи
+    // Проверка что подпись после расшифровки совпадает
     std::string unpacked_signature = unpacked_data["sign"];
-
-    // std::vector<unsigned char> unpacked_signature =
-    //     Client::Base64Decode(unpacked_data["sign"]);
     std::cout << "Original Signature: " << signature << std::endl;
     std::cout << "Unpacked Signature: " << unpacked_signature << std::endl;
     if (signature != unpacked_signature) {
@@ -91,16 +92,17 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key) {
     }
     std::cerr << "Signature EQU" << std::endl;
 
+    // Криптографическая проверка подписи
     if (!Client::VerifySignature(
             unpacked_message, Client::Base64Decode(unpacked_signature), public_key)) {
         std::cerr << "Error: Signature verification failed" << std::endl;
         return result;
     }
 
-    // Если все проверки прошли успешно
+    // Если все проверки прошли успешно и сообщения равны
     result = (original_message == unpacked_message);
 
-    std::cout << "\nTest Full Sequence End" << std::endl;
+    std::cout << "\nTestFullSequence End" << std::endl;
 
     return result;
 }
