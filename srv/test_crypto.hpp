@@ -7,6 +7,8 @@
 #include <string>
 #include <openssl/evp.h>
 #include "Client.hpp"
+#include "Message.hpp"
+#include "Crypt.hpp"
 
 // Функция для тестирования полной последовательности шифрования, кодирования, подписывания и обратного процесса
 bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key);
