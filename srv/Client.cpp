@@ -120,7 +120,6 @@ void Client::WriteImpl(std::array<char, MAX_IP_PACK_SIZE> msg) {
     // (некоторые управляющие сообщения не будут зашифрованы и подписаны)
     // (пока просто определяем как флаг)
     bool encrypted = true;
-
     if (encrypted) {
         // Подпишем сообщение своим приватным ключом
         std::string signature = "";
