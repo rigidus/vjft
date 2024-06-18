@@ -35,8 +35,7 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key, std::string m
 
     // Append signature to message
     std::string signed_message =
-        std::string(sign.begin(), sign.end()) +
-        message;
+        std::string(sign.begin(), sign.end()) + message;
 
     // MSG_TO_CHUNKS
     std::vector<std::vector<unsigned char>> msg_chunks =
@@ -50,10 +49,7 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key, std::string m
     unsigned char sizeBytes[sizeof(size)];
     std::memcpy(sizeBytes, &size, sizeof(size));
     buffer.insert(buffer.end(), sizeBytes, sizeBytes + sizeof(size));
-    // // - signature chunks
-    // buffer.insert(buffer.end(), signChunk1.begin(), signChunk1.end());
-    // buffer.insert(buffer.end(), signChunk2.begin(), signChunk2.end());
-    // - encrypted & sign for all chunks :512*n
+    // - encrypted & sign for all chunks :255*n
     for (const auto& chunk : msg_chunks) {
         // ENCRYPT CHUNK
         std::optional<std::vector<unsigned char>> optCryptChunk =
@@ -82,11 +78,11 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key, std::string m
     offset += HASH_SIZE;
 
     // BUFFER_TO_SIZE
-    uint16_t extracted_size;
-    std::memcpy(&extracted_size, buffer.data() + offset, sizeof(extracted_size));
-    offset += sizeof(extracted_size);
-    std::cout << "\nextracted_size: " << extracted_size << std::endl;
-    uint16_t extracted_size_save = extracted_size;
+    uint16_t ext_size;
+    std::memcpy(&ext_size, buffer.data() + offset, sizeof(ext_size));
+    offset += sizeof(ext_size);
+    std::cout << "\next_size: " << ext_size << std::endl;
+    uint16_t ext_size_save = ext_size;
 
     // FROM_BUFFER
     std::vector<unsigned char> reconstruct;
@@ -104,12 +100,13 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key, std::string m
         }
         // CHOP CHUNK
         std::string chop;
-        if (extracted_size > 255) {
+        std::cout << "\next_size left: " << ext_size << std::endl;
+        if (ext_size > 255) {
             chop = decrypted_chunk->substr(0, 255);
-            extracted_size -= 255;
+            ext_size -= 255;
         } else {
-            chop = decrypted_chunk->substr(0, extracted_size);
-            extracted_size = 0;
+            chop = decrypted_chunk->substr(0, ext_size);
+            ext_size = 0;
         }
         std::cout << "\nchop size: " << chop.size() << std::endl;
         std::cout << "\nchop: " << chop << std::endl;
@@ -125,7 +122,7 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key, std::string m
 
     // CHECK SIZE
     int re_size = reconstruct.size();
-    if (re_size != extracted_size_save) {
+    if (re_size != ext_size_save) {
         std::cerr << "Error: Size mismatch: " << re_size << std::endl;
         return false;
     } else {
@@ -149,16 +146,22 @@ bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key, std::string m
         std::cerr << "Error: Message Signature Verification Failed" << std::endl;
         return false;
     }
+    std::cout << "Message Signature Verification Ok" << std::endl;
+
 
     // CHECK CRC
     if (!Crypt::verifyChecksum(ext_msg, ext_crc)) {
         std::cerr << "Error: Checksum verification failed" << std::endl;
         return false;
     }
+    std::cout << "Message Checksum verificationn Ok" << std::endl;
 
     // Если все проверки прошли успешно и сообщения равны
     result = (message == ext_msg);
-    if (false == result) { std::cout << "\next_msg: " << ext_msg << std::endl; }
+    if (false == result) {
+        std::cout << "\next_msg: " << ext_msg << std::endl;
+    }
+    std::cout << "ext_msg: " << ext_msg <<std::endl;
 
     std::cout << "\nTestFullSequence End" << std::endl;
 
