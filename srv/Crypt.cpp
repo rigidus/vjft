@@ -185,7 +185,7 @@ std::optional<std::vector<unsigned char>> Crypt::Encrypt(
 }
 
 
-std::optional<std::string> Crypt::Decrypt(
+std::optional<std::vector<unsigned char>> Crypt::Decrypt(
     const std::vector<unsigned char>& encrypted_chunk, EVP_PKEY* private_key)
 {
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(private_key, nullptr);
@@ -221,7 +221,7 @@ std::optional<std::string> Crypt::Decrypt(
     }
 
     EVP_PKEY_CTX_free(ctx);
-    return std::string(out.begin(), out.end());
+    return out;
 }
 
 

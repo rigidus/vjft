@@ -24,7 +24,7 @@ public:
     static std::optional<std::vector<unsigned char>> Encrypt(
         const std::vector<unsigned char>& packed, EVP_PKEY* public_key);
 
-    static std::optional<std::string> Decrypt(
+    static std::optional<std::vector<unsigned char>> Decrypt(
         const std::vector<unsigned char>& encrypted_chunk, EVP_PKEY* private_key);
 
     static bool verify(
