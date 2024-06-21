@@ -258,119 +258,75 @@ std::vector<unsigned char> Crypt::Base64Decode(const std::string& encoded) {
     return buffer;
 }
 
-    std::optional<std::string> Crypt::DecryptMessage(const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key) {
-        EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(private_key, nullptr);
-        if (!ctx) {
-            std::cerr << "DecryptMessage error: Error creating context for decryption" << std::endl;
-            return std::nullopt;
-        }
-
-        if (EVP_PKEY_decrypt_init(ctx) <= 0) {
-            EVP_PKEY_CTX_free(ctx);
-            std::cerr << "DecryptMessage error: Error initializing decryption" << std::endl;
-            return std::nullopt;
-        }
-
-        if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
-            EVP_PKEY_CTX_free(ctx);
-            std::cerr << "DecryptMessage error: Error setting RSA padding" << std::endl;
-            return std::nullopt;
-        }
-
-        size_t outlen;
-        if (EVP_PKEY_decrypt(ctx, nullptr, &outlen, encrypted_message.data(), encrypted_message.size()) <= 0) {
-            EVP_PKEY_CTX_free(ctx);
-            std::cerr << "DecryptMessage error: Error determining buffer length for decryption" << std::endl;
-            return std::nullopt;
-        }
-
-        std::vector<unsigned char> out(outlen);
-        if (EVP_PKEY_decrypt(ctx, out.data(), &outlen, encrypted_message.data(), encrypted_message.size()) <= 0) {
-            EVP_PKEY_CTX_free(ctx);
-            std::cerr << "DecryptMessage error: Error decrypting message" << std::endl;
-            return std::nullopt;
-        }
-
-        EVP_PKEY_CTX_free(ctx);
-        return std::string(out.begin(), out.end());
+std::optional<std::string> Crypt::DecryptMessage(const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key) {
+    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(private_key, nullptr);
+    if (!ctx) {
+        std::cerr << "DecryptMessage error: Error creating context for decryption" << std::endl;
+        return std::nullopt;
     }
 
+    if (EVP_PKEY_decrypt_init(ctx) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        std::cerr << "DecryptMessage error: Error initializing decryption" << std::endl;
+        return std::nullopt;
+    }
 
+    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        std::cerr << "DecryptMessage error: Error setting RSA padding" << std::endl;
+        return std::nullopt;
+    }
 
-// bool Crypt::VerifySignature(const std::string& message, const std::array<unsigned char, EVP_PKEY_size(public_key)>& signature, EVP_PKEY* public_key)  {
-//     EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
-//     if (mdctx == nullptr) {
-//         std::cerr << "VerifySignature error: Failed to create EVP_MD_CTX" << std::endl;
-//         return false;
-//     }
+    size_t outlen;
+    if (EVP_PKEY_decrypt(ctx, nullptr, &outlen, encrypted_message.data(), encrypted_message.size()) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        std::cerr << "DecryptMessage error: Error determining buffer length for decryption" << std::endl;
+        return std::nullopt;
+    }
 
-//     if (EVP_DigestVerifyInit(mdctx, nullptr, EVP_sha256(), nullptr, public_key) <= 0) {
-//         EVP_MD_CTX_free(mdctx);
-//         std::cerr << "VerifySignature error: Error initializing verification: "
-//                   << std::string(ERR_error_string(ERR_get_error(), nullptr))
-//                   << std::endl;
-//         return false;
-//     }
+    std::vector<unsigned char> out(outlen);
+    if (EVP_PKEY_decrypt(ctx, out.data(), &outlen, encrypted_message.data(), encrypted_message.size()) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        std::cerr << "DecryptMessage error: Error decrypting message" << std::endl;
+        return std::nullopt;
+    }
 
-//     if (EVP_DigestVerifyUpdate(mdctx, message.c_str(), message.size()) <= 0) {
-//         EVP_MD_CTX_free(mdctx);
-//         std::cerr << "VerifySignature error: Error updating verification: "
-//                   << std::string(ERR_error_string(ERR_get_error(), nullptr))
-//                   << std::endl;
-//         return false;
-//     }
-
-//     int ret = EVP_DigestVerifyFinal(mdctx, signature.data(), signature.size());
-//     EVP_MD_CTX_free(mdctx);
-
-//     if (ret < 0) {
-//         std::cerr << "VerifySignature error: Error finalizing verification: "
-//                   << std::string(ERR_error_string(ERR_get_error(), nullptr))
-//                   << std::endl;
-//         return false;
-//     }
-
-//     return ret == 1;
-// }
+    EVP_PKEY_CTX_free(ctx);
+    return std::string(out.begin(), out.end());
+}
 
 bool Crypt::VerifySignature(const std::string& message, const std::vector<unsigned char>& signature, EVP_PKEY* public_key) {
-            EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
-            if (mdctx == nullptr) {
-                std::cerr << "VerifySignature error: Failed to create EVP_MD_CTX" << std::endl;
-                return false;
-            }
+    EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
+    if (mdctx == nullptr) {
+        std::cerr << "VerifySignature error: Failed to create EVP_MD_CTX" << std::endl;
+        return false;
+    }
 
-            if (EVP_DigestVerifyInit(mdctx, nullptr, EVP_sha256(), nullptr, public_key) <= 0) {
-                EVP_MD_CTX_free(mdctx);
-                std::cerr << "VerifySignature error: Error initializing verification: "
-                          << std::string(ERR_error_string(ERR_get_error(), nullptr))
-                          << std::endl;
-                return false;
-            }
+    if (EVP_DigestVerifyInit(mdctx, nullptr, EVP_sha256(), nullptr, public_key) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        std::cerr << "VerifySignature error: Error initializing verification: "
+                  << std::string(ERR_error_string(ERR_get_error(), nullptr))
+                  << std::endl;
+        return false;
+    }
 
-            if (EVP_DigestVerifyUpdate(mdctx, message.c_str(), message.size()) <= 0) {
-                EVP_MD_CTX_free(mdctx);
-                std::cerr << "VerifySignature error: Error updating verification: "
-                          << std::string(ERR_error_string(ERR_get_error(), nullptr))
-                          << std::endl;
-                return false;
-            }
+    if (EVP_DigestVerifyUpdate(mdctx, message.c_str(), message.size()) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        std::cerr << "VerifySignature error: Error updating verification: "
+                  << std::string(ERR_error_string(ERR_get_error(), nullptr))
+                  << std::endl;
+        return false;
+    }
 
-            int ret = EVP_DigestVerifyFinal(mdctx, signature.data(), signature.size());
-            EVP_MD_CTX_free(mdctx);
+    int ret = EVP_DigestVerifyFinal(mdctx, signature.data(), signature.size());
+    EVP_MD_CTX_free(mdctx);
 
-            if (ret < 0) {
-                std::cerr << "VerifySignature error: Error finalizing verification: "
-                          << std::string(ERR_error_string(ERR_get_error(), nullptr))
-                          << std::endl;
-                return false;
-            }
+    if (ret < 0) {
+        std::cerr << "VerifySignature error: Error finalizing verification: "
+                  << std::string(ERR_error_string(ERR_get_error(), nullptr))
+                  << std::endl;
+        return false;
+    }
 
-            return ret == 1;
-        }
-
-// bool Crypt::VerifyChecksum(
-//     const std::string& message, const std::array<unsigned char, EVP_MAX_MD_SIZE> crc)
-// {
-//     return calcCRC(message) == crc;
-// }
+    return ret == 1;
+}
