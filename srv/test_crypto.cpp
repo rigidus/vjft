@@ -61,38 +61,16 @@ std::vector<unsigned char> mergeVec(
     return result;
 }
 
-std::vector<std::vector<unsigned char>> enc(
-    std::vector<std::vector<unsigned char>> chunks,
-    EVP_PKEY* public_key)
-{
-    std::vector<std::vector<unsigned char>> result;
-    for (const auto& chunk : chunks) {
-        // ENCRYPT CHUNK
-        std::optional<std::vector<unsigned char>> optCryptChunk =
-            Crypt::Encrypt(chunk, public_key);
-        if (!(optCryptChunk)) {
-            std::cerr << "Error: Encryption Chunk Failed" << std::endl;
-            return result;
-        }
-        // SAVE ENCRYPT CHUNK
-        std::vector<unsigned char> cryptChunk = *optCryptChunk;
-        result.push_back(cryptChunk);
-    }
-
-    return result;
-}
 
 std::vector<std::vector<unsigned char>> dec(
-    size_t size_of_msg,
     const std::vector<std::vector<unsigned char>> enc_chunks,
     EVP_PKEY* private_key)
 {
     std::vector<std::vector<unsigned char>> result;
-    size_t bytes_left = size_of_msg;
+    // size_t bytes_left = size_of_msg;
     for (std::vector<unsigned char> chunk : enc_chunks) {
         // dbg encrypted chunk
-        // std::string ed(chunk.begin(), chunk.end());
-        // std::cout << "\nencrypted_chunk: " << ed << std::endl;
+        // dbg_out_vec("enc-chunk", chunk);
         // DECRYPT CHUNK
         std::optional<std::vector<unsigned char>> opt_dec_chunk =
             Crypt::Decrypt(chunk, private_key);
@@ -103,16 +81,15 @@ std::vector<std::vector<unsigned char>> dec(
         // SAVE DECRYPTED CHUNK
         std::vector<unsigned char> dec_chunk = *opt_dec_chunk;
         // corrections
-        if (bytes_left < 255) {
-            dec_chunk.resize(bytes_left);
-            bytes_left = 0;
-        } else {
-            bytes_left -= 255;
-            dec_chunk.resize(255);
-        }
+        // if (bytes_left < 255) {
+        //     dec_chunk.resize(bytes_left);
+        //     bytes_left = 0;
+        // } else {
+        //     bytes_left -= 255;
+        //     dec_chunk.resize(255);
+        // }
         // dbg decrypted chunk
-        std::string de(dec_chunk.begin(), dec_chunk.end());
-        std::cout << "\nde: " << bytes_left << ":|:" << de << std::endl;
+        // dbg_out_vec("enc-chunk", dec_chunk);
         // PUSH RESULT
         result.push_back(dec_chunk);
     }
@@ -139,12 +116,12 @@ std::vector<unsigned char> encipher(
     // (к примеру, для коротких сообщения "да" или "нет").
     std::srand(static_cast<unsigned int>(std::time(nullptr))); // random init
     int random_len = std::rand() % 256; // random length
-    // dbg_out_scalar("random_len", random_len, 1);
+    dbg_out_scalar(":random_len", random_len, 1);
     std::vector<unsigned char> random;
     for (int i = 0; i < random_len; ++i) {
         random.push_back(static_cast<unsigned char>(std::rand() % 256));
     }
-    // dbg_out_vec("random", random);
+    // dbg_out_vec(":random", random);
 
     // Записываем в envelope 1 байт random_len
     envelope.push_back(static_cast<unsigned char>(random_len & 0xFF));
@@ -154,7 +131,7 @@ std::vector<unsigned char> encipher(
 
     // Вычисляем размер сообщения msg
     uint16_t msg_size = static_cast<uint16_t>(msg.size());
-    // dbg_out_scalar("msg_size", msg_size, 2);
+    dbg_out_scalar(":msg_size", msg_size, 2);
 
     // Записываем msg_size сразу после random, младший байт первым
     envelope.push_back(static_cast<unsigned char>(msg_size & 0xFF));
@@ -164,7 +141,7 @@ std::vector<unsigned char> encipher(
     std::array<unsigned char, HASH_SIZE> msg_crc = Crypt::calcCRC(msg);
     std::vector<unsigned char> vcrc;
     vcrc.insert(vcrc.end(), msg_crc.begin(), msg_crc.end());
-    // dbg_out_vec("msg_crc", vcrc);
+    dbg_out_vec(":msg_crc", vcrc);
 
     // Записываем в envelope msg_crc, после msg_size
     envelope.insert(envelope.end(), msg_crc.begin(), msg_crc.end());
@@ -180,16 +157,16 @@ std::vector<unsigned char> encipher(
     envelope.insert(envelope.end(), msg_sign.begin(), msg_sign.end());
     std::vector<unsigned char> vsign;
     vsign.insert(vsign.end(), msg_sign.begin(), msg_sign.end());
-    // dbg_out_vec("msg_sign", vsign);
+    dbg_out_vec(":msg_sign", vsign);
 
     // Записываем в envelope msg, после msg_sign
     envelope.insert(envelope.end(), msg.begin(), msg.end());
     std::vector<unsigned char> vmsg;
     vmsg.insert(vmsg.end(), msg.begin(), msg.end());
-    // dbg_out_vec("msg", vmsg);
+    // dbg_out_vec(":msg", vmsg);
 
     // dbg envelope
-    // dbg_out_vec("envelope:", envelope);
+    dbg_out_vec(":envelope", envelope);
 
     /**
        +---------------+
@@ -212,41 +189,46 @@ std::vector<unsigned char> encipher(
     std::vector<std::vector<unsigned char>> chunks = splitVec(envelope, CHUNK_SIZE);
 
     // Шифруем каждый chunk публичным ключом и записываем в enc_chunks
-    std::vector<std::vector<unsigned char>> enc_chunks = enc(chunks, public_key);
+    std::vector<std::vector<unsigned char>> enc_chunks;
+    for (const auto& chunk : chunks) {
+        // dbg
+        dbg_out_vec(":chunk", chunk);
+        // ENCRYPT CHUNK
+        std::optional<std::vector<unsigned char>> opt_enc_chunk =
+            Crypt::Encrypt(chunk, public_key);
+        if (!(opt_enc_chunk)) {
+            std::cerr << "Error: Encryption Chunk Failed" << std::endl;
+            throw "qwqewqewqe";
+        }
+        // SAVE ENCRYPT CHUNK
+        std::vector<unsigned char> enc_chunk = *opt_enc_chunk;
+        enc_chunks.push_back(enc_chunk);
+        // dbg
+        dbg_out_vec(":enc_chunk", enc_chunk);
+    }
 
     // Формируем cipher для передачи по сети
     std::vector<unsigned char> cipher;
     cipher.clear();
 
     // Первым записываем размер envelope в chunks, младший байт первым
-    uint16_t envelope_size = static_cast<uint16_t>(envelope.size() / CHUNK_SIZE);
-    dbg_out_scalar("envelope_size", envelope_size, 2);
-    uint16_t last_chunk_size = envelope.size() % CHUNK_SIZE;
-    dbg_out_scalar("last_chunk_size", last_chunk_size, 2);
-    if (last_chunk_size != 0) {
-        envelope_size++;
-    }
+    uint16_t envelope_size = static_cast<uint16_t>(enc_chunks.size());
+    dbg_out_scalar(":envelope_size", envelope_size, 2);
     cipher.push_back(static_cast<unsigned char>(envelope_size & 0xFF));
     cipher.push_back(static_cast<unsigned char>((envelope_size >> 8) & 0xFF));
-
-    // Потом записываем рамер последнего чанка, чтобы обрезать после расшифровки
-    cipher.push_back(static_cast<unsigned char>(last_chunk_size & 0xFF));
-    cipher.push_back(static_cast<unsigned char>((last_chunk_size >> 8) & 0xFF));
 
     // Потом записываем все enc_chunks
     for (const auto& enc_chunk : enc_chunks) {
         cipher.insert(cipher.end(), enc_chunk.begin(), enc_chunk.end());
     }
 
-    dbg_out_vec("cipher", cipher);
+    // dbg_out_vec(":cipher", cipher);
     return cipher;
 }
 
 /**
    +-------------------------+
    | envelope_size_in_chunks | 2 bytes
-   +-------------------------+
-   | last_chunk_size         | 2 bytes
    +-------------------------+
    | enc_chunks              |
    |       ....              |
@@ -256,23 +238,18 @@ std::vector<unsigned char> encipher(
 std::string decipher(
     EVP_PKEY* private_key, EVP_PKEY* public_key, std::vector<unsigned char> cipher)
 {
-    std::cout << std::endl;
+    std::cout << "--------------------" <<std::endl;
 
-    dbg_out_vec("cipher", cipher);
+    dbg_out_vec("|cipher", cipher);
 
     // Извлекаем размер envelope выраженный в количестве чанков
     uint16_t envelope_size =
         static_cast<uint16_t>(cipher[0]) | (static_cast<uint16_t>(cipher[1]) << 8);
-    dbg_out_scalar("envelope_size", envelope_size, 2);
-
-    // Извлекаем размер последнего чанка, чтобы обрезать после расшифровки
-    uint16_t last_chunk_size =
-        static_cast<uint16_t>(cipher[2]) | (static_cast<uint16_t>(cipher[3]) << 8);
-    dbg_out_scalar("last_chunk_size", last_chunk_size, 2);
+    dbg_out_scalar("|envelope_size", envelope_size, 2);
 
     // Извлекаем enc_chunks из cipher
     std::vector<std::vector<unsigned char>> enc_chunks;
-    auto it = cipher.begin() + 4;
+    auto it = cipher.begin() + 2;
     for (size_t i = 0; i < envelope_size; ++i) {
         if (std::distance(it, cipher.end()) <static_cast<ptrdiff_t>(ENC_CHUNK_SIZE)) {
             throw std::runtime_error("Not enough data to read chunk");
@@ -282,18 +259,45 @@ std::string decipher(
     }
 
     // дешифруем каждый enc_chunk приватным ключом и записываем в chunks
-    std::vector<std::vector<unsigned char>> chunks = dec(
-        CHUNK_SIZE * envelope_size - last_chunk_size,
-        enc_chunks, private_key);
+    std::vector<std::vector<unsigned char>> chunks;
+    // size_t bytes_left = size_of_msg;
+    for (std::vector<unsigned char> chunk : enc_chunks) {
+        // dbg encrypted chunk
+        // dbg_out_vec("|enc-chunk", chunk);
+        // DECRYPT CHUNK
+        std::optional<std::vector<unsigned char>> opt_dec_chunk =
+            Crypt::Decrypt(chunk, private_key);
+        if (!opt_dec_chunk) {
+            std::cerr << "Error: Decryption Chunk Failed" << std::endl;
+            throw "nytnyunygng";
+        }
+        // SAVE DECRYPTED CHUNK
+        std::vector<unsigned char> dec_chunk = *opt_dec_chunk;
+        // corrections
+        // if (bytes_left < 255) {
+        //     dec_chunk.resize(bytes_left);
+        //     bytes_left = 0;
+        // } else {
+        //     bytes_left -= 255;
+            dec_chunk.resize(CHUNK_SIZE);
+        // }
+        // PUSH RESULT
+        chunks.push_back(dec_chunk);
+        // dbg decrypted chunk
+        dbg_out_vec("|dec-chunk", dec_chunk);
+    }
 
-    // Формируем envelope для возврата
+    // Формируем envelope
     std::vector<unsigned char> envelope;
-    for (const auto& enc_chunk : enc_chunks) {
+    for (const auto& enc_chunk : chunks) {
         envelope.insert(envelope.end(), enc_chunk.begin(), enc_chunk.end());
     }
 
+    dbg_out_vec("|envelope", envelope);
+
+
     uint8_t random_len = static_cast<uint8_t>(envelope[0]);
-    dbg_out_scalar("\nrandom_len", random_len, 1);
+    dbg_out_scalar("|random_len", random_len, 1);
 
     size_t offset = random_len + 1;
 
@@ -301,7 +305,7 @@ std::string decipher(
         static_cast<uint16_t>(envelope[offset]) |
         (static_cast<uint16_t>(envelope[offset+1]) << 8);
     offset += 2;
-    dbg_out_scalar("msg_size", msg_size, 1);
+    dbg_out_scalar("|msg_size", msg_size, 2);
 
     std::vector<unsigned char> msg_crc;
     msg_crc.insert(
@@ -309,7 +313,7 @@ std::string decipher(
     offset += HASH_SIZE;
     std::vector<unsigned char> vcrc;
     vcrc.insert(vcrc.end(), msg_crc.begin(), msg_crc.end());
-    dbg_out_vec("msg_crc", vcrc);
+    dbg_out_vec("|msg_crc", vcrc);
 
     std::vector<unsigned char> msg_sign;
     msg_sign.insert(
@@ -317,10 +321,10 @@ std::string decipher(
     offset += 512;
     std::vector<unsigned char> vsign;
     vsign.insert(vsign.end(), msg_sign.begin(), msg_sign.end());
-    dbg_out_vec("msg_sign", vsign);
+    dbg_out_vec("|msg_sign", vsign);
 
-    std::string result(envelope.begin()+offset, envelope.end());
-    std::cout << "result" << result << std::endl;
+    std::string result(envelope.begin()+offset, envelope.begin()+offset+msg_size);
+    std::cout << "result: [" << result << "]" << std::endl;
 
     return result;
 }
@@ -444,7 +448,7 @@ int main() {
         return 1;
     }
 
-    std::string message = "Lorem Ipsum";// - это текст-рыба, часто используемый в печати и вэб-дизайне. Lorem Ipsum является стандартной рыбой для текстов на латинице с начала XVI века. В то время некий безымянный печатник создал большую коллекцию размеров и форм шрифтов, используя Lorem Ipsum для распечатки образцов. Lorem Ipsum не только успешно пережил без заметных изменений пять веков, но и перешагнул в электронный дизайн. Его популяризации в новое время послужили публикация листов Letraset с образцами Lorem Ipsum в 60-х годах и, в более недавнее время, программы электронной вёрстки типа Aldus PageMaker, в шаблонах которых используется Lorem Ipsum. Давно выяснено, что при оценке дизайна и композиции читаемый текст мешает сосредоточиться. Lorem Ipsum используют потому, что тот обеспечивает более или менее стандартное заполнение шаблона, а также реальное распределение букв и пробелов в абзацах, которое не получается при простой дубликации. Многие программы электронной вёрстки и редакторы HTML используют Lorem Ipsum в качестве текста по умолчанию, так что поиск по ключевым словам lorem ipsum сразу показывает, как много веб-страниц всё ещё дожидаются своего настоящего рождения. За прошедшие годы текст Lorem Ipsum получил много версий. Некоторые версии появились по ошибке, некоторые - намеренно (например, юмористические варианты). Многие думают, что Lorem Ipsum - взятый с потолка псевдо-латинский набор слов, но это не совсем так. Его корни уходят в один фрагмент классической латыни 45 года н.э., то есть более двух тысячелетий назад. Ричард МакКлинток, профессор латыни из колледжа Hampden-Sydney, штат Вирджиния, взял одно из самых странных слов в Lorem Ipsum, consectetur, и занялся его поисками в классической латинской литературе. В результате он нашёл неоспоримый первоисточник Lorem Ipsum в разделах 1.10.32 и 1.10.33 книги de Finibus Bonorum et Malorum (О пределах добра и зла), написанной Цицероном в 45 году н.э. Этот трактат по теории этики был очень популярен в эпоху Возрождения. Первая строка Lorem Ipsum, Lorem ipsum dolor sit amet.., происходит от одной из строк в разделе 1.10.32. Классический текст Lorem Ipsum, используемый с XVI века, приведён ниже. Также даны разделы 1.10.32 и 1.10.33 de Finibus Bonorum et Malorum Цицерона и их английский перевод, сделанный H. Rackham, 1914 год.";
+    std::string message = "Lorem Ipsum - это текст-рыба, часто используемый в печати и вэб-дизайне. Lorem Ipsum является стандартной рыбой для текстов на латинице с начала XVI века. В то время некий безымянный печатник создал большую коллекцию размеров и форм шрифтов, используя Lorem Ipsum для распечатки образцов. Lorem Ipsum не только успешно пережил без заметных изменений пять веков, но и перешагнул в электронный дизайн. Его популяризации в новое время послужили публикация листов Letraset с образцами Lorem Ipsum в 60-х годах и, в более недавнее время, программы электронной вёрстки типа Aldus PageMaker, в шаблонах которых используется Lorem Ipsum. Давно выяснено, что при оценке дизайна и композиции читаемый текст мешает сосредоточиться. Lorem Ipsum используют потому, что тот обеспечивает более или менее стандартное заполнение шаблона, а также реальное распределение букв и пробелов в абзацах, которое не получается при простой дубликации. Многие программы электронной вёрстки и редакторы HTML используют Lorem Ipsum в качестве текста по умолчанию, так что поиск по ключевым словам lorem ipsum сразу показывает, как много веб-страниц всё ещё дожидаются своего настоящего рождения. За прошедшие годы текст Lorem Ipsum получил много версий. Некоторые версии появились по ошибке, некоторые - намеренно (например, юмористические варианты). Многие думают, что Lorem Ipsum - взятый с потолка псевдо-латинский набор слов, но это не совсем так. Его корни уходят в один фрагмент классической латыни 45 года н.э., то есть более двух тысячелетий назад. Ричард МакКлинток, профессор латыни из колледжа Hampden-Sydney, штат Вирджиния, взял одно из самых странных слов в Lorem Ipsum, consectetur, и занялся его поисками в классической латинской литературе. В результате он нашёл неоспоримый первоисточник Lorem Ipsum в разделах 1.10.32 и 1.10.33 книги de Finibus Bonorum et Malorum (О пределах добра и зла), написанной Цицероном в 45 году н.э. Этот трактат по теории этики был очень популярен в эпоху Возрождения. Первая строка Lorem Ipsum, Lorem ipsum dolor sit amet.., происходит от одной из строк в разделе 1.10.32. Классический текст Lorem Ipsum, используемый с XVI века, приведён ниже. Также даны разделы 1.10.32 и 1.10.33 de Finibus Bonorum et Malorum Цицерона и их английский перевод, сделанный H. Rackham, 1914 год.";
 
     bool full_sequence_result = TestFullSequence(private_key, public_key, message);
 
