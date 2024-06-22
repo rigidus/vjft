@@ -184,33 +184,46 @@ std::optional<std::vector<unsigned char>> Crypt::Decrypt(
 {
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(private_key, nullptr);
     if (!ctx) {
+#if (DBG > 0)
         std::cerr << "Decrypt error: Error creating context for decryption" << std::endl;
+#endif
         return std::nullopt;
     }
 
     if (EVP_PKEY_decrypt_init(ctx) <= 0) {
         EVP_PKEY_CTX_free(ctx);
+#if (DBG > 0)
         std::cerr << "Decrypt error: Error initializing decryption" << std::endl;
+#endif
         return std::nullopt;
     }
 
     if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
         EVP_PKEY_CTX_free(ctx);
+#if (DBG > 0)
         std::cerr << "Decrypt error: Error setting RSA padding" << std::endl;
+#endif
         return std::nullopt;
     }
 
     size_t outlen;
-    if (EVP_PKEY_decrypt(ctx, nullptr, &outlen, encrypted_chunk.data(), encrypted_chunk.size()) <= 0) {
+    if (EVP_PKEY_decrypt(ctx, nullptr, &outlen, encrypted_chunk.data(),
+                         encrypted_chunk.size()) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-        std::cerr << "Decrypt error: Error determining buffer length for decryption" << std::endl;
+#if (DBG > 0)
+        std::cerr << "Decrypt error: Error determining buffer length for decryption"
+                  << std::endl;
+#endif
         return std::nullopt;
     }
 
     std::vector<unsigned char> out(outlen);
-    if (EVP_PKEY_decrypt(ctx, out.data(), &outlen, encrypted_chunk.data(), encrypted_chunk.size()) <= 0) {
+    if (EVP_PKEY_decrypt(ctx, out.data(), &outlen, encrypted_chunk.data(),
+                         encrypted_chunk.size()) <= 0) {
         EVP_PKEY_CTX_free(ctx);
+#if (DBG > 0)
         std::cerr << "Decrypt error: Error decrypting chunk" << std::endl;
+#endif
         return std::nullopt;
     }
 
@@ -551,7 +564,7 @@ std::string Crypt::decipher(
         it += ENC_CHUNK_SIZE;
     }
 
-    // Decrypt every enc_chunk with priv key and write to chunks
+    // Decrypt every enc_chunk with privkey and write to chunks
     std::vector<std::vector<unsigned char>> chunks;
     // size_t bytes_left = size_of_msg;
     for (std::vector<unsigned char> chunk : enc_chunks) {
@@ -563,8 +576,10 @@ std::string Crypt::decipher(
         std::optional<std::vector<unsigned char>> opt_dec_chunk =
             Crypt::Decrypt(chunk, private_key);
         if (!opt_dec_chunk) {
+#if (DBG > 0)
             std::cerr << "Error: Decryption Chunk Failed" << std::endl;
-            throw std::runtime_error("Decryption Chunk Failed");
+#endif
+            return "";
         }
         // SAVE DECRYPTED CHUNK
         std::vector<unsigned char> dec_chunk = *opt_dec_chunk;

@@ -55,48 +55,51 @@ void Client::ReadHandler(const boost::system::error_code& error) {
     std::string msg_data = read_msg_.data();
     std::cout << "\nReadHandler:\"" << msg_data << "\"" << std::endl;
     if (!error) {
+        // Десериализуем Map из строки
         std::map<std::string, std::string> data = Message::unpack(msg_data);
 
-        bool encrypted = true;
-        if (encrypted) {
-            // TODO: bugfix
-            // std::string decoded_content, decrypted_message, signature_str;
-            // std::vector<unsigned char> decoded_message, signature;
+        std::string decoded_content, decrypted_message, signature_str;
+        std::vector<unsigned char> decoded_message, signature;
 
-            //     decoded_message = Base64Decode(data["content"]);
-            //     decrypted_message =
-            //         Client::DecryptMessage(decoded_message, client_private_key_);
-            //     if (decrypted_message.empty()) {
-            //         std::cerr << "Decryption error: " << std::endl;
-            //     }
+        decoded_message = Base64Decode(data["enc"]);
+        dbg_out_vec("Decoded message", decoded_message);
 
-            // if (CalculateChecksum(decrypted_message) != data["checksum"]) {
-            //     std::cerr << "Checksum verification failed." << std::endl;
-            // }
+        if (!decoded_message.empty()) {
+            // decrypted_message =
+            //     Client::DecryptMessage(decoded_message, client_private_key_);
+            auto decrypted_msg =
+                Crypt::decipher(client_private_key_, recipient_public_keys[0],
+                                decoded_message);
 
-            // for (const auto& pair : data) {
-            //     std::cout << pair.first << ": " << pair.second << std::endl;
-            // }
+            if (decrypted_msg.empty()) {
+                std::cerr << "Decryption error or message not for me " << std::endl;
+            } else {
 
-            // signature_str = data["signature"];
-            // signature =
-            //     std::vector<unsigned char>(signature_str.begin(), signature_str.end());
-            // // TODO:заменить на выбор пабкея и убрать освобождение ключа
-            // // PubKey выбирать по его фингерпринту!
-            // EVP_PKEY* sender_public_key =
-            //     LoadKeyFromFile(recipient_public_key_files[0], false);
+                // if (CalculateChecksum(decrypted_message) != data["checksum"]) {
+                //     std::cerr << "Checksum verification failed." << std::endl;
+                // }
 
-            // if (!VerifySignature(decrypted_message, signature, sender_public_key)) {
-            //     std::cerr << "Signature verification failed." << std::endl;
-            // }
-            // EVP_PKEY_free(sender_public_key);
+                std::cout << "Message received successfully: " << decrypted_msg
+                          << std::endl;
 
-            // std::cout << "Message received successfully: " << decrypted_message
-            //           << std::endl;
-        } else {
-            std::map<std::string, std::string> data = Message::unpack(msg_data);
-            for (const auto& pair : data) {
-                std::cout << pair.first << ": " << pair.second << std::endl;
+
+                for (const auto& pair : data) {
+                    std::cout << pair.first << ": " << pair.second << std::endl;
+                }
+
+                // signature_str = data["signature"];
+                // signature =
+                //     std::vector<unsigned char>(signature_str.begin(),
+                //                                signature_str.end());
+                // // TODO:заменить на выбор пабкея и убрать освобождение ключа
+                // // PubKey выбирать по его фингерпринту!
+                // EVP_PKEY* sender_public_key =
+                //     LoadKeyFromFile(recipient_public_key_files[0], false);
+
+                // if (!VerifySignature(decrypted_message, signature, sender_public_key)) {
+                //     std::cerr << "Signature verification failed." << std::endl;
+                // }
+                // EVP_PKEY_free(sender_public_key);
             }
         }
         boost::asio::async_read(socket_,
@@ -113,58 +116,40 @@ void Client::WriteImpl(std::array<char, MAX_IP_PACK_SIZE> msg) {
     bool write_in_progress = !write_msgs_.empty();
 
     std::string message(msg.data());
-    std::string length = std::to_string(message.size());
-    std::string checksum = CalculateChecksum(message);
-    std::map<std::string, std::string> data;
-    // Определяем (todo), будем ли шифровать и подписывать сообщение
-    // (некоторые управляющие сообщения не будут зашифрованы и подписаны)
-    // (пока просто определяем как флаг)
-    bool encrypted = true;
-    if (encrypted) {
-        // Подпишем сообщение своим приватным ключом
-        std::string signature = "";
-        auto optSign = SignMsg(message, client_private_key_);
-        if (!optSign) { return; } else {
-            signature = Base64Encode(*optSign);
-        }
-        // Для каждого из ключей получателей..
-        for (auto i = 0; i < recipient_public_keys.size(); ++i) {
-            // Определить 'to' как отпечаток ключа
-            std::string to = recipient_public_keys_fingerprints[i];
-            // Шифрование и кодирование в Base64 поля content
-            std::optional<std::vector<unsigned char>> encrypted_msg =
-                Client::EncryptMessage(message, recipient_public_keys[i]);
-            std::string encoded = "";
-            if (encrypted_msg) {
-                encoded = Base64Encode(*encrypted_msg);
-            }
 
-            data = {
-                {"to", to},
-                {"len", length},
-                {"crc", checksum},
-                {"encf", encrypted ? "true" : "false"},
-                {"msg", message},
-                {"enc", encoded},
-                {"sign", signature}
-            };
-        }
-    } else {
-        // Используем сообщение напрямую без шифрования
+    std::map<std::string, std::string> data;
+
+    // Подпишем сообщение своим приватным ключом
+    std::string signature = "";
+    auto optSign = SignMsg(message, client_private_key_);
+    if (!optSign) { return; } else {
+        signature = Base64Encode(*optSign);
+    }
+    // Для каждого из ключей получателей..
+    for (auto i = 0; i < recipient_public_keys.size(); ++i) {
+        // Определить 'to' как отпечаток ключа
+        std::string to = recipient_public_keys_fingerprints[i];
+        // Шифрование и кодирование в Base64 поля content
+        auto encrypted_msg =
+            Crypt::encipher(client_private_key_, recipient_public_keys[i], message);
+
+        dbg_out_vec("Encrypted message", encrypted_msg);
+
+        std::string encoded = Base64Encode(encrypted_msg);
+        // Map
         data = {
-            {"len", length},
-            {"crc", checksum},
-            {"encf", encrypted ? "true" : "false"},
+            {"to", to},
             {"msg", message},
+            {"enc", encoded},
+            {"sign", signature}
         };
     }
-
+    // Отладочный вывод Map
     for (const auto& pair : data) {
         std::cout << pair.first << ": " << pair.second << std::endl;
     }
-
+    // Сериализуем Map в строку
     std::string packed_message = Message::pack(data);
-
     // Проверка длины упакованного сообщения
     if (packed_message.size() > MAX_IP_PACK_SIZE) {
         // TODO: тут нужно разбивать сообщение на блоки, шифровать их по отдельности,
@@ -179,7 +164,6 @@ void Client::WriteImpl(std::array<char, MAX_IP_PACK_SIZE> msg) {
               << formatted_msg.size()
               << std::endl;
     write_msgs_.push_back(formatted_msg);
-
     // Если в данный момент запись не идет, инициируется асинхронная запись
     // сообщения в сокет. Когда асинхронная запись завершится, вызывается
     // функция-обработчик WriteHandler. Она проверит есть ли еще что-то

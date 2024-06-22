@@ -8,8 +8,8 @@ all: $(TARGETS)
 chat_server: MainServer.o Server.o PersonInRoom.o ChatRoom.o WorkerThread.o Message.o
 	$(CXX) $(CXXFLAGS) -o chat_server MainServer.o Server.o PersonInRoom.o ChatRoom.o WorkerThread.o Message.o -lpthread -lboost_system -lboost_thread
 
-chat_client: MainClient.o Client.o Message.o Crypt.o
-	$(CXX) $(CXXFLAGS) -o chat_client MainClient.o Client.o Message.o Crypt.o -lpthread -lboost_system -lssl -lcrypto
+chat_client: MainClient.o Client.o Message.o Crypt.o Utils.o
+	$(CXX) $(CXXFLAGS) -o chat_client MainClient.o Client.o Message.o Crypt.o Utils.o -lpthread -lboost_system -lssl -lcrypto
 
 test_crypto: test_crypto.o Client.o Message.o Crypt.o Utils.o
 	$(CXX) $(CXXFLAGS) -o test_crypto test_crypto.o Client.o Message.o Crypt.o Utils.o -lpthread -lboost_system -lssl -lcrypto

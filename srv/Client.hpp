@@ -20,6 +20,8 @@
 #include <boost/bind.hpp>
 #include "Protocol.hpp"
 #include "Message.hpp"
+#include "Crypt.hpp"
+#include "Utils.hpp"
 
 using namespace boost::placeholders;
 using boost::asio::ip::tcp;
