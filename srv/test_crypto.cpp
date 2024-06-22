@@ -1,70 +1,6 @@
 // test_crypto.cpp
+
 #include "test_crypto.hpp"
-#include <openssl/err.h>
-
-#define CHUNK_SIZE 255
-#define ENC_CHUNK_SIZE 512
-#define DBG 1   // if 1 then debug print allowed
-
-/**
-   Debug print for vectors
- */
-void dbg_out_vec(std::string dbgmsg, std::vector<unsigned char> vec) {
-    if (DBG) {
-        std::cout << dbgmsg << ": ";
-        for (const auto& byte : vec) {
-            std::cout << std::setw(2) << std::setfill('0') << std::hex
-                      << static_cast<int>(byte);
-        }
-        std::cout << std::dec << std::endl; // Возвращаемся к десятичному формату
-    }
-}
-
-/**
-   Debug print for scalars
-*/
-void dbg_out_scalar(std::string dbgmsg, size_t value, size_t cnt) {
-    if (DBG) {
-        std::cout << dbgmsg << ": ";
-        for (size_t i = 0; i < cnt; ++i) {
-            unsigned char byte = (value >> (i * 8)) & 0xFF;
-            std::cout << std::setw(2) << std::setfill('0') << std::hex
-                      << static_cast<int>(byte);
-        }
-        std::cout << std::dec << std::endl; // Возвращаемся к десятичному формату
-    }
-}
-
-/**
-   Split std::vector<unsigned char> to std::vector<std::vector<unsigned char>>
-   by size
- */
-std::vector<std::vector<unsigned char>> splitVec(
-    const std::vector<unsigned char>& input, int size)
-{
-    std::vector<std::vector<unsigned char>> result;
-    size_t length = input.size();
-    for (size_t i = 0; i < length; i += size) {
-        size_t currentChunkSize = std::min(size_t(size), length - i);
-        std::vector<unsigned char> chunk(
-            input.begin() + i, input.begin() + i + currentChunkSize);
-        result.push_back(chunk);
-    }
-    return result;
-}
-
-/**
-   Merge std::vector<std::vector<unsigned char>> to std::vector<unsigned char>
- */
-std::vector<unsigned char> mergeVec(
-    const std::vector<std::vector<unsigned char>>& input)
-{
-    std::vector<unsigned char> result;
-    for (const auto& chunk : input) {
-        result.insert(result.end(), chunk.begin(), chunk.end());
-    }
-    return result;
-}
 
 /**
    Encryption takes place in two steps: first, an envelope is
@@ -107,9 +43,9 @@ std::vector<unsigned char> mergeVec(
 std::vector<unsigned char> encipher(
     EVP_PKEY* private_key, EVP_PKEY* public_key, std::string msg)
 {
-    if (DBG) {
-        std::cout << std::endl;
-    }
+    #if (DBG > 0)
+    std::cout << std::endl;
+    #endif
 
     std::vector<unsigned char> envelope;
     envelope.clear();
@@ -120,12 +56,16 @@ std::vector<unsigned char> encipher(
     // (for example, for short messages like "yes" or "no").
     std::srand(static_cast<unsigned int>(std::time(nullptr))); // random init
     int random_len = std::rand() % 256; // random length
+#if (DBG > 0)
     dbg_out_scalar(":random_len", random_len, 1);
+#endif
     std::vector<unsigned char> random;
     for (int i = 0; i < random_len; ++i) {
         random.push_back(static_cast<unsigned char>(std::rand() % 256));
     }
+#if (DBG > 0)
     dbg_out_vec(":random", random);
+#endif
 
     // Write random_len (1 byte) to envelope
     envelope.push_back(static_cast<unsigned char>(random_len & 0xFF));
@@ -135,7 +75,9 @@ std::vector<unsigned char> encipher(
 
     // Calcuate msg_size
     uint16_t msg_size = static_cast<uint16_t>(msg.size());
+#if (DBG > 0)
     dbg_out_scalar(":msg_size", msg_size, 2);
+#endif
 
     // Write msg_zise to envelope, after random
     // (the least significant byte comes first)
@@ -144,9 +86,11 @@ std::vector<unsigned char> encipher(
 
     // Calculate msg_crc = CRC(msg)
     std::array<unsigned char, HASH_SIZE> msg_crc = Crypt::calcCRC(msg);
+#if (DBG > 0)
     std::vector<unsigned char> vcrc;
     vcrc.insert(vcrc.end(), msg_crc.begin(), msg_crc.end());
     dbg_out_vec(":msg_crc", vcrc);
+#endif
 
     // Write msg_crc to envelope, after msg_size
     envelope.insert(envelope.end(), msg_crc.begin(), msg_crc.end());
@@ -160,18 +104,24 @@ std::vector<unsigned char> encipher(
 
     // Write msg_sign to envelope, after msg_crc
     envelope.insert(envelope.end(), msg_sign.begin(), msg_sign.end());
+#if (DBG > 0)
     std::vector<unsigned char> vsign;
     vsign.insert(vsign.end(), msg_sign.begin(), msg_sign.end());
     dbg_out_vec(":msg_sign", vsign);
+#endif
 
     // Write msg to envelope, after msg_sign
     envelope.insert(envelope.end(), msg.begin(), msg.end());
+#if (DBG > 0)
     std::vector<unsigned char> vmsg;
     vmsg.insert(vmsg.end(), msg.begin(), msg.end());
     dbg_out_vec(":msg", vmsg);
+#endif
 
     // dbg envelope
+#if (DBG > 0)
     dbg_out_vec(":envelope", envelope);
+#endif
 
     /** Finally Envelope:
        +---------------+
@@ -191,13 +141,14 @@ std::vector<unsigned char> encipher(
     */
 
     // Split envelope to chunks
-    std::vector<std::vector<unsigned char>> chunks = splitVec(envelope, CHUNK_SIZE);
+    std::vector<std::vector<unsigned char>> chunks = split_vec(envelope, CHUNK_SIZE);
 
     // Encrypt every chunk with pubkey and wrute to enc_chunks
     std::vector<std::vector<unsigned char>> enc_chunks;
     for (const auto& chunk : chunks) {
-        // dbg
+#if (DBG > 0)
         dbg_out_vec(":chunk", chunk);
+#endif
         // ENCRYPT CHUNK
         std::optional<std::vector<unsigned char>> opt_enc_chunk =
             Crypt::Encrypt(chunk, public_key);
@@ -209,8 +160,9 @@ std::vector<unsigned char> encipher(
         // SAVE ENCRYPT CHUNK
         std::vector<unsigned char> enc_chunk = *opt_enc_chunk;
         enc_chunks.push_back(enc_chunk);
-        // dbg
+#if (DBG > 0)
         dbg_out_vec(":enc_chunk", enc_chunk);
+#endif
     }
 
 
@@ -221,7 +173,9 @@ std::vector<unsigned char> encipher(
     // First we write the two-byte envelope size in chunks
     // (the least significant byte comes first)
     uint16_t envelope_size = static_cast<uint16_t>(enc_chunks.size());
+#if (DBG > 0)
     dbg_out_scalar(":envelope_size", envelope_size, 2);
+#endif
     pack.push_back(static_cast<unsigned char>(envelope_size & 0xFF));
     pack.push_back(static_cast<unsigned char>((envelope_size >> 8) & 0xFF));
 
@@ -239,7 +193,9 @@ std::vector<unsigned char> encipher(
        +-------------------------+
     */
 
-    // dbg_out_vec(":pack", pack);
+#if (DBG > 0)
+    dbg_out_vec(":pack", pack);
+#endif
     return pack;
 }
 
@@ -247,16 +203,17 @@ std::vector<unsigned char> encipher(
 std::string decipher(
     EVP_PKEY* private_key, EVP_PKEY* public_key, std::vector<unsigned char> pack)
 {
-    if (DBG) {
-        std::cout << "--------------------" <<std::endl;
-    }
-
+#if (DBG > 0)
+    std::cout << "--------------------" <<std::endl;
     dbg_out_vec("|pack", pack);
+#endif
 
     // Extract envelope_size from pack
     uint16_t envelope_size =
         static_cast<uint16_t>(pack[0]) | (static_cast<uint16_t>(pack[1]) << 8);
+#if (DBG > 0)
     dbg_out_scalar("|envelope_size", envelope_size, 2);
+#endif
 
     // Extract enc_chunks from pack
     std::vector<std::vector<unsigned char>> enc_chunks;
@@ -273,8 +230,10 @@ std::string decipher(
     std::vector<std::vector<unsigned char>> chunks;
     // size_t bytes_left = size_of_msg;
     for (std::vector<unsigned char> chunk : enc_chunks) {
+#if (DBG > 0)
         // dbg encrypted chunk
         dbg_out_vec("|enc-chunk", chunk);
+#endif
         // DECRYPT CHUNK
         std::optional<std::vector<unsigned char>> opt_dec_chunk =
             Crypt::Decrypt(chunk, private_key);
@@ -288,8 +247,10 @@ std::string decipher(
         dec_chunk.resize(CHUNK_SIZE);
         // SAVE RESULT
         chunks.push_back(dec_chunk);
+#if (DBG > 0)
         // dbg decrypted chunk
         dbg_out_vec("|dec-chunk", dec_chunk);
+#endif
     }
 
     // Form envelope
@@ -298,7 +259,9 @@ std::string decipher(
         envelope.insert(envelope.end(), enc_chunk.begin(), enc_chunk.end());
     }
 
+#if (DBG > 0)
     dbg_out_vec("|envelope", envelope);
+#endif
 
     /*
       +---------------+
@@ -319,7 +282,9 @@ std::string decipher(
 
     // Extract random_len
     uint8_t random_len = static_cast<uint8_t>(envelope[0]);
+#if (DBG > 0)
     dbg_out_scalar("|random_len", random_len, 1);
+#endif
 
     // Calculate ioffset to next field of envelope
     size_t offset = random_len + 1;
@@ -329,29 +294,37 @@ std::string decipher(
         static_cast<uint16_t>(envelope[offset]) |
         (static_cast<uint16_t>(envelope[offset+1]) << 8);
     offset += 2;
+#if (DBG > 0)
     dbg_out_scalar("|msg_size", msg_size, 2);
+#endif
 
     // Extract msg_crc
     std::vector<unsigned char> msg_crc;
     msg_crc.insert(
         msg_crc.end(), envelope.begin()+offset, envelope.begin()+offset+HASH_SIZE);
     offset += HASH_SIZE;
+#if (DBG > 0)
     std::vector<unsigned char> vcrc;
     vcrc.insert(vcrc.end(), msg_crc.begin(), msg_crc.end());
     dbg_out_vec("|msg_crc", vcrc);
+#endif
 
     // Extract msg_sign
     std::vector<unsigned char> msg_sign;
     msg_sign.insert(
         msg_sign.end(), envelope.begin()+offset, envelope.begin()+offset+SIG_SIZE);
     offset += SIG_SIZE;
+#if (DBG > 0)
     std::vector<unsigned char> vsign;
     vsign.insert(vsign.end(), msg_sign.begin(), msg_sign.end());
     dbg_out_vec("|msg_sign", vsign);
+#endif
 
     // Extract msg
     std::string msg(envelope.begin()+offset, envelope.begin()+offset+msg_size);
+#if (DBG > 0)
     std::cout << "msg: [" << msg << "]" << std::endl;
+#endif
 
     // CHECK SIGNATURE
     if (!Crypt::verify(msg, *reinterpret_cast<std::array<unsigned char, SIG_SIZE>*>(

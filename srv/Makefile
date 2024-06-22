@@ -11,8 +11,8 @@ chat_server: MainServer.o Server.o PersonInRoom.o ChatRoom.o WorkerThread.o Mess
 chat_client: MainClient.o Client.o Message.o Crypt.o
 	$(CXX) $(CXXFLAGS) -o chat_client MainClient.o Client.o Message.o Crypt.o -lpthread -lboost_system -lssl -lcrypto
 
-test_crypto: test_crypto.o Client.o Message.o Crypt.o
-	$(CXX) $(CXXFLAGS) -o test_crypto test_crypto.o Client.o Message.o Crypt.o -lpthread -lboost_system -lssl -lcrypto
+test_crypto: test_crypto.o Client.o Message.o Crypt.o Utils.o
+	$(CXX) $(CXXFLAGS) -o test_crypto test_crypto.o Client.o Message.o Crypt.o Utils.o -lpthread -lboost_system -lssl -lcrypto
 
 
 
@@ -47,6 +47,10 @@ Crypt.o: Crypt.cpp Crypt.hpp defs.hpp
 
 test_crypto.o: test_crypto.cpp test_crypto.hpp Crypt.hpp Message.hpp
 	$(CXX) $(CXXFLAGS) -c test_crypto.cpp
+
+Utils.o: Utils.cpp Utils.hpp defs.hpp
+	$(CXX) $(CXXFLAGS) -c Utils.cpp
+
 
 .PHONY: clean
 
