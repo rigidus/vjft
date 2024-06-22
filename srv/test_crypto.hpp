@@ -13,9 +13,6 @@
 #include "Crypt.hpp"
 #include "Utils.hpp"
 
-#define CHUNK_SIZE 255
-#define ENC_CHUNK_SIZE 512
-
 // Функция для тестирования полной последовательности шифрования,
 // кодирования, подписывания и обратного процесса
 bool TestFullSequence(EVP_PKEY* private_key, EVP_PKEY* public_key);

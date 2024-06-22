@@ -9,6 +9,13 @@
 #include <array>
 
 #include "defs.hpp"
+#include <openssl/err.h>
+#include <openssl/pem.h>
+#include <sstream>
+#include <iomanip>
+#include <iostream>
+#include <cstring>
+#include "Utils.hpp"
 
 class Crypt {
 public:
@@ -45,6 +52,11 @@ public:
     // static bool VerifyChecksum(
     //     const std::string& message,
     //     const std::array<unsigned char, EVP_MAX_MD_SIZE> crc);
+
+    static std::vector<unsigned char> encipher(
+        EVP_PKEY* private_key, EVP_PKEY* public_key, std::string msg);
+    static std::string decipher(
+        EVP_PKEY* private_key, EVP_PKEY* public_key, std::vector<unsigned char> pack);
 };
 
 #endif // CRYPT_HPP
