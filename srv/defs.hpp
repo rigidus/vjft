@@ -1,6 +1,6 @@
 // defs.hpp
 
-#define DBG 1
+#define DBG 0
 #define SIG_SIZE 512
 #define HASH_SIZE 32
 #define CHUNK_SIZE 255

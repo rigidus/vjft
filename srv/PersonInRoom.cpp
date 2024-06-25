@@ -13,7 +13,9 @@ tcp::socket& PersonInRoom::Socket() {
 void PersonInRoom::Start() {
     boost::asio::async_read(socket_,
                             boost::asio::buffer(nickname_, nickname_.size()),
-                            strand_.wrap(boost::bind(&PersonInRoom::NicknameHandler, shared_from_this(), _1)));
+                            strand_.wrap(
+                                boost::bind(&PersonInRoom::NicknameHandler,
+                                            shared_from_this(), _1)));
 }
 
 void PersonInRoom::OnMessage(std::array<char, MAX_IP_PACK_SIZE>& msg) {
@@ -21,8 +23,10 @@ void PersonInRoom::OnMessage(std::array<char, MAX_IP_PACK_SIZE>& msg) {
     write_msgs_.push_back(msg);
     if (!write_in_progress) {
         boost::asio::async_write(socket_,
-                                 boost::asio::buffer(write_msgs_.front(), write_msgs_.front().size()),
-                                 strand_.wrap(boost::bind(&PersonInRoom::WriteHandler, shared_from_this(), _1)));
+                                 boost::asio::buffer(write_msgs_.front(),
+                                                     write_msgs_.front().size()),
+                                 strand_.wrap(boost::bind(&PersonInRoom::WriteHandler,
+                                                          shared_from_this(), _1)));
     }
 }
 
@@ -38,7 +42,8 @@ void PersonInRoom::NicknameHandler(const boost::system::error_code& error) {
 
     boost::asio::async_read(socket_,
                             boost::asio::buffer(read_msg_, read_msg_.size()),
-                            strand_.wrap(boost::bind(&PersonInRoom::ReadHandler, shared_from_this(), _1)));
+                            strand_.wrap(boost::bind(&PersonInRoom::ReadHandler,
+                                                     shared_from_this(), _1)));
 }
 
 void PersonInRoom::ReadHandler(const boost::system::error_code& error) {
@@ -47,7 +52,8 @@ void PersonInRoom::ReadHandler(const boost::system::error_code& error) {
 
         boost::asio::async_read(socket_,
                                 boost::asio::buffer(read_msg_, read_msg_.size()),
-                                strand_.wrap(boost::bind(&PersonInRoom::ReadHandler, shared_from_this(), _1)));
+                                strand_.wrap(boost::bind(&PersonInRoom::ReadHandler,
+                                                         shared_from_this(), _1)));
     } else {
         room_.Leave(shared_from_this());
     }
@@ -59,8 +65,10 @@ void PersonInRoom::WriteHandler(const boost::system::error_code& error) {
 
         if (!write_msgs_.empty()) {
             boost::asio::async_write(socket_,
-                                     boost::asio::buffer(write_msgs_.front(), write_msgs_.front().size()),
-                                     strand_.wrap(boost::bind(&PersonInRoom::WriteHandler, shared_from_this(), _1)));
+                                     boost::asio::buffer(write_msgs_.front(),
+                                                         write_msgs_.front().size()),
+                                     strand_.wrap(boost::bind(&PersonInRoom::WriteHandler,
+                                                              shared_from_this(), _1)));
         }
     } else {
         room_.Leave(shared_from_this());

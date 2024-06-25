@@ -11,7 +11,8 @@
 
 using boost::asio::ip::tcp;
 
-class PersonInRoom : public Participant, public std::enable_shared_from_this<PersonInRoom> {
+class PersonInRoom : public Participant, public std::enable_shared_from_this<PersonInRoom>
+{
 public:
     PersonInRoom(boost::asio::io_service& io_service,
                  boost::asio::io_service::strand& strand, ChatRoom& room);

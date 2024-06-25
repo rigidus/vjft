@@ -6,7 +6,7 @@ TARGETS = chat_server chat_client test_crypto
 all: $(TARGETS)
 
 chat_server: MainServer.o Server.o PersonInRoom.o ChatRoom.o WorkerThread.o Message.o
-	$(CXX) $(CXXFLAGS) -o chat_server MainServer.o Server.o PersonInRoom.o ChatRoom.o WorkerThread.o Message.o -lpthread -lboost_system -lboost_thread
+	$(CXX) $(CXXFLAGS) -o chat_server MainServer.o Server.o PersonInRoom.o ChatRoom.o WorkerThread.o Message.o -lpthread -lboost_system -lboost_thread -static
 
 chat_client: MainClient.o Client.o Message.o Crypt.o Utils.o
 	$(CXX) $(CXXFLAGS) -o chat_client MainClient.o Client.o Message.o Crypt.o Utils.o -lpthread -lboost_system -lssl -lcrypto

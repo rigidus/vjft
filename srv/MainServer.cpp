@@ -14,9 +14,12 @@ int main(int argc, char* argv[]) {
             return 1;
         }
 
-        std::shared_ptr<boost::asio::io_service> io_service(new boost::asio::io_service);
-        boost::shared_ptr<boost::asio::io_service::work> work(new boost::asio::io_service::work(*io_service));
-        boost::shared_ptr<boost::asio::io_service::strand> strand(new boost::asio::io_service::strand(*io_service));
+        std::shared_ptr<boost::asio::io_service> io_service(
+            new boost::asio::io_service);
+        boost::shared_ptr<boost::asio::io_service::work> work(
+            new boost::asio::io_service::work(*io_service));
+        boost::shared_ptr<boost::asio::io_service::strand> strand(
+            new boost::asio::io_service::strand(*io_service));
 
         std::cout << "[" << std::this_thread::get_id() << "] server starts" << std::endl;
 
@@ -29,7 +32,8 @@ int main(int argc, char* argv[]) {
 
         boost::thread_group workers;
         for (int i = 0; i < 1; ++i) {
-            boost::thread* t = new boost::thread{boost::bind(&WorkerThread::Run, io_service)};
+            boost::thread* t = new boost::thread{
+                boost::bind(&WorkerThread::Run, io_service)};
 #ifdef __linux__
             // bind cpu affinity for worker thread in linux
             cpu_set_t cpuset;
