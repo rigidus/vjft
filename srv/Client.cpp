@@ -104,10 +104,11 @@ void Client::ReadHandler(const boost::system::error_code& error) {
     // std::cout << "\nReadHandler:\"" << msg_data << "\"" << std::endl;
 
     if (!error) {
-        std::vector<char> received_msg(read_msg_.begin() + 2, read_msg_.end());
-        std::string msg_data(received_msg.begin(), received_msg.end());
+        std::vector<char> received_msg(read_msg_.begin(), read_msg_.end());
 
-        std::cout << "ReadHandler: Received message: \"" << msg_data << "\""
+        // dbgout
+        std::string msg_data(received_msg.begin(), received_msg.end());
+        std::cout << "Client::ReadHandler: Received message: \"" << msg_data << "\""
                   << std::endl;
 
         // Десериализуем Map из строки
