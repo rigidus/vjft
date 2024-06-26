@@ -24,6 +24,7 @@ private:
     void HeaderHandler(const boost::system::error_code& error);
     void ReadHandler(const boost::system::error_code& error);
     void WriteHandler(const boost::system::error_code& error);
+    void CheckDeadline();
 
     tcp::socket socket_;
     boost::asio::io_service::strand& strand_;
@@ -31,6 +32,7 @@ private:
     std::array<char, MAX_NICKNAME> nickname_;
     std::vector<char> read_msg_;
     std::deque<std::vector<char>> write_msgs_;
+    boost::asio::steady_timer deadline_;
 };
 
 #endif // PERSONINROOM_HPP

@@ -260,7 +260,7 @@ void Client::WriteImpl(std::vector<char> msg) {
 
 void Client::WriteHandler(const boost::system::error_code& error) {
     if (!error) {
-        std::cout << "\Client::WriteHandler(): Message written successfully"
+        std::cout << "\nClient::WriteHandler(): Message written successfully"
                   << std::endl;
         // Удаляем только что отправленное сообщение из очереди
         write_msgs_.pop_front();

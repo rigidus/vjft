@@ -5,3 +5,4 @@
 #define HASH_SIZE 32
 #define CHUNK_SIZE 255
 #define ENC_CHUNK_SIZE 512
+#define MAX_MSG_SIZE 16384
