@@ -9,8 +9,24 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
                boost::asio::io_service& io_service,
                tcp::resolver::iterator endpoint_iterator)
     : io_service_(io_service), socket_(io_service) {
-    strcpy(nickname_.data(), nickname.data());
-    memset(read_msg_.data(), '\0', MAX_IP_PACK_SIZE);
+    std::cout << "Client constructor: Initializing async connect" << std::endl;
+    std::cout << "Client constructor: io_service initialized" << std::endl;
+    std::cout << "Client constructor: socket open: "
+              << std::boolalpha << socket_.is_open() << std::endl;
+    std::cout << "Client constructor: endpoint_iterator valid: "
+              << std::boolalpha
+              << static_cast<bool>(endpoint_iterator != tcp::resolver::iterator())
+              << std::endl;
+
+    // if (endpoint_iterator != tcp::resolver::iterator()) {
+    //     socket_.async_connect(*endpoint_iterator,
+    //                           boost::bind(&Client::OnConnect, this, _1));
+    // } else {
+    //     std::cerr << "Client constructor: Invalid endpoint_iterator" << std::endl;
+    // }
+
+    // strcpy(nickname_.data(), nickname.data());
+    // memset(read_msg_.data(), '\0', MAX_IP_PACK_SIZE);
 
     std::string password;
     std::cout << "Enter password for private key: ";
@@ -31,11 +47,15 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
         }
     }
 
-    boost::asio::async_connect(socket_, endpoint_iterator, boost::bind(&Client::OnConnect, this, _1));
+    boost::asio::async_connect(socket_,
+                               endpoint_iterator,
+                               boost::bind(&Client::OnConnect, this, _1));
+
+    std::cerr << "Client constructor: Async Connect ok" << std::endl;
 }
 
-void Client::Write(const std::array<char, MAX_IP_PACK_SIZE>& msg) {
-    std::cout << "\nClient::Write()";
+void Client::Write(const std::vector<char>& msg) {
+    std::cout << "\nClient::Write() Scheduling message write" << std::endl;
     io_service_.post(boost::bind(&Client::WriteImpl, this, msg));
 }
 
@@ -45,16 +65,51 @@ void Client::Close() {
 
 void Client::OnConnect(const boost::system::error_code& error) {
     if (!error) {
-        boost::asio::async_write(socket_,
-                                 boost::asio::buffer(nickname_, nickname_.size()),
-                                 boost::bind(&Client::ReadHandler, this, _1));
+        std::cout << "\nOnConnect: Connection successful, starting to read header"
+                  << std::endl;
+        // Временно не передаем никнейм
+        // boost::asio::async_write(socket_,
+        //                          boost::asio::buffer(nickname_, nickname_.size()),
+        //                          boost::bind(&Client::ReadHandler, this, _1));
+        // Сразу начинаем чтение сообщений после установления соединения
+        // читаем сначала 2 байта заголовка
+        read_msg_.resize(2);
+        boost::asio::async_read(socket_,
+                                boost::asio::buffer(read_msg_.data(), 2),
+                                boost::bind(&Client::HeaderHandler, this, _1));
+    } else {
+        std::cerr << "\nOnConnect: Connection failed: " << error.message() << std::endl;
+        CloseImpl();
+    }
+}
+
+void Client::HeaderHandler(const boost::system::error_code& error) {
+    if (!error) {
+        uint16_t msg_length =
+            (static_cast<uint16_t>(read_msg_[1]) << 8) |
+            static_cast<uint16_t>(read_msg_[0]);
+        std::cout << "HeaderHandler: Message length = " << msg_length << std::endl;
+        read_msg_.resize(msg_length);
+        // Читаем остальную часть сообщения
+        boost::asio::async_read(socket_,
+                                boost::asio::buffer(read_msg_.data(), msg_length),
+                                boost::bind(&Client::ReadHandler, this, _1));
+    } else {
+        CloseImpl();
     }
 }
 
 void Client::ReadHandler(const boost::system::error_code& error) {
-    std::string msg_data = read_msg_.data();
-    std::cout << "\nReadHandler:\"" << msg_data << "\"" << std::endl;
+    // std::string msg_data = read_msg_.data();
+    // std::cout << "\nReadHandler:\"" << msg_data << "\"" << std::endl;
+
     if (!error) {
+        std::vector<char> received_msg(read_msg_.begin() + 2, read_msg_.end());
+        std::string msg_data(received_msg.begin(), received_msg.end());
+
+        std::cout << "ReadHandler: Received message: \"" << msg_data << "\""
+                  << std::endl;
+
         // Десериализуем Map из строки
         std::map<std::string, std::string> data = Message::unpack(msg_data);
 
@@ -102,15 +157,23 @@ void Client::ReadHandler(const boost::system::error_code& error) {
                 // EVP_PKEY_free(sender_public_key);
             }
         }
+        // boost::asio::async_read(socket_,
+        //                         boost::asio::buffer(read_msg_, read_msg_.size()),
+        //                         boost::bind(&Client::ReadHandler, this, _1));
+
+        // Снова начинаем чтение заголовка следующего сообщения
+        read_msg_.resize(2); // готовим буфер для чтения следующего заголовка
         boost::asio::async_read(socket_,
-                                boost::asio::buffer(read_msg_, read_msg_.size()),
-                                boost::bind(&Client::ReadHandler, this, _1));
+                                boost::asio::buffer(read_msg_.data(), 2),
+                                boost::bind(&Client::HeaderHandler, this, _1));
     } else {
+        std::cerr << "ReadHandler: Error reading message: "
+                  << error.message() << std::endl;
         CloseImpl();
     }
 }
 
-void Client::WriteImpl(std::array<char, MAX_IP_PACK_SIZE> msg) {
+void Client::WriteImpl(std::vector<char> msg) {
     std::cout << "\nClient::WriteImpl" << std::endl;
 
     bool write_in_progress = !write_msgs_.empty();
@@ -148,22 +211,39 @@ void Client::WriteImpl(std::array<char, MAX_IP_PACK_SIZE> msg) {
     for (const auto& pair : data) {
         std::cout << pair.first << ": " << pair.second << std::endl;
     }
+
     // Сериализуем Map в строку
     std::string packed_message = Message::pack(data);
-    // Проверка длины упакованного сообщения
+    // Проверка длины упакованного сообщения (TODO: уточнить макс размер)
     if (packed_message.size() > MAX_IP_PACK_SIZE) {
         // TODO: тут нужно разбивать сообщение на блоки, шифровать их по отдельности,
         // нумеровать и отправлять в сокет, но пока мы просто не отправляем
-        std::cerr << "Error: Message is too large to fit in the buffer" << std::endl;
+        std::cerr << "\nError: Message is too large to fit in the buffer" << std::endl;
         return;
     }
 
-    std::array<char, MAX_IP_PACK_SIZE> formatted_msg;
-    std::copy(packed_message.begin(), packed_message.end(), formatted_msg.begin());
-    std::cout << "Client: Sending message of size: "
+    std::cout << "\nClient: Packed Message Size: " << packed_message.size()
+              << std::endl;
+
+    // Инициализация вектора данными из packed_message
+    std::vector<char> formatted_msg(packed_message.begin(), packed_message.end());
+    std::cout << "\nClient: Sending message of size: "
               << formatted_msg.size()
               << std::endl;
-    write_msgs_.push_back(formatted_msg);
+    // Помещаем длину вперед formatted_msg
+    uint16_t formatted_msg_len = static_cast<uint16_t>(formatted_msg.size());
+    char len_bytes[2];
+    len_bytes[0] = static_cast<char>(formatted_msg_len & 0xFF); // младший байт
+    len_bytes[1] = static_cast<char>((formatted_msg_len >> 8) & 0xFF); // старший
+    // Вставка двух байтов длины в начало вектора
+    formatted_msg.insert(formatted_msg.begin(), len_bytes, len_bytes + 2);
+
+    std::cout << "Client::WriteImpl(): "
+              << "Formatted message with length prefix prepared" << std::endl;
+
+    // Теперь добавляем formatted_msg в очередь сообщений на отправку
+    write_msgs_.push_back(std::move(formatted_msg));
+
     // Если в данный момент запись не идет, инициируется асинхронная запись
     // сообщения в сокет. Когда асинхронная запись завершится, вызывается
     // функция-обработчик WriteHandler. Она проверит есть ли еще что-то
@@ -171,15 +251,17 @@ void Client::WriteImpl(std::array<char, MAX_IP_PACK_SIZE> msg) {
     if (!write_in_progress) {
         boost::asio::async_write(
             socket_,
-            boost::asio::buffer(write_msgs_.front(), write_msgs_.front().size()),
+            boost::asio::buffer(write_msgs_.front().data(), write_msgs_.front().size()),
             boost::bind(&Client::WriteHandler, this, _1));
     }
 
-    std::cout << "Client::WriteImplEnd" << std::endl;
+    std::cout << "\nClient::WriteImplEnd" << std::endl;
 }
 
 void Client::WriteHandler(const boost::system::error_code& error) {
     if (!error) {
+        std::cout << "\Client::WriteHandler(): Message written successfully"
+                  << std::endl;
         // Удаляем только что отправленное сообщение из очереди
         write_msgs_.pop_front();
         // Если очередь не пуста, инициируем новую асинхронную
@@ -191,11 +273,14 @@ void Client::WriteHandler(const boost::system::error_code& error) {
                 boost::bind(&Client::WriteHandler, this, _1));
         }
     } else {
+        std::cerr << "WriteHandler: Error writing message: "
+                  << error.message() << std::endl;
         CloseImpl();
     }
 }
 
 void Client::CloseImpl() {
+    std::cout << "CloseImpl: Closing socket" << std::endl;
     socket_.close();
 }
 

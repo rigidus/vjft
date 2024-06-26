@@ -22,7 +22,10 @@ void Server::OnAccept(
     const boost::system::error_code& error)
 {
     if (!error) {
+        std::cout << "Server::OnAccept(): New participant accepted" << std::endl;
         new_participant->Start();
+    } else {
+        std::cerr << "Server::OnAccept(): Error: " << error.message() << std::endl;
     }
 
     Run();
