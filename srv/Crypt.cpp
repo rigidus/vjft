@@ -7,26 +7,30 @@ std::array<unsigned char, HASH_SIZE> Crypt::calcCRC(
     std::array<unsigned char, HASH_SIZE> hash = {};
     EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
     if (mdctx == nullptr) {
-        std::cerr << "Error Calc CRC: Failed to create EVP_MD_CTX" << std::endl;
+        std::cerr << ":> Crypt::calcCRC(): Error: Failed to create EVP_MD_CTX"
+                  << std::endl;
         return hash;
     }
 
     if (EVP_DigestInit_ex(mdctx, EVP_sha256(), nullptr) != 1) {
         EVP_MD_CTX_free(mdctx);
-        std::cerr << "Error Calc CRC: Failed to initialize digest" << std::endl;
+        std::cerr << ":> Crypt::calcCRC(): Error: Failed to initialize digest"
+                  << std::endl;
         return hash;
     }
 
     if (EVP_DigestUpdate(mdctx, message.c_str(), message.size()) != 1) {
         EVP_MD_CTX_free(mdctx);
-        std::cerr << "Error Calc CRC: Failed to update digest" << std::endl;
+        std::cerr << ":> Crypt::calcCRC(): Error: Failed to update digest"
+                  << std::endl;
         return hash;
     }
 
     unsigned int lengthOfHash = 0;
     if (EVP_DigestFinal_ex(mdctx, hash.data(), &lengthOfHash) != 1) {
         EVP_MD_CTX_free(mdctx);
-        std::cerr << "Error Calc CRC: Failed to finalize digest" << std::endl;
+        std::cerr << ":> Crypt::calcCRC(): Error: Failed to finalize digest"
+                  << std::endl;
         return hash;
     }
 
@@ -94,50 +98,6 @@ std::optional<std::array<unsigned char, SIG_SIZE>> Crypt::sign(
     return signature;
 }
 
-
-bool Crypt::verify(
-    const std::string& message, const std::array<unsigned char, 512>& signature,
-    EVP_PKEY* public_key)
-{
-    // Создаем контекст для проверки подписи
-    EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
-    if (mdctx == nullptr) {
-        std::cerr << "VerifySignature error: Failed to create EVP_MD_CTX" << std::endl;
-        return false;
-    }
-
-    // Инициализируем контекст для проверки подписи с использованием алгоритма SHA-256
-    if (EVP_DigestVerifyInit(mdctx, nullptr, EVP_sha256(), nullptr, public_key) <= 0) {
-        EVP_MD_CTX_free(mdctx);
-        std::cerr << "VerifySignature error: Error initializing verification: "
-                  << std::string(ERR_error_string(ERR_get_error(), nullptr))
-                  << std::endl;
-        return false;
-    }
-
-    // Обновляем контекст данными сообщения
-    if (EVP_DigestVerifyUpdate(mdctx, message.c_str(), message.size()) <= 0) {
-        EVP_MD_CTX_free(mdctx);
-        std::cerr << "VerifySignature error: Error updating verification: "
-                  << std::string(ERR_error_string(ERR_get_error(), nullptr))
-                  << std::endl;
-        return false;
-    }
-
-    // Проверяем подпись
-    int ret = EVP_DigestVerifyFinal(mdctx, signature.data(), signature.size());
-    EVP_MD_CTX_free(mdctx);
-
-    if (ret < 0) {
-        std::cerr << "VerifySignature error: Error finalizing verification: "
-                  << std::string(ERR_error_string(ERR_get_error(), nullptr))
-                  << std::endl;
-        return false;
-    }
-
-    // Возвращаем true, если подпись верна, иначе false
-    return ret == 1;
-}
 
 std::optional<std::vector<unsigned char>> Crypt::Encrypt(
     const std::vector<unsigned char>& packed, EVP_PKEY* public_key)
@@ -265,36 +225,45 @@ std::vector<unsigned char> Crypt::Base64Decode(const std::string& encoded) {
     return buffer;
 }
 
-std::optional<std::string> Crypt::DecryptMessage(const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key) {
+std::optional<std::string> Crypt::DecryptMessage(
+    const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key)
+{
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(private_key, nullptr);
     if (!ctx) {
-        std::cerr << "DecryptMessage error: Error creating context for decryption" << std::endl;
+        std::cerr << "!> Crypt::DecryptMessage(): Error creating context for decryption"
+                  << std::endl;
         return std::nullopt;
     }
 
     if (EVP_PKEY_decrypt_init(ctx) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-        std::cerr << "DecryptMessage error: Error initializing decryption" << std::endl;
+        std::cerr << "!> Crypt::DecryptMessage():  Error initializing decryption"
+                  << std::endl;
         return std::nullopt;
     }
 
     if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-        std::cerr << "DecryptMessage error: Error setting RSA padding" << std::endl;
+        std::cerr << "!> Crypt::DecryptMessage(): Error setting RSA padding"
+                  << std::endl;
         return std::nullopt;
     }
 
     size_t outlen;
-    if (EVP_PKEY_decrypt(ctx, nullptr, &outlen, encrypted_message.data(), encrypted_message.size()) <= 0) {
+    if (EVP_PKEY_decrypt(ctx, nullptr, &outlen, encrypted_message.data(),
+                         encrypted_message.size()) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-        std::cerr << "DecryptMessage error: Error determining buffer length for decryption" << std::endl;
+        std::cerr << "!> Crypt::DecryptMessage(): Error determining buffer "
+                  << "length for decryption" << std::endl;
         return std::nullopt;
     }
 
     std::vector<unsigned char> out(outlen);
-    if (EVP_PKEY_decrypt(ctx, out.data(), &outlen, encrypted_message.data(), encrypted_message.size()) <= 0) {
+    if (EVP_PKEY_decrypt(ctx, out.data(), &outlen, encrypted_message.data(),
+                         encrypted_message.size()) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-        std::cerr << "DecryptMessage error: Error decrypting message" << std::endl;
+        std::cerr << "!> Crypt::DecryptMessage(): Error decrypting message"
+                  << std::endl;
         return std::nullopt;
     }
 
@@ -302,39 +271,110 @@ std::optional<std::string> Crypt::DecryptMessage(const std::vector<unsigned char
     return std::string(out.begin(), out.end());
 }
 
-bool Crypt::VerifySignature(const std::string& message, const std::vector<unsigned char>& signature, EVP_PKEY* public_key) {
+
+std::optional<std::vector<unsigned char>> Crypt::SignMsg(const std::string& message,
+                                                          EVP_PKEY* private_key)
+{
+    // Создаем контекст для подписи
     EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
     if (mdctx == nullptr) {
-        std::cerr << "VerifySignature error: Failed to create EVP_MD_CTX" << std::endl;
+        std::cerr << "!> Client::SignMsg(): Error: Failed to create EVP_MD_CTX"
+                  << std::endl;
+        return std::nullopt;
+    }
+
+    // Инициализируем контекст для подписи с использованием алгоритма SHA-256
+    if (EVP_DigestSignInit(mdctx, nullptr, EVP_sha256(), nullptr, private_key) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        std::cerr << "!> Client::SignMsg(): Error initializing signing: "
+                  << std::string(ERR_error_string(ERR_get_error(), nullptr))
+                  << std::endl;
+        return std::nullopt;
+    }
+
+    // Обновляем контекст данными сообщения
+    if (EVP_DigestSignUpdate(mdctx, message.c_str(), message.size()) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        std::cerr << "!> Client::SignMsg(): Error updating signing: "
+                  << std::string(ERR_error_string(ERR_get_error(), nullptr))
+                  << std::endl;
+        return std::nullopt;
+    }
+
+    // Определяем размер подписи
+    size_t siglen;
+    if (EVP_DigestSignFinal(mdctx, nullptr, &siglen) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        std::cerr << "!> Client::SignMsg(): Error finalizing signing: "
+                  << std::string(ERR_error_string(ERR_get_error(), nullptr))
+                  << std::endl;
+        return std::nullopt;
+    }
+
+    // Получаем подпись
+    std::vector<unsigned char> signature(siglen);
+    if (EVP_DigestSignFinal(mdctx, signature.data(), &siglen) <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        std::cerr << "!> Client::SignMsg(): Error: Error getting signature: "
+                  << std::string(ERR_error_string(ERR_get_error(), nullptr))
+                  << std::endl;
+        return std::nullopt;
+    }
+
+    // Освобождаем контекст
+    EVP_MD_CTX_free(mdctx);
+
+    // Обрезаем вектор до актуального размера подписи, если это необходимо
+    std::cout << ":> Client::SignMsg(): siglen:" << siglen << std::endl;
+    signature.resize(siglen);
+
+    // Возвращаем подпись
+    return signature;
+}
+
+
+bool Crypt::VerifySignature(const std::string& message,
+                            const std::vector<unsigned char>& signature,
+                            EVP_PKEY* public_key)
+{
+    // Создаем контекст для проверки подписи
+    EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
+    if (mdctx == nullptr) {
+        std::cerr << "!> Crypt::VerifySignature(): Error: Failed to create EVP_MD_CTX"
+                  << std::endl;
         return false;
     }
 
+    // Инициализируем контекст для проверки подписи с использованием алгоритма SHA-256
     if (EVP_DigestVerifyInit(mdctx, nullptr, EVP_sha256(), nullptr, public_key) <= 0) {
         EVP_MD_CTX_free(mdctx);
-        std::cerr << "VerifySignature error: Error initializing verification: "
+        std::cerr << "!> Crypt::VerifySignature(): Error initializing verification: "
                   << std::string(ERR_error_string(ERR_get_error(), nullptr))
                   << std::endl;
         return false;
     }
 
+    // Обновляем контекст данными сообщения
     if (EVP_DigestVerifyUpdate(mdctx, message.c_str(), message.size()) <= 0) {
         EVP_MD_CTX_free(mdctx);
-        std::cerr << "VerifySignature error: Error updating verification: "
+        std::cerr << "!> Crypt::VerifySignature(): Error updating verification: "
                   << std::string(ERR_error_string(ERR_get_error(), nullptr))
                   << std::endl;
         return false;
     }
 
+    // Проверяем подпись
     int ret = EVP_DigestVerifyFinal(mdctx, signature.data(), signature.size());
     EVP_MD_CTX_free(mdctx);
 
     if (ret < 0) {
-        std::cerr << "VerifySignature error: Error finalizing verification: "
+        std::cerr << "!> Crypt::VerifySignature(): Error finalizing verification: "
                   << std::string(ERR_error_string(ERR_get_error(), nullptr))
                   << std::endl;
         return false;
     }
 
+    // Возвращаем true, если подпись верна, иначе false
     return ret == 1;
 }
 
@@ -666,8 +706,7 @@ std::string Crypt::decipher(
 #endif
 
     // CHECK SIGNATURE
-    if (!Crypt::verify(msg, *reinterpret_cast<std::array<unsigned char, SIG_SIZE>*>(
-                           msg_sign.data()), public_key))
+    if (!Crypt::VerifySignature(msg, msg_sign, public_key))
     {
         std::cerr << "Error: Message Signature Verification Failed" << std::endl;
         return "";

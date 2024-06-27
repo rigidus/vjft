@@ -26,10 +26,10 @@ int main(int argc, char* argv[]) {
         std::array<char, MAX_NICKNAME> nickname;
         strcpy(nickname.data(), argv[1]);
 
-        std::cout << ":> MainClient: Creating client instance" << std::endl;
+        std::cout << ":> MainClient::main(): Creating client instance" << std::endl;
         Client cli(nickname, io_service, iterator);
 
-        std::cout << ":> MainClient: Starting IO service thread" << std::endl;
+        std::cout << ":> MainClient::main(): Starting IO service thread" << std::endl;
         std::thread t(boost::bind(&boost::asio::io_service::run, &io_service));
 
         std::array<char, MAX_IP_PACK_SIZE> msg;
@@ -39,11 +39,12 @@ int main(int argc, char* argv[]) {
             if (!std::cin.getline(msg.data(), MAX_IP_PACK_SIZE - PADDING - MAX_NICKNAME)) {
                 std::cin.clear(); //clean up error bit and try to finish reading
             }
-            std::cout << "\nMainClient::main(): Msg.data size: " << strlen(msg.data());
+            std::cout << ":> MainClient::main(): Msg.data size: "
+                      << strlen(msg.data()) << std::endl;
             if (strlen(msg.data()) > 0) { // Проверка на пустое сообщение
                 std::vector<char> msg_vector(msg.begin(),
                                              msg.begin() + strlen(msg.data()));
-                std::cout << "\nMain: Sending message: "
+                std::cout << ":> Main: Sending message: "
                           << std::string(msg_vector.begin(), msg_vector.end())
                           << std::endl;
                 cli.Write(msg_vector);

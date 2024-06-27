@@ -42,17 +42,6 @@ public:
         const std::string& key_file, bool is_private, const std::string& password = "");
     static std::string GetPubKeyFingerprint(EVP_PKEY* public_key);
 
-    // Методы для кодирования и декодирования в base64
-    static std::string Base64Encode(const std::vector<unsigned char>& buffer);
-    static std::vector<unsigned char> Base64Decode(const std::string& encoded);
-
-    // Методы для подписания сообщения и проверки подписи
-    static std::optional<std::vector<unsigned char>> SignMsg(
-        const std::string& message, EVP_PKEY* private_key);
-    static bool VerifySignature(
-        const std::string& message, const std::vector<unsigned char>& signature,
-        EVP_PKEY* public_key);
-
 private:
     void OnConnect(const boost::system::error_code& error);
     void HeaderHandler(const boost::system::error_code& error);

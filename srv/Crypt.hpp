@@ -34,10 +34,6 @@ public:
     static std::optional<std::vector<unsigned char>> Decrypt(
         const std::vector<unsigned char>& encrypted_chunk, EVP_PKEY* private_key);
 
-    static bool verify(
-        const std::string& message, const std::array<unsigned char, 512>& signature,
-        EVP_PKEY* public_key);
-
     static std::string Base64Encode(
         const std::vector<unsigned char>& buffer);
 
@@ -45,6 +41,9 @@ public:
 
     static std::optional<std::string> DecryptMessage(
         const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key);
+
+    static std::optional<std::vector<unsigned char>> SignMsg(
+        const std::string& message, EVP_PKEY* private_key);
 
     static bool VerifySignature(
         const std::string& message,

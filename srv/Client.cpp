@@ -51,7 +51,7 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
                                endpoint_iterator,
                                boost::bind(&Client::OnConnect, this, _1));
 
-    std::cerr << "Client::Client(): Async Connect ok" << std::endl;
+    std::cerr << ":> Client::Client(): Async Connect ok" << std::endl;
 }
 
 void Client::Write(const std::vector<char>& msg) {
@@ -117,50 +117,24 @@ void Client::ReadHandler(const boost::system::error_code& error) {
         std::string decoded_content, decrypted_message, signature_str;
         std::vector<unsigned char> decoded_message, signature;
 
-        decoded_message = Base64Decode(data["enc"]);
+        decoded_message = Crypt::Base64Decode(data["enc"]);
         dbg_out_vec("Decoded message", decoded_message);
 
         if (!decoded_message.empty()) {
-            // decrypted_message =
-            //     Client::DecryptMessage(decoded_message, client_private_key_);
             auto decrypted_msg =
                 Crypt::decipher(client_private_key_, recipient_public_keys[0],
                                 decoded_message);
 
             if (decrypted_msg.empty()) {
-                std::cerr << "Decryption error or message not for me " << std::endl;
+                std::cerr << ":> Decryption error or message not for me " << std::endl;
             } else {
-
-                // if (CalculateChecksum(decrypted_message) != data["checksum"]) {
-                //     std::cerr << "Checksum verification failed." << std::endl;
-                // }
-
                 std::cout << ":> Message received successfully: " << decrypted_msg
                           << std::endl;
-
-
                 for (const auto& pair : data) {
                     std::cout << pair.first << ": " << pair.second << std::endl;
                 }
-
-                // signature_str = data["signature"];
-                // signature =
-                //     std::vector<unsigned char>(signature_str.begin(),
-                //                                signature_str.end());
-                // // TODO:заменить на выбор пабкея и убрать освобождение ключа
-                // // PubKey выбирать по его фингерпринту!
-                // EVP_PKEY* sender_public_key =
-                //     LoadKeyFromFile(recipient_public_key_files[0], false);
-
-                // if (!VerifySignature(decrypted_message, signature, sender_public_key)) {
-                //     std::cerr << "Signature verification failed." << std::endl;
-                // }
-                // EVP_PKEY_free(sender_public_key);
             }
         }
-        // boost::asio::async_read(socket_,
-        //                         boost::asio::buffer(read_msg_, read_msg_.size()),
-        //                         boost::bind(&Client::ReadHandler, this, _1));
 
         // Снова начинаем чтение заголовка следующего сообщения
         read_msg_.resize(2); // готовим буфер для чтения следующего заголовка
@@ -168,7 +142,7 @@ void Client::ReadHandler(const boost::system::error_code& error) {
                                 boost::asio::buffer(read_msg_.data(), 2),
                                 boost::bind(&Client::HeaderHandler, this, _1));
     } else {
-        std::cerr << "Client::ReadHandler(): Error reading message: "
+        std::cerr << ":> Client::ReadHandler(): Error reading message: "
                   << error.message() << std::endl;
         CloseImpl();
     }
@@ -185,9 +159,9 @@ void Client::WriteImpl(std::vector<char> msg) {
 
     // Подпишем сообщение своим приватным ключом
     std::string signature = "";
-    auto optSign = SignMsg(message, client_private_key_);
+    auto optSign = Crypt::SignMsg(message, client_private_key_);
     if (!optSign) { return; } else {
-        signature = Base64Encode(*optSign);
+        signature = Crypt::Base64Encode(*optSign);
     }
     // Для каждого из ключей получателей..
     for (auto i = 0; i < recipient_public_keys.size(); ++i) {
@@ -199,7 +173,7 @@ void Client::WriteImpl(std::vector<char> msg) {
 
         dbg_out_vec("Encrypted message", encrypted_msg);
 
-        std::string encoded = Base64Encode(encrypted_msg);
+        std::string encoded = Crypt::Base64Encode(encrypted_msg);
         // Map
         data = {
             {"to", to},
@@ -358,136 +332,4 @@ EVP_PKEY* Client::LoadKeyFromFile(const std::string& key_file, bool is_private,
     return key;
     // TODO: Надо освобождать (если удалось загрузить) ключи
     // с помощью EVP_PKEY_free(key);
-}
-
-
-std::optional<std::vector<unsigned char>> Client::SignMsg(const std::string& message,
-                                                          EVP_PKEY* private_key)
-{
-    // Создаем контекст для подписи
-    EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
-    if (mdctx == nullptr) {
-        std::cerr << "Signing error: Failed to create EVP_MD_CTX" << std::endl;
-        return std::nullopt;
-    }
-
-    // Инициализируем контекст для подписи с использованием алгоритма SHA-256
-    if (EVP_DigestSignInit(mdctx, nullptr, EVP_sha256(), nullptr, private_key) <= 0) {
-        EVP_MD_CTX_free(mdctx);
-        std::cerr << "Signing error: Error initializing signing: "
-                  << std::string(ERR_error_string(ERR_get_error(), nullptr))
-                  << std::endl;
-    }
-
-    // Обновляем контекст данными сообщения
-    if (EVP_DigestSignUpdate(mdctx, message.c_str(), message.size()) <= 0) {
-        EVP_MD_CTX_free(mdctx);
-        std::cerr << "Signing error: Error updating signing: " <<
-            std::string(ERR_error_string(ERR_get_error(), nullptr)) << std::endl;
-        return std::nullopt;
-    }
-
-    // Определяем размер подписи
-    size_t siglen;
-    if (EVP_DigestSignFinal(mdctx, nullptr, &siglen) <= 0) {
-        EVP_MD_CTX_free(mdctx);
-        std::cerr << "Signing error: Error finalizing signing: " <<
-            std::string(ERR_error_string(ERR_get_error(), nullptr)) << std::endl;
-        return std::nullopt;
-    }
-
-    // Получаем подпись
-    std::vector<unsigned char> signature(siglen);
-    if (EVP_DigestSignFinal(mdctx, signature.data(), &siglen) <= 0) {
-        EVP_MD_CTX_free(mdctx);
-        std::cerr << "Signing error: Error getting signature: " <<
-            std::string(ERR_error_string(ERR_get_error(), nullptr)) << std::endl;
-        return std::nullopt;
-    }
-
-    // Освобождаем контекст
-    EVP_MD_CTX_free(mdctx);
-
-    // Возвращаем подпись
-    return signature;
-}
-
-
-bool Client::VerifySignature(const std::string& message,
-                             const std::vector<unsigned char>& signature,
-                             EVP_PKEY* public_key)
-{
-    // Создаем контекст для проверки подписи
-    EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
-    if (mdctx == nullptr) {
-        std::cerr << "VerifySignature error: Failed to create EVP_MD_CTX" << std::endl;
-        return false;
-    }
-
-    // Инициализируем контекст для проверки подписи с использованием алгоритма SHA-256
-    if (EVP_DigestVerifyInit(mdctx, nullptr, EVP_sha256(), nullptr, public_key) <= 0) {
-        EVP_MD_CTX_free(mdctx);
-        std::cerr << "VerifySignature error: Error initializing verification: "
-                  << std::string(ERR_error_string(ERR_get_error(), nullptr))
-                  << std::endl;
-        return false;
-    }
-
-    // Обновляем контекст данными сообщения
-    if (EVP_DigestVerifyUpdate(mdctx, message.c_str(), message.size()) <= 0) {
-        EVP_MD_CTX_free(mdctx);
-        std::cerr << "VerifySignature error: Error updating verification: "
-                  << std::string(ERR_error_string(ERR_get_error(), nullptr))
-                  << std::endl;
-        return false;
-    }
-
-    // Проверяем подпись
-    int ret = EVP_DigestVerifyFinal(mdctx, signature.data(), signature.size());
-    EVP_MD_CTX_free(mdctx);
-
-    if (ret < 0) {
-        std::cerr << "VerifySignature error: Error finalizing verification: "
-                  << std::string(ERR_error_string(ERR_get_error(), nullptr))
-                  << std::endl;
-        return false;
-    }
-
-    // Возвращаем true, если подпись верна, иначе false
-    return ret == 1;
-}
-
-// Функция для кодирования Base64
-std::string Client::Base64Encode(const std::vector<unsigned char>& buffer) {
-    BIO* bio = BIO_new(BIO_f_base64());
-    BIO* bmem = BIO_new(BIO_s_mem());
-    bio = BIO_push(bio, bmem);
-
-    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
-    BIO_write(bio, buffer.data(), buffer.size());
-    BIO_flush(bio);
-
-    BUF_MEM* bptr;
-    BIO_get_mem_ptr(bio, &bptr);
-
-    std::string encoded(bptr->data, bptr->length);
-    BIO_free_all(bio);
-
-    return encoded;
-}
-
-// Функция для декодирования Base64
-std::vector<unsigned char> Client::Base64Decode(const std::string& encoded) {
-    BIO* bio = BIO_new_mem_buf(encoded.data(), encoded.size());
-    BIO* b64 = BIO_new(BIO_f_base64());
-    bio = BIO_push(b64, bio);
-
-    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
-
-    std::vector<unsigned char> buffer(encoded.size());
-    int decoded_length = BIO_read(bio, buffer.data(), buffer.size());
-    buffer.resize(decoded_length);
-    BIO_free_all(bio);
-
-    return buffer;
 }
