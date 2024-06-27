@@ -492,7 +492,6 @@ std::vector<unsigned char> Crypt::encipher(
             Crypt::Encrypt(chunk, public_key);
         if (!(opt_enc_chunk)) {
             std::cerr << "Error: Encryption Chunk Failed" << std::endl;
-            throw "qwqewqewqe";
             throw std::runtime_error("Encryption Chunk Failed");
         }
         // SAVE ENCRYPT CHUNK

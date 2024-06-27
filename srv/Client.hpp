@@ -37,26 +37,10 @@ public:
     void Write(const std::vector<char>& msg);
     void Close();
 
-    // Метод для загрузки ключей из файла и получения fingerprint
+    // Методы для загрузки ключей из файла и получения fingerprint
     static EVP_PKEY* LoadKeyFromFile(
         const std::string& key_file, bool is_private, const std::string& password = "");
     static std::string GetPubKeyFingerprint(EVP_PKEY* public_key);
-
-    // Методы для шифрования и рассшифровывания сообщения
-    static std::optional<std::vector<unsigned char>> EncryptChunk(
-        const std::string& message, EVP_PKEY* public_key);
-    static std::optional<std::vector<unsigned char>> EncryptMessage(
-        const std::string& message, EVP_PKEY* public_key);
-    static std::optional<std::vector<unsigned char>> DecryptChunk(
-        const std::vector<unsigned char>& encrypted_chunk, EVP_PKEY* private_key);
-    static std::optional<std::string> DecryptMessage(
-        const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key);
-    // static std::string DecryptMessage(
-    //     const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key);
-
-    // Методы для вычисления и проверки контрольной суммы
-    static std::string CalculateChecksum(const std::string& message);
-    static bool VerifyChecksum(const std::string& message, const std::string& checksum);
 
     // Методы для кодирования и декодирования в base64
     static std::string Base64Encode(const std::vector<unsigned char>& buffer);

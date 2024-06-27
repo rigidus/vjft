@@ -9,11 +9,11 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
                boost::asio::io_service& io_service,
                tcp::resolver::iterator endpoint_iterator)
     : io_service_(io_service), socket_(io_service) {
-    std::cout << "Client constructor: Initializing async connect" << std::endl;
-    std::cout << "Client constructor: io_service initialized" << std::endl;
-    std::cout << "Client constructor: socket open: "
+    std::cout << ":> Client::Client(): Initializing async connect" << std::endl;
+    std::cout << ":> Client::Client(): io_service initialized" << std::endl;
+    std::cout << ":> Client::Client(): socket open: "
               << std::boolalpha << socket_.is_open() << std::endl;
-    std::cout << "Client constructor: endpoint_iterator valid: "
+    std::cout << ":> Client::Client(): endpoint_iterator valid: "
               << std::boolalpha
               << static_cast<bool>(endpoint_iterator != tcp::resolver::iterator())
               << std::endl;
@@ -22,14 +22,14 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
     //     socket_.async_connect(*endpoint_iterator,
     //                           boost::bind(&Client::OnConnect, this, _1));
     // } else {
-    //     std::cerr << "Client constructor: Invalid endpoint_iterator" << std::endl;
+    //     std::cerr << "Client::Client(): Invalid endpoint_iterator" << std::endl;
     // }
 
     // strcpy(nickname_.data(), nickname.data());
     // memset(read_msg_.data(), '\0', MAX_IP_PACK_SIZE);
 
     std::string password;
-    std::cout << "Enter password for private key: ";
+    std::cout << ":> Enter password for private key: ";
     std::cin >> password;
     client_private_key_ = LoadKeyFromFile(client_private_key_file, true, password);
     if (!client_private_key_) {
@@ -51,11 +51,11 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
                                endpoint_iterator,
                                boost::bind(&Client::OnConnect, this, _1));
 
-    std::cerr << "Client constructor: Async Connect ok" << std::endl;
+    std::cerr << "Client::Client(): Async Connect ok" << std::endl;
 }
 
 void Client::Write(const std::vector<char>& msg) {
-    std::cout << "\nClient::Write() Scheduling message write" << std::endl;
+    std::cout << ":> Client::Write() Scheduling message write" << std::endl;
     io_service_.post(boost::bind(&Client::WriteImpl, this, msg));
 }
 
@@ -65,8 +65,8 @@ void Client::Close() {
 
 void Client::OnConnect(const boost::system::error_code& error) {
     if (!error) {
-        std::cout << "\nOnConnect: Connection successful, starting to read header"
-                  << std::endl;
+        std::cout << ":> Client::OnConnect(): Connection successful, "
+                  << "starting to read header" << std::endl;
         // Временно не передаем никнейм
         // boost::asio::async_write(socket_,
         //                          boost::asio::buffer(nickname_, nickname_.size()),
@@ -88,7 +88,7 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
         uint16_t msg_length =
             (static_cast<uint16_t>(read_msg_[1]) << 8) |
             static_cast<uint16_t>(read_msg_[0]);
-        std::cout << "HeaderHandler: Message length = " << msg_length << std::endl;
+        std::cout << ":> HeaderHandler: Message length = " << msg_length << std::endl;
         read_msg_.resize(msg_length);
         // Читаем остальную часть сообщения
         boost::asio::async_read(socket_,
@@ -101,14 +101,14 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
 
 void Client::ReadHandler(const boost::system::error_code& error) {
     // std::string msg_data = read_msg_.data();
-    // std::cout << "\nReadHandler:\"" << msg_data << "\"" << std::endl;
+    // std::cout << ":> ReadHandler:\"" << msg_data << "\"" << std::endl;
 
     if (!error) {
         std::vector<char> received_msg(read_msg_.begin(), read_msg_.end());
 
         // dbgout
         std::string msg_data(received_msg.begin(), received_msg.end());
-        std::cout << "Client::ReadHandler: Received message: \"" << msg_data << "\""
+        std::cout << ":> Client::ReadHandler(): Received message: [" << msg_data << "]"
                   << std::endl;
 
         // Десериализуем Map из строки
@@ -135,7 +135,7 @@ void Client::ReadHandler(const boost::system::error_code& error) {
                 //     std::cerr << "Checksum verification failed." << std::endl;
                 // }
 
-                std::cout << "Message received successfully: " << decrypted_msg
+                std::cout << ":> Message received successfully: " << decrypted_msg
                           << std::endl;
 
 
@@ -168,14 +168,14 @@ void Client::ReadHandler(const boost::system::error_code& error) {
                                 boost::asio::buffer(read_msg_.data(), 2),
                                 boost::bind(&Client::HeaderHandler, this, _1));
     } else {
-        std::cerr << "ReadHandler: Error reading message: "
+        std::cerr << "Client::ReadHandler(): Error reading message: "
                   << error.message() << std::endl;
         CloseImpl();
     }
 }
 
 void Client::WriteImpl(std::vector<char> msg) {
-    std::cout << "\nClient::WriteImpl" << std::endl;
+    std::cout << ":> Client::WriteImpl()" << std::endl;
 
     bool write_in_progress = !write_msgs_.empty();
 
@@ -219,16 +219,16 @@ void Client::WriteImpl(std::vector<char> msg) {
     if (packed_message.size() > MAX_IP_PACK_SIZE) {
         // TODO: тут нужно разбивать сообщение на блоки, шифровать их по отдельности,
         // нумеровать и отправлять в сокет, но пока мы просто не отправляем
-        std::cerr << "\nError: Message is too large to fit in the buffer" << std::endl;
+        std::cerr << ":> Error: Message is too large to fit in the buffer" << std::endl;
         return;
     }
 
-    std::cout << "\nClient: Packed Message Size: " << packed_message.size()
+    std::cout << ":> Client::WriteImp(): Packed Message Size: " << packed_message.size()
               << std::endl;
 
     // Инициализация вектора данными из packed_message
     std::vector<char> formatted_msg(packed_message.begin(), packed_message.end());
-    std::cout << "\nClient: Sending message of size: "
+    std::cout << ":> Client::WriteImpl(): Sending message of size: "
               << formatted_msg.size()
               << std::endl;
     // Помещаем длину вперед formatted_msg
@@ -239,7 +239,7 @@ void Client::WriteImpl(std::vector<char> msg) {
     // Вставка двух байтов длины в начало вектора
     formatted_msg.insert(formatted_msg.begin(), len_bytes, len_bytes + 2);
 
-    std::cout << "Client::WriteImpl(): "
+    std::cout << ":> Client::WriteImpl(): "
               << "Formatted message with length prefix prepared" << std::endl;
 
     // Теперь добавляем formatted_msg в очередь сообщений на отправку
@@ -256,12 +256,12 @@ void Client::WriteImpl(std::vector<char> msg) {
             boost::bind(&Client::WriteHandler, this, _1));
     }
 
-    std::cout << "\nClient::WriteImplEnd" << std::endl;
+    std::cout << ":> Client::WriteImpl(): End func" << std::endl;
 }
 
 void Client::WriteHandler(const boost::system::error_code& error) {
     if (!error) {
-        std::cout << "\nClient::WriteHandler(): Message written successfully"
+        std::cout << ":> Client::WriteHandler(): Message written successfully"
                   << std::endl;
         // Удаляем только что отправленное сообщение из очереди
         write_msgs_.pop_front();
@@ -274,14 +274,14 @@ void Client::WriteHandler(const boost::system::error_code& error) {
                 boost::bind(&Client::WriteHandler, this, _1));
         }
     } else {
-        std::cerr << "WriteHandler: Error writing message: "
+        std::cerr << ":> Client::WriteHandler: Error writing message: "
                   << error.message() << std::endl;
         CloseImpl();
     }
 }
 
 void Client::CloseImpl() {
-    std::cout << "CloseImpl: Closing socket" << std::endl;
+    std::cout << ":> CloseImpl: Closing socket" << std::endl;
     socket_.close();
 }
 
@@ -290,7 +290,7 @@ std::string Client::GetPubKeyFingerprint(EVP_PKEY* public_key) {
     unsigned char* der = nullptr;
     int len = i2d_PUBKEY(public_key, &der);
     if (len < 0) {
-        std::cerr << "PubKeyFingerprint error: "
+        std::cerr << ":> Client::GetPubKeyFingerprint(): PubKeyFingerprint error: "
                   << "Failed to convert PubKey to DER format"
                   << std::endl;
         return "";
@@ -300,7 +300,7 @@ std::string Client::GetPubKeyFingerprint(EVP_PKEY* public_key) {
     unsigned int hash_len;
     if (!EVP_Digest(der, len, hash, &hash_len, EVP_sha256(), nullptr)) {
         OPENSSL_free(der);
-        std::cerr << "PubKeyFingerprint error: "
+        std::cerr << ":> Client::GetPubKeyFingerprint(): PubKeyFingerprint error: "
                   << "Failed to compute SHA-256 hash of public key"
                   << std::endl;
         return "";
@@ -331,229 +331,6 @@ std::vector<std::string> splitString(
     return chunks;
 }
 
-#define _BLOCK_SIZE 512
-
-std::string joinChunks(
-    const std::vector<std::string>& chunks, std::size_t original_size) {
-    std::string result = "";
-    for (const auto& chunk : chunks) {
-        std::string subchunk = chunk;
-        subchunk.resize(original_size);
-        result += subchunk;
-    }
-    return result;
-}
-
-
-std::optional<std::vector<unsigned char>> Client::EncryptChunk(
-    const std::string& message, EVP_PKEY* public_key)
-{
-    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(public_key, nullptr);
-    if (!ctx) {
-        std::cerr << "EncryptMessage error: "
-                  << "Error creating context for encryption" << std::endl;
-        return std::nullopt;
-    }
-
-    if (EVP_PKEY_encrypt_init(ctx) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cerr << "EncryptMessage error: "
-                  << "Error initializing encryption" << std::endl;
-        return std::nullopt;
-    }
-
-    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cerr << "EncryptMessage error: "
-                  << "Error setting RSA padding" << std::endl;
-        return std::nullopt;
-    }
-
-    size_t outlen;
-    if (EVP_PKEY_encrypt(ctx, nullptr, &outlen,
-                         reinterpret_cast<const unsigned char*>(message.c_str()),
-                         message.size()) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cerr << "EncryptMessage error: "
-                  << "Error determining buffer length for encryption" << std::endl;
-        return std::nullopt;
-    }
-
-    std::cout << "Outlen: " << outlen << std::endl;
-
-    std::vector<unsigned char> out(outlen);
-    int encrypt_status = EVP_PKEY_encrypt(
-        ctx, out.data(), &outlen,
-        reinterpret_cast<const unsigned char*>(message.c_str()), message.size());
-    if (encrypt_status <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cerr << "EncryptMessage error: "
-                  << "Error encrypting message: " << encrypt_status
-                  << std::endl;
-        ERR_print_errors_fp(stderr);
-        return std::nullopt;
-    }
-
-    EVP_PKEY_CTX_free(ctx);
-    return out;
-}
-
-std::optional<std::vector<unsigned char>> Client::EncryptMessage(
-    const std::string& message, EVP_PKEY* public_key)
-{
-    // Разбиваем по _CHUNK_SIZE байт, т.к. нужно оставить место на padding
-    std::vector<std::string> chunks = splitString(message, _CHUNK_SIZE);
-    std::vector<std::string> chunks_enc;
-
-    std::cout << "Total chunks: " << chunks.size() << std::endl;
-    for (const auto& chunk : chunks) {
-        std::cout << "Chunk (" << chunk.size() << " bytes): " << chunk << std::endl;
-
-        std::optional<std::vector<unsigned char>> out =
-            EncryptChunk(chunk, public_key);
-
-        if (out) {
-            std::vector<unsigned char> out_vec = *out;
-            std::string out_str = std::string(out_vec.begin(), out_vec.end());
-            std::cerr << "out_str: " << out_str.size() << std::endl;
-            chunks_enc.push_back(out_str);
-        } else {
-            std::cerr << "Encryption of chunk failed." << std::endl;
-            return std::nullopt;
-        }
-    }
-
-    std::string encrypted_message = joinChunks(chunks_enc, _BLOCK_SIZE);
-
-    std::vector<unsigned char> ret(encrypted_message.begin(), encrypted_message.end());
-
-    return ret;
-}
-
-
-std::optional<std::vector<unsigned char>> Client::DecryptChunk(
-    const std::vector<unsigned char>& encrypted_chunk, EVP_PKEY* private_key)
-{
-    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(private_key, nullptr);
-    if (!ctx) {
-        std::cerr << "DecryptChunk error: "
-                  << "Error creating context for decryption" << std::endl;
-        ERR_print_errors_fp(stderr);
-        return std::nullopt;
-    }
-
-    if (EVP_PKEY_decrypt_init(ctx) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cerr << "DecryptChunk error: "
-                  << "Error initializing decryption" << std::endl;
-        ERR_print_errors_fp(stderr);
-        return std::nullopt;
-    }
-
-    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cerr << "DecryptChunk error: "
-                  << "Error setting RSA padding" << std::endl;
-        ERR_print_errors_fp(stderr);
-        return std::nullopt;
-    }
-
-    size_t outlen;
-    if (EVP_PKEY_decrypt(ctx, nullptr, &outlen,
-                         encrypted_chunk.data(), encrypted_chunk.size()) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cerr << "DecryptChunk error: "
-                  << "Error determining buffer length for decryption" << std::endl;
-        ERR_print_errors_fp(stderr);
-        return std::nullopt;
-    }
-
-    std::vector<unsigned char> out(outlen);
-    int decrypt_status = EVP_PKEY_decrypt(
-        ctx, out.data(), &outlen,
-        encrypted_chunk.data(), encrypted_chunk.size());
-    if (decrypt_status <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cerr << "DecryptChunk error: "
-                  << "Error decrypting chunk: " << decrypt_status
-                  << std::endl;
-        ERR_print_errors_fp(stderr);
-        return std::nullopt;
-    }
-
-    EVP_PKEY_CTX_free(ctx);
-    return out;
-}
-
-
-std::optional<std::string> Client::DecryptMessage(
-    const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key)
-{
-    std::string encrypted_str(encrypted_message.begin(), encrypted_message.end());
-    std::vector<std::string> encrypted_chunks = splitString(encrypted_str, _BLOCK_SIZE);
-    std::vector<std::string> decrypted_chunks;
-
-    for (const auto& chunk : encrypted_chunks) {
-        std::vector<unsigned char> chunk_vec(chunk.begin(), chunk.end());
-        std::optional<std::vector<unsigned char>> decrypted_chunk =
-            DecryptChunk(chunk_vec, private_key);
-
-        if (decrypted_chunk) {
-            std::vector<unsigned char> decrypted_vec = *decrypted_chunk;
-            std::string decrypted_str(decrypted_vec.begin(), decrypted_vec.end());
-            decrypted_chunks.push_back(decrypted_str);
-        } else {
-            std::cerr << "Decryption of chunk failed." << std::endl;
-            return std::nullopt;
-        }
-    }
-
-    std::string decrypted_message = joinChunks(decrypted_chunks, _CHUNK_SIZE);
-    return decrypted_message;
-}
-
-
-std::string Client::CalculateChecksum(const std::string& message) {
-    EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
-    if (mdctx == nullptr) {
-        std::cout << "Error Calc CRC: Failed to create EVP_MD_CTX" << std::endl;
-        return "";
-    }
-
-    if (EVP_DigestInit_ex(mdctx, EVP_sha256(), nullptr) != 1) {
-        EVP_MD_CTX_free(mdctx);
-        std::cout << "Error Calc CRC: Failed to initialize digest" << std::endl;
-        return "";
-    }
-
-    if (EVP_DigestUpdate(mdctx, message.c_str(), message.size()) != 1) {
-        EVP_MD_CTX_free(mdctx);
-        std::cout << "Error Calc CRC: Failed to update digest" << std::endl;
-        return "";
-    }
-
-    unsigned char hash[EVP_MAX_MD_SIZE];
-    unsigned int lengthOfHash = 0;
-
-    if (EVP_DigestFinal_ex(mdctx, hash, &lengthOfHash) != 1) {
-        EVP_MD_CTX_free(mdctx);
-        std::cout << "Error Calc CRC: Failed to finalize digest" << std::endl;
-        return "";
-    }
-
-    EVP_MD_CTX_free(mdctx);
-
-    std::stringstream ss;
-    for (unsigned int i = 0; i < lengthOfHash; ++i) {
-        ss << std::hex << std::setw(2) << std::setfill('0')
-           << static_cast<int>(hash[i]);
-    }
-    return ss.str();
-}
-
-bool Client::VerifyChecksum(const std::string& message, const std::string& checksum) {
-    return CalculateChecksum(message) == checksum;
-}
 
 EVP_PKEY* Client::LoadKeyFromFile(const std::string& key_file, bool is_private,
                                   const std::string& password) {

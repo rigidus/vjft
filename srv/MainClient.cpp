@@ -26,10 +26,10 @@ int main(int argc, char* argv[]) {
         std::array<char, MAX_NICKNAME> nickname;
         strcpy(nickname.data(), argv[1]);
 
-        std::cout << "\nMain: Creating client instance" << std::endl;
+        std::cout << ":> MainClient: Creating client instance" << std::endl;
         Client cli(nickname, io_service, iterator);
 
-        std::cout << "\nMain: Starting IO service thread" << std::endl;
+        std::cout << ":> MainClient: Starting IO service thread" << std::endl;
         std::thread t(boost::bind(&boost::asio::io_service::run, &io_service));
 
         std::array<char, MAX_IP_PACK_SIZE> msg;

@@ -44,15 +44,15 @@ std::vector<std::vector<unsigned char>> split_vec(
     return result;
 }
 
-/**
-   Merge std::vector<std::vector<unsigned char>> to std::vector<unsigned char>
-*/
-std::vector<unsigned char> merge_vec(
-    const std::vector<std::vector<unsigned char>>& input)
-{
-    std::vector<unsigned char> result;
-    for (const auto& chunk : input) {
-        result.insert(result.end(), chunk.begin(), chunk.end());
-    }
-    return result;
-}
+// /**
+//    Merge std::vector<std::vector<unsigned char>> to std::vector<unsigned char>
+// */
+// std::vector<unsigned char> merge_vec(
+//     const std::vector<std::vector<unsigned char>>& input)
+// {
+//     std::vector<unsigned char> result;
+//     for (const auto& chunk : input) {
+//         result.insert(result.end(), chunk.begin(), chunk.end());
+//     }
+//     return result;
+// }
