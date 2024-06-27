@@ -19,6 +19,12 @@
 
 class Crypt {
 public:
+
+    static EVP_PKEY* LoadKeyFromFile(
+        const std::string& key_file, bool is_private, const std::string& password = "");
+
+    static std::string GetPubKeyFingerprint(EVP_PKEY* public_key);
+
     static std::array<unsigned char, HASH_SIZE> calcCRC(
         const std::string& message);
 

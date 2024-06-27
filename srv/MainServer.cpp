@@ -1,11 +1,5 @@
 // MainServer.cpp
-#include <ctime>
-#include <iostream>
-#include <list>
-#include <boost/asio.hpp>
-#include <boost/thread/thread.hpp>
-#include "WorkerThread.hpp"
-#include "Server.hpp"
+#include "MainClient.hpp"
 
 int main(int argc, char* argv[]) {
     try {

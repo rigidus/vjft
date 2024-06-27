@@ -4,19 +4,15 @@
 std::string client_private_key_file;
 std::vector<std::string> recipient_public_key_files;
 
-
 Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
                boost::asio::io_service& io_service,
                tcp::resolver::iterator endpoint_iterator)
     : io_service_(io_service), socket_(io_service) {
-    std::cout << ":> Client::Client(): Initializing async connect" << std::endl;
-    std::cout << ":> Client::Client(): io_service initialized" << std::endl;
-    std::cout << ":> Client::Client(): socket open: "
-              << std::boolalpha << socket_.is_open() << std::endl;
-    std::cout << ":> Client::Client(): endpoint_iterator valid: "
-              << std::boolalpha
-              << static_cast<bool>(endpoint_iterator != tcp::resolver::iterator())
-              << std::endl;
+    LOG_MSG("Initializing async connect");
+    LOG_MSG("Io_service initialized");
+    LOG_MSG("socket open: "  << std::boolalpha << socket_.is_open());
+    LOG_MSG("Endpoint_iterator valid: " << std::boolalpha
+            << static_cast<bool>(endpoint_iterator != tcp::resolver::iterator()));
 
     // if (endpoint_iterator != tcp::resolver::iterator()) {
     //     socket_.async_connect(*endpoint_iterator,
@@ -29,9 +25,9 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
     // memset(read_msg_.data(), '\0', MAX_IP_PACK_SIZE);
 
     std::string password;
-    std::cout << ":> Enter password for private key: ";
+    std::cout << "=> Enter password for private key: ";
     std::cin >> password;
-    client_private_key_ = LoadKeyFromFile(client_private_key_file, true, password);
+    client_private_key_ = Crypt::LoadKeyFromFile(client_private_key_file, true, password);
     if (!client_private_key_) {
         abort();
     }
@@ -40,9 +36,9 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
     if (!recipient_public_key_files.empty()) {
         // Проходим по файлам ключей и загружаем их
         for (const auto& key_file : recipient_public_key_files) {
-            EVP_PKEY* public_key = LoadKeyFromFile(key_file, false);
+            EVP_PKEY* public_key = Crypt::LoadKeyFromFile(key_file, false);
             recipient_public_keys.push_back(public_key);
-            std::string fingerprint = GetPubKeyFingerprint(public_key);
+            std::string fingerprint = Crypt::GetPubKeyFingerprint(public_key);
             recipient_public_keys_fingerprints.push_back(fingerprint);
         }
     }
@@ -259,37 +255,6 @@ void Client::CloseImpl() {
     socket_.close();
 }
 
-
-std::string Client::GetPubKeyFingerprint(EVP_PKEY* public_key) {
-    unsigned char* der = nullptr;
-    int len = i2d_PUBKEY(public_key, &der);
-    if (len < 0) {
-        std::cerr << ":> Client::GetPubKeyFingerprint(): PubKeyFingerprint error: "
-                  << "Failed to convert PubKey to DER format"
-                  << std::endl;
-        return "";
-    }
-
-    unsigned char hash[EVP_MAX_MD_SIZE];
-    unsigned int hash_len;
-    if (!EVP_Digest(der, len, hash, &hash_len, EVP_sha256(), nullptr)) {
-        OPENSSL_free(der);
-        std::cerr << ":> Client::GetPubKeyFingerprint(): PubKeyFingerprint error: "
-                  << "Failed to compute SHA-256 hash of public key"
-                  << std::endl;
-        return "";
-    }
-    OPENSSL_free(der);
-
-    std::stringstream ss;
-    for (unsigned int i = 0; i < hash_len; ++i) {
-        ss << std::hex << std::setw(2) << std::setfill('0')
-           << static_cast<int>(hash[i]);
-    }
-
-    return ss.str();
-}
-
 #define _CHUNK_SIZE 127
 
 std::vector<std::string> splitString(
@@ -303,33 +268,4 @@ std::vector<std::string> splitString(
     }
 
     return chunks;
-}
-
-
-EVP_PKEY* Client::LoadKeyFromFile(const std::string& key_file, bool is_private,
-                                  const std::string& password) {
-    FILE* fp = fopen(key_file.c_str(), "r");
-    if (!fp) {
-        std::cerr << "Error opening key file: " << key_file << std::endl;
-        return nullptr;
-    }
-
-    EVP_PKEY* key = nullptr;
-    if (is_private) {
-        key = PEM_read_PrivateKey(fp, nullptr, nullptr,
-                                  const_cast<char*>(password.c_str()));
-    } else {
-        key = PEM_read_PUBKEY(fp, nullptr, nullptr, nullptr);
-    }
-    fclose(fp);
-
-    if (!key) {
-        std::cerr << "Error loading key: "
-                  << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
-        return nullptr;
-    }
-
-    return key;
-    // TODO: Надо освобождать (если удалось загрузить) ключи
-    // с помощью EVP_PKEY_free(key);
 }

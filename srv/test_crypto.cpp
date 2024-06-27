@@ -24,8 +24,8 @@ int main() {
     std::cout << "Enter password for private key: ";
     std::cin >> password;
 
-    EVP_PKEY* private_key = Client::LoadKeyFromFile(private_key_file, true, password);
-    EVP_PKEY* public_key = Client::LoadKeyFromFile(public_key_file, false);
+    EVP_PKEY* private_key = Crypt::LoadKeyFromFile(private_key_file, true, password);
+    EVP_PKEY* public_key  = Crypt::LoadKeyFromFile(public_key_file, false);
 
     if (!private_key || !public_key) {
         std::cerr << "\nTest Full Sequence: Error |: No key files" << std::endl;

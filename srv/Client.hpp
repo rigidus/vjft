@@ -22,6 +22,7 @@
 #include "Message.hpp"
 #include "Crypt.hpp"
 #include "Utils.hpp"
+#include "Log.hpp"
 
 using namespace boost::placeholders;
 using boost::asio::ip::tcp;
@@ -36,11 +37,6 @@ public:
            tcp::resolver::iterator endpoint_iterator);
     void Write(const std::vector<char>& msg);
     void Close();
-
-    // Методы для загрузки ключей из файла и получения fingerprint
-    static EVP_PKEY* LoadKeyFromFile(
-        const std::string& key_file, bool is_private, const std::string& password = "");
-    static std::string GetPubKeyFingerprint(EVP_PKEY* public_key);
 
 private:
     void OnConnect(const boost::system::error_code& error);

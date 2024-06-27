@@ -1,6 +1,65 @@
 // Crypt.cpp
 #include "Crypt.hpp"
 
+EVP_PKEY* Crypt::LoadKeyFromFile(const std::string& key_file, bool is_private,
+                                 const std::string& password)
+{
+    FILE* fp = fopen(key_file.c_str(), "r");
+    if (!fp) {
+        std::cerr << "Error opening key file: " << key_file << std::endl;
+        return nullptr;
+    }
+
+    EVP_PKEY* key = nullptr;
+    if (is_private) {
+        key = PEM_read_PrivateKey(fp, nullptr, nullptr,
+                                  const_cast<char*>(password.c_str()));
+    } else {
+        key = PEM_read_PUBKEY(fp, nullptr, nullptr, nullptr);
+    }
+    fclose(fp);
+
+    if (!key) {
+        std::cerr << "Error loading key: "
+                  << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
+        return nullptr;
+    }
+
+    return key;
+    // TODO: Надо освобождать (если удалось загрузить) ключи
+    // с помощью EVP_PKEY_free(key);
+}
+
+std::string Crypt::GetPubKeyFingerprint(EVP_PKEY* public_key) {
+    unsigned char* der = nullptr;
+    int len = i2d_PUBKEY(public_key, &der);
+    if (len < 0) {
+        std::cerr << ":> Client::GetPubKeyFingerprint(): PubKeyFingerprint error: "
+                  << "Failed to convert PubKey to DER format"
+                  << std::endl;
+        return "";
+    }
+
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int hash_len;
+    if (!EVP_Digest(der, len, hash, &hash_len, EVP_sha256(), nullptr)) {
+        OPENSSL_free(der);
+        std::cerr << ":> Client::GetPubKeyFingerprint(): PubKeyFingerprint error: "
+                  << "Failed to compute SHA-256 hash of public key"
+                  << std::endl;
+        return "";
+    }
+    OPENSSL_free(der);
+
+    std::stringstream ss;
+    for (unsigned int i = 0; i < hash_len; ++i) {
+        ss << std::hex << std::setw(2) << std::setfill('0')
+           << static_cast<int>(hash[i]);
+    }
+
+    return ss.str();
+}
+
 std::array<unsigned char, HASH_SIZE> Crypt::calcCRC(
     const std::string& message)
 {
