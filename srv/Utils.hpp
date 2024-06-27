@@ -6,6 +6,8 @@
 #include <string>
 #include <iostream>
 #include <iomanip>
+#include "Log.hpp"
+
 
 /**
    Debug print for vectors

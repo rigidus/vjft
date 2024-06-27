@@ -26,10 +26,10 @@ int main(int argc, char* argv[]) {
         std::array<char, MAX_NICKNAME> nickname;
         strcpy(nickname.data(), argv[1]);
 
-        std::cout << ":> MainClient::main(): Creating client instance" << std::endl;
+        LOG_TXT("Creating client instance");
         Client cli(nickname, io_service, iterator);
 
-        std::cout << ":> MainClient::main(): Starting IO service thread" << std::endl;
+        LOG_TXT("MainClient::main(): Starting IO service thread");
         std::thread t(boost::bind(&boost::asio::io_service::run, &io_service));
 
         std::array<char, MAX_IP_PACK_SIZE> msg;
@@ -67,11 +67,11 @@ int main(int argc, char* argv[]) {
           std::cout << "finished" << std::endl;
         */
 
-        std::cout << "\nMain: Closing client" << std::endl;
+        LOG_TXT("Main: Closing client");
         cli.Close();
         t.join();
     } catch (std::exception& e) {
-        std::cerr << "\nException: " << e.what() << "\n";
+        LOG_TXT("Exception: " << e.what());
     }
 
     return 0;

@@ -6,6 +6,10 @@
 #include <typeinfo>
 #include <cxxabi.h>
 
+// Макрос для функций вне классов
+#define LOG_TXT(msg) std::cerr << ":> " << __FILE__ "::" << __FUNCTION__ << "(): " \
+    << msg << std::endl
+
 // Макрос для деманглинга имени класса
 #define DEMANGLE(type) abi::__cxa_demangle(typeid(type).name(), 0, 0, &status)
 

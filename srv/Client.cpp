@@ -51,7 +51,7 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
 }
 
 void Client::Write(const std::vector<char>& msg) {
-    std::cout << ":> Client::Write() Scheduling message write" << std::endl;
+    LOG_MSG("Scheduling message write");
     io_service_.post(boost::bind(&Client::WriteImpl, this, msg));
 }
 
@@ -61,8 +61,7 @@ void Client::Close() {
 
 void Client::OnConnect(const boost::system::error_code& error) {
     if (!error) {
-        std::cout << ":> Client::OnConnect(): Connection successful, "
-                  << "starting to read header" << std::endl;
+        LOG_MSG("Connection successful, starting to read header");
         // Временно не передаем никнейм
         // boost::asio::async_write(socket_,
         //                          boost::asio::buffer(nickname_, nickname_.size()),
@@ -84,7 +83,7 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
         uint16_t msg_length =
             (static_cast<uint16_t>(read_msg_[1]) << 8) |
             static_cast<uint16_t>(read_msg_[0]);
-        std::cout << ":> HeaderHandler: Message length = " << msg_length << std::endl;
+        LOG_MSG("Message length: " << msg_length);
         read_msg_.resize(msg_length);
         // Читаем остальную часть сообщения
         boost::asio::async_read(socket_,
@@ -104,8 +103,8 @@ void Client::ReadHandler(const boost::system::error_code& error) {
 
         // dbgout
         std::string msg_data(received_msg.begin(), received_msg.end());
-        std::cout << ":> Client::ReadHandler(): Received message: [" << msg_data << "]"
-                  << std::endl;
+        LOG_MSG("Received message: [" << msg_data << "]");
+
 
         // Десериализуем Map из строки
         std::map<std::string, std::string> data = Message::unpack(msg_data);
@@ -122,12 +121,11 @@ void Client::ReadHandler(const boost::system::error_code& error) {
                                 decoded_message);
 
             if (decrypted_msg.empty()) {
-                std::cerr << ":> Decryption error or message not for me " << std::endl;
+                LOG_MSG("Decryption error or message not for me");
             } else {
-                std::cout << ":> Message received successfully: " << decrypted_msg
-                          << std::endl;
+                LOG_MSG("Message received successfully: " << decrypted_msg);
                 for (const auto& pair : data) {
-                    std::cout << pair.first << ": " << pair.second << std::endl;
+                    std::cout << ">> " << pair.first << ": " << pair.second << std::endl;
                 }
             }
         }
@@ -138,14 +136,13 @@ void Client::ReadHandler(const boost::system::error_code& error) {
                                 boost::asio::buffer(read_msg_.data(), 2),
                                 boost::bind(&Client::HeaderHandler, this, _1));
     } else {
-        std::cerr << ":> Client::ReadHandler(): Error reading message: "
-                  << error.message() << std::endl;
+        LOG_ERR("Error reading message: " << error.message());
         CloseImpl();
     }
 }
 
 void Client::WriteImpl(std::vector<char> msg) {
-    std::cout << ":> Client::WriteImpl()" << std::endl;
+    LOG_MSG("");
 
     bool write_in_progress = !write_msgs_.empty();
 
@@ -180,7 +177,7 @@ void Client::WriteImpl(std::vector<char> msg) {
     }
     // Отладочный вывод Map
     for (const auto& pair : data) {
-        std::cout << pair.first << ": " << pair.second << std::endl;
+        std::cout << ">> " << pair.first << ": " << pair.second << std::endl;
     }
 
     // Сериализуем Map в строку
@@ -193,8 +190,7 @@ void Client::WriteImpl(std::vector<char> msg) {
         return;
     }
 
-    std::cout << ":> Client::WriteImp(): Packed Message Size: " << packed_message.size()
-              << std::endl;
+    LOG_MSG("Packed Message Size: " << packed_message.size());
 
     // Инициализация вектора данными из packed_message
     std::vector<char> formatted_msg(packed_message.begin(), packed_message.end());
@@ -209,8 +205,7 @@ void Client::WriteImpl(std::vector<char> msg) {
     // Вставка двух байтов длины в начало вектора
     formatted_msg.insert(formatted_msg.begin(), len_bytes, len_bytes + 2);
 
-    std::cout << ":> Client::WriteImpl(): "
-              << "Formatted message with length prefix prepared" << std::endl;
+    LOG_MSG("Formatted message with length prefix prepared");
 
     // Теперь добавляем formatted_msg в очередь сообщений на отправку
     write_msgs_.push_back(std::move(formatted_msg));
@@ -226,13 +221,13 @@ void Client::WriteImpl(std::vector<char> msg) {
             boost::bind(&Client::WriteHandler, this, _1));
     }
 
-    std::cout << ":> Client::WriteImpl(): End func" << std::endl;
+    LOG_MSG("End func");
 }
 
 void Client::WriteHandler(const boost::system::error_code& error) {
     if (!error) {
-        std::cout << ":> Client::WriteHandler(): Message written successfully"
-                  << std::endl;
+        LOG_MSG("Message written successfully");
+
         // Удаляем только что отправленное сообщение из очереди
         write_msgs_.pop_front();
         // Если очередь не пуста, инициируем новую асинхронную
@@ -244,28 +239,12 @@ void Client::WriteHandler(const boost::system::error_code& error) {
                 boost::bind(&Client::WriteHandler, this, _1));
         }
     } else {
-        std::cerr << ":> Client::WriteHandler: Error writing message: "
-                  << error.message() << std::endl;
+        LOG_ERR("Error writing message: " << error.message());
         CloseImpl();
     }
 }
 
 void Client::CloseImpl() {
-    std::cout << ":> CloseImpl: Closing socket" << std::endl;
+    LOG_MSG("Closing socket");
     socket_.close();
-}
-
-#define _CHUNK_SIZE 127
-
-std::vector<std::string> splitString(
-    const std::string& input, std::size_t chunk_size)
-{
-    std::vector<std::string> chunks;
-    std::size_t length = input.size();
-
-    for (std::size_t i = 0; i < length; i += chunk_size) {
-        chunks.push_back(input.substr(i, chunk_size));
-    }
-
-    return chunks;
 }

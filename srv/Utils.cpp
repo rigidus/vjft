@@ -5,7 +5,7 @@
    Debug print for vectors
 */
 void dbg_out_vec(std::string dbgmsg, std::vector<unsigned char> vec) {
-    std::cout << dbgmsg << ": ";
+    std::cout << "~~" << dbgmsg << ": ";
     for (const auto& byte : vec) {
         std::cout << std::setw(2) << std::setfill('0') << std::hex
                   << static_cast<int>(byte);
@@ -17,7 +17,7 @@ void dbg_out_vec(std::string dbgmsg, std::vector<unsigned char> vec) {
    Debug print for scalars
 */
 void dbg_out_scalar(std::string dbgmsg, size_t value, size_t cnt) {
-    std::cout << dbgmsg << ": ";
+    std::cout << "__" << dbgmsg << ": ";
     for (size_t i = 0; i < cnt; ++i) {
         unsigned char byte = (value >> (i * 8)) & 0xFF;
         std::cout << std::setw(2) << std::setfill('0') << std::hex
