@@ -95,16 +95,12 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
 }
 
 void Client::ReadHandler(const boost::system::error_code& error) {
-    // std::string msg_data = read_msg_.data();
-    // std::cout << ":> ReadHandler:\"" << msg_data << "\"" << std::endl;
-
     if (!error) {
         std::vector<char> received_msg(read_msg_.begin(), read_msg_.end());
-
-        // dbgout
         std::string msg_data(received_msg.begin(), received_msg.end());
-        LOG_MSG("Received message: [" << msg_data << "]");
 
+        // // dbgout
+        // LOG_MSG("Received message: [" << msg_data << "]");
 
         // Десериализуем Map из строки
         std::map<std::string, std::string> data = Message::unpack(msg_data);
@@ -113,7 +109,7 @@ void Client::ReadHandler(const boost::system::error_code& error) {
         std::vector<unsigned char> decoded_message, signature;
 
         decoded_message = Crypt::Base64Decode(data["enc"]);
-        dbg_out_vec("Decoded message", decoded_message);
+        // dbg_out_vec("Decoded message", decoded_message);
 
         if (!decoded_message.empty()) {
             auto decrypted_msg =
@@ -121,7 +117,7 @@ void Client::ReadHandler(const boost::system::error_code& error) {
                                 decoded_message);
 
             if (decrypted_msg.empty()) {
-                LOG_MSG("Decryption error or message not for me");
+                LOG_MSG("Received message not for me");
             } else {
                 LOG_MSG("Message received successfully: " << decrypted_msg);
                 for (const auto& pair : data) {

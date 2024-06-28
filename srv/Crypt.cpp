@@ -767,21 +767,21 @@ std::string Crypt::decipher(
     // CHECK SIGNATURE
     if (!Crypt::VerifySignature(msg, msg_sign, public_key))
     {
-        std::cerr << "Error: Message Signature Verification Failed" << std::endl;
+        LOG_TXT("Message Signature Verification Failed");
         return "";
     } else {
-        std::cout << "Message Signature Verification Ok" << std::endl;
+        LOG_TXT("Message Signature Verification Ok");
     }
 
     // CHECK CHECKSUM
-    if (!Crypt::verifyChecksum(msg,
-                               *reinterpret_cast<std::array<unsigned char, HASH_SIZE>*>(
-                                   msg_crc.data())))
+    if (!Crypt::verifyChecksum(
+            msg,
+            *reinterpret_cast<std::array<unsigned char, HASH_SIZE>*>(msg_crc.data())))
     {
-        std::cerr << "Error: Message CRC Verification Failed" << std::endl;
+        LOG_TXT("Error: Message CRC Verification Failed");
         return "";
     } else {
-        std::cout << "Message CRC Verification Ok" << std::endl;
+        LOG_TXT("Message CRC Verification Ok");
     }
 
     return msg;
