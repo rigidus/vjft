@@ -18,7 +18,7 @@ public:
                  boost::asio::io_service::strand& strand, ChatRoom& room);
     tcp::socket& Socket();
     void Start();
-    void OnMessage(const std::vector<char>& msg);
+    void OnMessage(const std::vector<unsigned char>& msg);
 
 private:
     void HeaderHandler(const boost::system::error_code& error);
@@ -30,8 +30,8 @@ private:
     boost::asio::io_service::strand& strand_;
     ChatRoom& room_;
     std::array<char, MAX_NICKNAME> nickname_;
-    std::vector<char> read_msg_;
-    std::deque<std::vector<char>> write_msgs_;
+    std::vector<unsigned char> read_msg_;
+    std::deque<std::vector<unsigned char>> write_msgs_;
     boost::asio::steady_timer deadline_;
 };
 

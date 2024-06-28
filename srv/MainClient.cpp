@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
             std::cout << ":> MainClient::main(): Msg.data size: "
                       << strlen(msg.data()) << std::endl;
             if (strlen(msg.data()) > 0) { // Проверка на пустое сообщение
-                std::vector<char> msg_vector(msg.begin(),
+                std::vector<unsigned char> msg_vector(msg.begin(),
                                              msg.begin() + strlen(msg.data()));
                 std::cout << ":> Main: Sending message: "
                           << std::string(msg_vector.begin(), msg_vector.end())

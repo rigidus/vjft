@@ -73,7 +73,7 @@ void PersonInRoom::HeaderHandler(const boost::system::error_code& error) {
     }
 }
 
-void PersonInRoom::OnMessage(const std::vector<char>& msg) {
+void PersonInRoom::OnMessage(const std::vector<unsigned char>& msg) {
     std::cout << "PersonInRoom::OnMessage(): Adding message to queue" << std::endl;
     bool write_in_progress = !write_msgs_.empty();
     write_msgs_.push_back(msg);
@@ -91,7 +91,7 @@ void PersonInRoom::OnMessage(const std::vector<char>& msg) {
 
 void PersonInRoom::ReadHandler(const boost::system::error_code& error) {
     if (!error) {
-        std::vector<char> received_msg(read_msg_.begin(), read_msg_.end());
+        std::vector<unsigned char> received_msg(read_msg_.begin(), read_msg_.end());
         std::cout << "PersonInRoom::ReadHandler(): Server received message (size: "
                   << received_msg.size() << "): "
                   << std::string(received_msg.begin(), received_msg.end())

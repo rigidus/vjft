@@ -35,21 +35,21 @@ public:
     Client(const std::array<char, MAX_NICKNAME>& nickname,
            boost::asio::io_service& io_service,
            tcp::resolver::iterator endpoint_iterator);
-    void Write(const std::vector<char>& msg);
+    void Write(const std::vector<unsigned char>& msg);
     void Close();
 
 private:
     void OnConnect(const boost::system::error_code& error);
     void HeaderHandler(const boost::system::error_code& error);
     void ReadHandler(const boost::system::error_code& error);
-    void WriteImpl(std::vector<char> msg);
+    void WriteImpl(std::vector<unsigned char> msg);
     void WriteHandler(const boost::system::error_code& error);
     void CloseImpl();
 
     boost::asio::io_service& io_service_;
     tcp::socket socket_;
     std::vector<char> read_msg_;
-    std::deque<std::vector<char>> write_msgs_;
+    std::deque<std::vector<unsigned char>> write_msgs_;
     std::array<char, MAX_NICKNAME> nickname_;
     EVP_PKEY* client_private_key_;
     std::vector<EVP_PKEY*> recipient_public_keys;

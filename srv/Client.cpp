@@ -50,7 +50,7 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
     std::cerr << ":> Client::Client(): Async Connect ok" << std::endl;
 }
 
-void Client::Write(const std::vector<char>& msg) {
+void Client::Write(const std::vector<unsigned char>& msg) {
     LOG_MSG("Scheduling message write");
     io_service_.post(boost::bind(&Client::WriteImpl, this, msg));
 }
@@ -96,7 +96,8 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
 
 void Client::ReadHandler(const boost::system::error_code& error) {
     if (!error) {
-        std::vector<char> received_msg(read_msg_.begin(), read_msg_.end());
+        std::vector<unsigned char> received_msg(read_msg_.begin(), read_msg_.end());
+
         std::string msg_data(received_msg.begin(), received_msg.end());
 
         // // dbgout
@@ -104,25 +105,25 @@ void Client::ReadHandler(const boost::system::error_code& error) {
 
         // Десериализуем Map из строки
         std::map<std::string, std::string> data = Message::unpack(msg_data);
+        // for (const auto& pair : data) {
+        //     std::cout << ">> " << pair.first << ": "
+        //               << pair.second << std::endl;
+        // }
 
-        std::string decoded_content, decrypted_message, signature_str;
-        std::vector<unsigned char> decoded_message, signature;
+        std::vector<unsigned char> decoded_message;
 
         decoded_message = Crypt::Base64Decode(data["enc"]);
         // dbg_out_vec("Decoded message", decoded_message);
 
         if (!decoded_message.empty()) {
-            auto decrypted_msg =
+            std::string decrypted_msg =
                 Crypt::decipher(client_private_key_, recipient_public_keys[0],
                                 decoded_message);
 
             if (decrypted_msg.empty()) {
-                LOG_MSG("Received message not for me");
+                LOG_MSG("Received message is not for me");
             } else {
                 LOG_MSG("Message received successfully: " << decrypted_msg);
-                for (const auto& pair : data) {
-                    std::cout << ">> " << pair.first << ": " << pair.second << std::endl;
-                }
             }
         }
 
@@ -137,14 +138,12 @@ void Client::ReadHandler(const boost::system::error_code& error) {
     }
 }
 
-void Client::WriteImpl(std::vector<char> msg) {
+void Client::WriteImpl(std::vector<unsigned char> msg) {
     LOG_MSG("");
 
     bool write_in_progress = !write_msgs_.empty();
 
-    std::string message(msg.data());
-
-    std::map<std::string, std::string> data;
+    std::string message(reinterpret_cast<char*>(msg.data()));
 
     // Подпишем сообщение своим приватным ключом
     std::string signature = "";
@@ -156,55 +155,64 @@ void Client::WriteImpl(std::vector<char> msg) {
     for (auto i = 0; i < recipient_public_keys.size(); ++i) {
         // Определить 'to' как отпечаток ключа
         std::string to = recipient_public_keys_fingerprints[i];
-        // Шифрование и кодирование в Base64 поля content
-        auto encrypted_msg =
+
+        // Шифрование
+        std::vector<unsigned char> encrypted_msg =
             Crypt::encipher(client_private_key_, recipient_public_keys[i], message);
 
         dbg_out_vec("Encrypted message", encrypted_msg);
 
+        // И кодирование в Base64
         std::string encoded = Crypt::Base64Encode(encrypted_msg);
+
         // Map
+        std::map<std::string, std::string> data;
         data = {
-            {"to", to},
-            {"msg", message},
+            // {"to", to},
+            // {"msg", message},
             {"enc", encoded},
-            {"sign", signature}
+            // {"sign", signature}
         };
+
+        // Отладочный вывод Map
+        for (const auto& pair : data) {
+            std::cout << ">> " << pair.first << ": " << pair.second << std::endl;
+        }
+
+        // Сериализуем Map в строку
+        std::string packed_message = Message::pack(data);
+        // Проверка длины упакованного сообщения (TODO: уточнить макс размер)
+        if (packed_message.size() > MAX_IP_PACK_SIZE) {
+            // TODO: тут нужно разбивать сообщение на блоки, шифровать их по отдельности,
+            // нумеровать и отправлять в сокет, но пока мы просто не отправляем
+            LOG_ERR(":> Error: Message is too large to fit in the buffer");
+            return;
+        }
+
+        LOG_MSG("Packed Message Size: " << packed_message.size());
+
+        // Инициализация вектора данными из packed_message
+        std::vector<unsigned char> formatted_msg(
+            packed_message.begin(), packed_message.end());
+        std::cout << ":> Client::WriteImpl(): Sending message of size: "
+                  << formatted_msg.size()
+                  << std::endl;
+        // Помещаем длину вперед formatted_msg
+        uint16_t formatted_msg_len = static_cast<uint16_t>(formatted_msg.size());
+        char len_bytes[2];
+        len_bytes[0] = static_cast<char>(formatted_msg_len & 0xFF); // младший байт
+        len_bytes[1] = static_cast<char>((formatted_msg_len >> 8) & 0xFF); // старший
+        // Вставка двух байтов длины в начало вектора
+        formatted_msg.insert(formatted_msg.begin(), len_bytes, len_bytes + 2);
+
+        LOG_MSG("Formatted message with length prefix prepared");
+
+        // Теперь добавляем formatted_msg в очередь сообщений на отправку
+        write_msgs_.push_back(std::move(formatted_msg));
+
+        // // Добавляем_msg в очередь сообщений на отправку
+        // write_msgs_.push_back(std::move(encoded_vec));
     }
-    // Отладочный вывод Map
-    for (const auto& pair : data) {
-        std::cout << ">> " << pair.first << ": " << pair.second << std::endl;
-    }
-
-    // Сериализуем Map в строку
-    std::string packed_message = Message::pack(data);
-    // Проверка длины упакованного сообщения (TODO: уточнить макс размер)
-    if (packed_message.size() > MAX_IP_PACK_SIZE) {
-        // TODO: тут нужно разбивать сообщение на блоки, шифровать их по отдельности,
-        // нумеровать и отправлять в сокет, но пока мы просто не отправляем
-        std::cerr << ":> Error: Message is too large to fit in the buffer" << std::endl;
-        return;
-    }
-
-    LOG_MSG("Packed Message Size: " << packed_message.size());
-
-    // Инициализация вектора данными из packed_message
-    std::vector<char> formatted_msg(packed_message.begin(), packed_message.end());
-    std::cout << ":> Client::WriteImpl(): Sending message of size: "
-              << formatted_msg.size()
-              << std::endl;
-    // Помещаем длину вперед formatted_msg
-    uint16_t formatted_msg_len = static_cast<uint16_t>(formatted_msg.size());
-    char len_bytes[2];
-    len_bytes[0] = static_cast<char>(formatted_msg_len & 0xFF); // младший байт
-    len_bytes[1] = static_cast<char>((formatted_msg_len >> 8) & 0xFF); // старший
-    // Вставка двух байтов длины в начало вектора
-    formatted_msg.insert(formatted_msg.begin(), len_bytes, len_bytes + 2);
-
-    LOG_MSG("Formatted message with length prefix prepared");
-
-    // Теперь добавляем formatted_msg в очередь сообщений на отправку
-    write_msgs_.push_back(std::move(formatted_msg));
 
     // Если в данный момент запись не идет, инициируется асинхронная запись
     // сообщения в сокет. Когда асинхронная запись завершится, вызывается

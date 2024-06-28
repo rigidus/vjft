@@ -8,7 +8,7 @@
 class Participant {
 public:
     virtual ~Participant() {}
-    virtual void OnMessage(const std::vector<char>& msg) = 0;
+    virtual void OnMessage(const std::vector<unsigned char>& msg) = 0;
 };
 
 #endif // PARTICIPANT_HPP

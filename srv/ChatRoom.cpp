@@ -23,7 +23,7 @@ void ChatRoom::Leave(std::shared_ptr<Participant> participant) {
 
 
 
-void ChatRoom::Broadcast(const std::vector<char>& msg,
+void ChatRoom::Broadcast(const std::vector<unsigned char>& msg,
                          std::shared_ptr<Participant> participant)
 {
     std::string dbgstr(msg.begin(), msg.end());
@@ -33,11 +33,11 @@ void ChatRoom::Broadcast(const std::vector<char>& msg,
 
     uint16_t msg_len = static_cast<uint16_t>(msg.size());
     char len_bytes[2];
-    len_bytes[0] = static_cast<char>(msg_len & 0xFF); // младший байт
-    len_bytes[1] = static_cast<char>((msg_len >> 8) & 0xFF); // старший
+    len_bytes[0] = static_cast<unsigned char>(msg_len & 0xFF); // младший байт
+    len_bytes[1] = static_cast<unsigned char>((msg_len >> 8) & 0xFF); // старший
 
     // Создаем новый вектор для сообщения с длиной в начале
-    std::vector<char> bcast;
+    std::vector<unsigned char> bcast;
     bcast.insert(bcast.end(), len_bytes, len_bytes + 2);
     bcast.insert(bcast.end(), msg.begin(), msg.end());
 
