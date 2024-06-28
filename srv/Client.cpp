@@ -83,6 +83,17 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
         uint16_t msg_length =
             (static_cast<uint16_t>(read_msg_[1]) << 8) |
             static_cast<uint16_t>(read_msg_[0]);
+
+        // Проверка длины полученного сообщения (TODO: уточнить макс размер)
+        if (msg_length > MAX_IP_PACK_SIZE) {
+            // TODO: тут нужно разбивать сообщение на блоки,
+            // шифровать их по отдельности,
+            // нумеровать и отправлять в сокет, но пока мы просто не отправляем
+            LOG_ERR(":> Error: Message is too large to fit in the buffer");
+            CloseImpl();
+            return;
+        }
+
         LOG_MSG("Message length: " << msg_length);
         read_msg_.resize(msg_length);
         // Читаем остальную часть сообщения
@@ -96,23 +107,25 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
 
 void Client::ReadHandler(const boost::system::error_code& error) {
     if (!error) {
+        // Тут мы уже получаем само сообщение, без его длины
+        // потому что длина была отрезана в HeaderHandler
         std::vector<unsigned char> received_msg(read_msg_.begin(), read_msg_.end());
 
         std::string msg_data(received_msg.begin(), received_msg.end());
 
-        // // dbgout
+        // dbgout
         // LOG_MSG("Received message: [" << msg_data << "]");
-
-        // Десериализуем Map из строки
-        std::map<std::string, std::string> data = Message::unpack(msg_data);
-        // for (const auto& pair : data) {
-        //     std::cout << ">> " << pair.first << ": "
-        //               << pair.second << std::endl;
-        // }
+        // // Десериализуем Map из строки
+        // std::map<std::string, std::string> data = Message::unpack(msg_data);
+        // // for (const auto& pair : data) {
+        // //     std::cout << ">> " << pair.first << ": "
+        // //               << pair.second << std::endl;
+        // // }
 
         std::vector<unsigned char> decoded_message;
 
-        decoded_message = Crypt::Base64Decode(data["enc"]);
+        // decoded_message = Crypt::Base64Decode(data["enc"]);
+        decoded_message = Crypt::Base64Decode(msg_data);
         // dbg_out_vec("Decoded message", decoded_message);
 
         if (!decoded_message.empty()) {
@@ -165,31 +178,37 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
         // И кодирование в Base64
         std::string encoded = Crypt::Base64Encode(encrypted_msg);
 
-        // Map
-        std::map<std::string, std::string> data;
-        data = {
-            // {"to", to},
-            // {"msg", message},
-            {"enc", encoded},
-            // {"sign", signature}
-        };
+        LOG_MSG("Encoded: " << encoded);
 
-        // Отладочный вывод Map
-        for (const auto& pair : data) {
-            std::cout << ">> " << pair.first << ": " << pair.second << std::endl;
-        }
+        // // Map
+        // std::map<std::string, std::string> data;
+        // data = {
+        //     // {"to", to},
+        //     // {"msg", message},
+        //     {"enc", encoded},
+        //     // {"sign", signature}
+        // };
 
-        // Сериализуем Map в строку
-        std::string packed_message = Message::pack(data);
+        // // Отладочный вывод Map
+        // for (const auto& pair : data) {
+        //     std::cout << ">> " << pair.first << ": " << pair.second << std::endl;
+        // }
+
+        // // Сериализуем Map в строку
+        // std::string packed_message = Message::pack(data);
+
+        std::string packed_message = encoded;
+
         // Проверка длины упакованного сообщения (TODO: уточнить макс размер)
         if (packed_message.size() > MAX_IP_PACK_SIZE) {
-            // TODO: тут нужно разбивать сообщение на блоки, шифровать их по отдельности,
+            // TODO: тут нужно разбивать сообщение на блоки,
+            // шифровать их по отдельности,
             // нумеровать и отправлять в сокет, но пока мы просто не отправляем
             LOG_ERR(":> Error: Message is too large to fit in the buffer");
             return;
+        } else {
+            LOG_MSG("Packed Message Size: " << packed_message.size());
         }
-
-        LOG_MSG("Packed Message Size: " << packed_message.size());
 
         // Инициализация вектора данными из packed_message
         std::vector<unsigned char> formatted_msg(
@@ -209,9 +228,6 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
 
         // Теперь добавляем formatted_msg в очередь сообщений на отправку
         write_msgs_.push_back(std::move(formatted_msg));
-
-        // // Добавляем_msg в очередь сообщений на отправку
-        // write_msgs_.push_back(std::move(encoded_vec));
     }
 
     // Если в данный момент запись не идет, инициируется асинхронная запись
