@@ -95,7 +95,9 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
         }
 
         LOG_MSG("Message length: " << msg_length);
+
         read_msg_.resize(msg_length);
+
         // Читаем остальную часть сообщения
         boost::asio::async_read(socket_,
                                 boost::asio::buffer(read_msg_.data(), msg_length),
@@ -113,19 +115,8 @@ void Client::ReadHandler(const boost::system::error_code& error) {
 
         std::string msg_data(received_msg.begin(), received_msg.end());
 
-        // dbgout
-        // LOG_MSG("Received message: [" << msg_data << "]");
-        // // Десериализуем Map из строки
-        // std::map<std::string, std::string> data = Message::unpack(msg_data);
-        // // for (const auto& pair : data) {
-        // //     std::cout << ">> " << pair.first << ": "
-        // //               << pair.second << std::endl;
-        // // }
-
-        std::vector<unsigned char> decoded_message;
-
-        // decoded_message = Crypt::Base64Decode(data["enc"]);
-        decoded_message = Crypt::Base64Decode(msg_data);
+        std::vector<unsigned char> decoded_message =
+            Crypt::Base64Decode(msg_data);
         // dbg_out_vec("Decoded message", decoded_message);
 
         if (!decoded_message.empty()) {
@@ -180,30 +171,13 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
 
         LOG_MSG("Encoded: " << encoded);
 
-        // // Map
-        // std::map<std::string, std::string> data;
-        // data = {
-        //     // {"to", to},
-        //     // {"msg", message},
-        //     {"enc", encoded},
-        //     // {"sign", signature}
-        // };
-
-        // // Отладочный вывод Map
-        // for (const auto& pair : data) {
-        //     std::cout << ">> " << pair.first << ": " << pair.second << std::endl;
-        // }
-
-        // // Сериализуем Map в строку
-        // std::string packed_message = Message::pack(data);
-
         std::string packed_message = encoded;
 
         // Проверка длины упакованного сообщения (TODO: уточнить макс размер)
         if (packed_message.size() > MAX_IP_PACK_SIZE) {
             // TODO: тут нужно разбивать сообщение на блоки,
             // шифровать их по отдельности,
-            // нумеровать и отправлять в сокет, но пока мы просто не отправляем
+            // нумеровать и отправлять, но пока мы просто не отправляем
             LOG_ERR(":> Error: Message is too large to fit in the buffer");
             return;
         } else {
