@@ -78,18 +78,43 @@ void Client::OnConnect(const boost::system::error_code& error) {
     }
 }
 
-void Client::DbgHandler(const boost::system::error_code& error) {
-    uint16_t msg_length =
-        (static_cast<uint16_t>(read_msg_[1]) << 8) |
-        static_cast<uint16_t>(read_msg_[0]);
-    LOG_ERR("DBG: " << msg_length);
-    // Для отладки зациклим чтение по 2 байта
+void Client::FindSyncMarker() {
+    // Буфер для одного байта
+    auto buffer = std::make_shared<std::vector<unsigned char>>(1);
+    // Начинаем чтение одного байта асинхронно
     boost::asio::async_read(
         socket_,
-        boost::asio::buffer(read_msg_.data(), 2),
-        boost::bind(&Client::DbgHandler, this, _1));
-    return;
+        boost::asio::buffer(*buffer, 1),
+        [this, buffer](const boost::system::error_code& error, std::size_t) {
+            if (!error) {
+                // Проверяем нулевой байт и обновляем счетчик
+                if ((*buffer)[0] == 0x00) {
+                    ++zero_byte_count_;
+                } else {
+                    zero_byte_count_ = 0;
+                }
+
+                // Проверяем, достигли ли мы 32 нулевых байт подряд
+                if (zero_byte_count_ >= 32) {
+                    zero_byte_count_ = 0;
+                    LOG_MSG("Sync marker found, resuming normal operation");
+                    // Считываем длину следующего сообщения
+                    read_msg_.resize(2);
+                    boost::asio::async_read(
+                        socket_,
+                        boost::asio::buffer(read_msg_.data(), 2),
+                        boost::bind(&Client::HeaderHandler, this, _1));
+                } else {
+                    // Продолжаем поиск маркера
+                    FindSyncMarker();
+                }
+            } else {
+                LOG_ERR("Error during sync marker search: " + error.message());
+                CloseImpl();
+            }
+        });
 }
+
 
 void Client::HeaderHandler(const boost::system::error_code& error) {
     if (!error) {
@@ -97,28 +122,32 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
             (static_cast<uint16_t>(read_msg_[1]) << 8) |
             static_cast<uint16_t>(read_msg_[0]);
 
-        // Проверка длины полученного сообщения (TODO: уточнить макс размер)
+        // Проверка длины полученного сообщения
         if (msg_length > MAX_PACK_SIZE) {
-            // TODO: тут нужно разбивать сообщение на блоки,
-            // шифровать их по отдельности,
-            // нумеровать и отправлять в сокет, но пока мы просто не отправляем
-            LOG_ERR("Error: Message is too large to fit in the buffer: "
+            // Что-то не так с полученной длиной - она слишком большая
+            LOG_ERR("Error: Message length is too large to fit in the buffer: "
                     << msg_length);
-            // CloseImpl();
-            // return;
+            LOG_HEX("msg_length in hex", msg_length, 2);
+            // Ищем синхромаркер
+            FindSyncMarker();
+            return;
+        }
 
-            // Для отладки зациклим чтение по 2 байта
-            boost::asio::async_read(
-                socket_,
-                boost::asio::buffer(read_msg_.data(), 2),
-                boost::bind(&Client::DbgHandler, this, _1));
+        // Проверяем, доступно ли ожидаемое количество данных
+        size_t available_data = socket_.available();
+        if (available_data < msg_length) {
+                LOG_ERR("Not enough data available. Expected " << msg_length
+                        << ", available " << available_data);
+                // Если данных недостаточно, начинаем поиск маркера синхронизации
+                FindSyncMarker();
+                return;
         }
 
         LOG_MSG("Message length (-2 bytes length): " << msg_length);
 
         read_msg_.resize(msg_length);
 
-        // Читаем остальную часть сообщения
+        // Если доступные данные соответствуют ожидаемой длине, читаем полное сообщение
         boost::asio::async_read(socket_,
                                 boost::asio::buffer(read_msg_.data(), msg_length),
                                 boost::bind(&Client::ReadHandler, this, _1));
@@ -142,6 +171,11 @@ void Client::ReadHandler(const boost::system::error_code& error)
         LOG_MSG("Received message size: " << received_msg_size);
         LOG_HEX("Received message size in hex", received_msg_size, 2);
         LOG_VEC("Received message", received_msg);
+
+        // TODO: перед декодированием надо отрезать синхромаркер
+        if (received_msg.size() > 32) {
+            received_msg.resize(received_msg.size() - 32);  // Обрезаем синхромаркер
+        }
 
         std::string msg_data(received_msg.begin(), received_msg.end());
 
@@ -185,6 +219,9 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
 
     std::string message(reinterpret_cast<char*>(msg.data()));
 
+    // sync_marker : 32 нулевых байта
+    std::vector<unsigned char> sync_marker(32, 0);
+
     // Для каждого из ключей получателей..
     for (auto i = 0; i < recipient_public_keys.size(); ++i) {
         // Шифрование
@@ -220,21 +257,29 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
         std::vector<unsigned char> packed_msg(
             base64encoded_msg.begin(), base64encoded_msg.end());
 
-        // Помещаем длину вперед packed_msg
+        // Вставка синхромаркера в конец packed_msg
+        packed_msg.insert(packed_msg.end(), sync_marker.begin(), sync_marker.end());
+
+        // Вычисляем размер packed_msg + sync_marker_size
+        uint16_t pack_sync_size =
+            static_cast<uint16_t>(packed_msg.size());
+
+        // Помещаем длину вперед
         unsigned char len_bytes[2];
         len_bytes[0] = // младший байт первым
-            static_cast<unsigned char>(base64encoded_msg_size & 0xFF);
+            static_cast<unsigned char>(pack_sync_size & 0xFF);
         len_bytes[1] = // старший байт вторым
-            static_cast<unsigned char>((base64encoded_msg_size >> 8) & 0xFF);
-        // Вставка двух байтов длины в начало вектора
+            static_cast<unsigned char>((pack_sync_size >> 8) & 0xFF);
+        // Вставка двух байтов длины в начало packed_msg перед содержимым
         packed_msg.insert(packed_msg.begin(), len_bytes, len_bytes + 2);
 
-        // Вычисляем длину packed_msg_size
+        // Вычисляем длину packed_msg_size = длина + содержимое + синхромаркер
         uint16_t packed_msg_size = static_cast<uint16_t>(packed_msg.size());
 
         // Debug print packed msg size
         LOG_HEX("Packed msg size in hex", packed_msg_size, 2);
         LOG_MSG("Packed msg size (+2): " << packed_msg.size());
+        LOG_VEC("Packed msg" , packed_msg);
 
         // Теперь добавляем packed_msg в очередь сообщений на отправку
         write_msgs_.push_back(std::move(packed_msg));

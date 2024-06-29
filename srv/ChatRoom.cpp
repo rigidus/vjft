@@ -41,7 +41,10 @@ void ChatRoom::Broadcast(const std::vector<unsigned char>& msg,
     bcast.insert(bcast.end(), len_bytes, len_bytes + 2);
     bcast.insert(bcast.end(), msg.begin(), msg.end());
 
-    std::cout << "ChatRoom::Broadcast(): size: " << msg.size() << std::endl;
+    // Debug print
+    LOG_MSG("bcast size:" << msg_len);
+    LOG_HEX("bcast size in hex", msg_len, 2);
+    LOG_VEC("bcast", bcast);
 
     // Добавление сообщения в историю
     recent_msgs_.push_back(bcast);

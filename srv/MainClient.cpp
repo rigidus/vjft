@@ -7,6 +7,11 @@
 
 using boost::asio::ip::tcp;
 
+// Declared in Client.cpp
+extern std::string client_private_key_file;
+extern std::vector<std::string> recipient_public_key_files;
+
+
 int main(int argc, char* argv[]) {
     try {
         if (argc < 5) {
@@ -32,22 +37,20 @@ int main(int argc, char* argv[]) {
         LOG_TXT("MainClient::main(): Starting IO service thread");
         std::thread t(boost::bind(&boost::asio::io_service::run, &io_service));
 
-        std::array<char, MAX_PACK_SIZE> msg;
+        // std::array<char, MAX_PACK_SIZE> msg;
+        std::string msg;
 
         while (true) {
-            memset(msg.data(), '\0', msg.size());
-            if (!std::cin.getline(msg.data(), MAX_PACK_SIZE - PADDING - MAX_NICKNAME)) {
-                std::cin.clear(); //clean up error bit and try to finish reading
-            }
-            std::cout << ":> MainClient::main(): Msg.data size: "
-                      << strlen(msg.data()) << std::endl;
-            if (strlen(msg.data()) > 0) { // Проверка на пустое сообщение
-                std::vector<unsigned char> msg_vector(msg.begin(),
-                                             msg.begin() + strlen(msg.data()));
+            if (std::getline(std::cin, msg) && !msg.empty()) {
+                LOG_TXT("Msg size: " << msg.size());
+                std::vector<unsigned char> msg_vec(
+                    msg.begin(), msg.begin() + strlen(msg.data()));
                 LOG_TXT("Sending message: ["
-                        << std::string(msg_vector.begin(), msg_vector.end())
+                        << std::string(msg_vec.begin(), msg_vec.end())
                         << "]");
-                cli.Write(msg_vector);
+                cli.Write(msg_vec);
+            } else {
+                std::cin.clear(); //clean up error bit and try to finish reading
             }
         }
 

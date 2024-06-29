@@ -488,6 +488,7 @@ std::vector<unsigned char> Crypt::encipher(
     // (for example, for short messages like "yes" or "no").
     std::srand(static_cast<unsigned int>(std::time(nullptr))); // random init
     int random_len = std::rand() % 256; // random length
+    random_len = 0;
     LOG_HEX("random_len", random_len, 1);
     std::vector<unsigned char> random;
     for (int i = 0; i < random_len; ++i) {

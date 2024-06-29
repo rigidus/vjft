@@ -40,7 +40,7 @@ public:
 
 private:
     void OnConnect(const boost::system::error_code& error);
-    void DbgHandler(const boost::system::error_code& error);
+    void FindSyncMarker();
     void HeaderHandler(const boost::system::error_code& error);
     void ReadHandler(const boost::system::error_code& error);
     void WriteImpl(std::vector<unsigned char> msg);
@@ -55,5 +55,6 @@ private:
     EVP_PKEY* client_private_key_;
     std::vector<EVP_PKEY*> recipient_public_keys;
     std::vector<std::string> recipient_public_keys_fingerprints;
+    size_t zero_byte_count_;
 };
 #endif // CLIENT_HPP
