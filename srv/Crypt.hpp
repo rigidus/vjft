@@ -45,18 +45,12 @@ public:
 
     static std::vector<unsigned char> Base64Decode(const std::string& encoded);
 
-    static std::optional<std::string> DecryptMessage(
-        const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key);
-
     static std::optional<std::vector<unsigned char>> SignMsg(
         const std::string& message, EVP_PKEY* private_key);
 
     static bool VerifySignature(
         const std::string& message,
         const std::vector<unsigned char>& signature, EVP_PKEY* public_key);
-    // static bool VerifyChecksum(
-    //     const std::string& message,
-    //     const std::array<unsigned char, EVP_MAX_MD_SIZE> crc);
 
     static std::vector<unsigned char> encipher(
         EVP_PKEY* private_key, EVP_PKEY* public_key, std::string msg);

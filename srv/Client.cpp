@@ -7,7 +7,10 @@ std::vector<std::string> recipient_public_key_files;
 Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
                boost::asio::io_service& io_service,
                tcp::resolver::iterator endpoint_iterator)
-    : io_service_(io_service), socket_(io_service) {
+    : io_service_(io_service),
+      socket_(io_service),
+      read_timeout_timer_(io_service)
+{
     LOG_MSG("Initializing async connect");
     LOG_MSG("Io_service initialized");
     LOG_MSG("socket open: "  << std::boolalpha << socket_.is_open());
@@ -115,42 +118,132 @@ void Client::FindSyncMarker() {
         });
 }
 
+bool Client::checkSyncMarkerInQueue() {
+    // Проверяем наличие 32 нулевых байт подряд в очереди
+    int zero_count = 0;
+    for (auto byte : read_queue_) {
+        if (byte == 0x00) {
+            zero_count++;
+            if (zero_count >= SYNC_MARKER_SIZE) return true;
+        } else {
+            zero_count = 0;
+        }
+    }
+    return false;
+}
+
+void Client::HandleDataTimeout(const boost::system::error_code& error) {
+    if (error != boost::asio::error::operation_aborted) {
+        // Таймер не был отменен, значит произошло реальное истечение времени
+        LOG_ERR("Data read timeout occurred");
+
+        // Здесь мы можем попытаться закрыть текущее соединение
+        // и начать процедуру восстановления соединения
+        CloseImpl();
+
+        // Опционально, можно начать процедуру восстановления
+        // соединения или повторного запроса
+        Recover();  // Функция Recover должна содержать логику для обработки сбоя чтения
+    } else {
+        // Таймер был отменен, что означает успешное завершение операции чтения
+        LOG_MSG("Data timeout timer was cancelled, data received successfully");
+    }
+}
+
+void Client::Recover() {
+    LOG_ERR("Recovering from an error");
+
+    // Отмена всех асинхронных операций, если это возможно
+    boost::system::error_code ec;
+    socket_.cancel(ec);
+    if (ec) {
+        LOG_ERR("Error cancelling socket operations: " + ec.message());
+    }
+
+    // Закрытие сокета
+    socket_.close(ec);
+    if (ec) {
+        LOG_ERR("Error closing socket: " + ec.message());
+    }
+
+    // Очистка всех буферов и очередей
+    read_queue_.clear();
+    std::vector<unsigned char>().swap(read_msg_); // Освобождение памяти
+
+    // Переподключение или повторная инициализация, если необходимо
+    // boost::asio::ip::tcp::resolver resolver(io_service_);
+    // auto endpoint_iterator = resolver.resolve({server_ip, server_port});
+    // socket_.open(endpoint_iterator->endpoint().protocol(), ec);
+    // if (!ec) {
+    //     socket_.async_connect(*endpoint_iterator,
+    //                           boost::bind(&Client::OnConnect, this, _1));
+    // } else {
+    //     LOG_ERR("Error re-opening socket: " + ec.message());
+    // }
+
+    // Уведомление пользователя или системы, если необходимо
+    // Можно реализовать отправку уведомления через другие механизмы
+}
+
 
 void Client::HeaderHandler(const boost::system::error_code& error) {
     if (!error) {
+        // В данный момент мы знаем, что 2 байта длины пакета прочитаны
+        // и находятся в поле класса read_msg_
+        // Формируем два байта длины
         uint16_t msg_length =
             (static_cast<uint16_t>(read_msg_[1]) << 8) |
             static_cast<uint16_t>(read_msg_[0]);
 
-        // Проверка длины полученного сообщения
-        if (msg_length > MAX_PACK_SIZE) {
-            // Что-то не так с полученной длиной - она слишком большая
-            LOG_ERR("Error: Message length is too large to fit in the buffer: "
-                    << msg_length);
-            LOG_HEX("msg_length in hex", msg_length, 2);
-            // Ищем синхромаркер
-            FindSyncMarker();
+        // Добавляем прочитанные байты длины в очередь чтения
+        read_queue_.push_back(read_msg_[0]);
+        read_queue_.push_back(read_msg_[1]);
+
+        // Проверяем, не содержит ли очередь синхромаркер
+        if (checkSyncMarkerInQueue()) {
+            // Если очередь содержит синхромаркер, которого мы не ожидаем,
+            // то переходим к Recover
+            Recover();
             return;
         }
 
-        // Проверяем, доступно ли ожидаемое количество данных
-        size_t available_data = socket_.available();
-        if (available_data < msg_length) {
-                LOG_ERR("Not enough data available. Expected " << msg_length
-                        << ", available " << available_data);
-                // Если данных недостаточно, начинаем поиск маркера синхронизации
-                FindSyncMarker();
-                return;
+        // Проверка длины полученного сообщения
+        if (msg_length > MIN_PACK_SIZE) {
+            // Слишком маленькая длина
+            LOG_ERR("Error: Message length is too SMALL: " << msg_length);
+            LOG_HEX("msg_length in hex", msg_length, 2);
+            Recover();
+        } else if (msg_length > MAX_PACK_SIZE) {
+            // Слишком большая длина
+            LOG_ERR("Error: Message length is too LARGE: " << msg_length);
+            LOG_HEX("msg_length in hex", msg_length, 2);
+            Recover();
+            return;
         }
 
         LOG_MSG("Message length (-2 bytes length): " << msg_length);
 
+        // Если мы тут, то все в порядке
+        // Обрезаем очередь до последних READ_QUEUE_SIZE элементов
+        if (read_queue_.size() > READ_QUEUE_SIZE) {
+            read_queue_.erase(
+                read_queue_.begin(),
+                read_queue_.begin() + (read_queue_.size() - READ_QUEUE_SIZE));
+        }
+
+        // Подготавливаем размер буфера для чтения данных сообщения
         read_msg_.resize(msg_length);
 
-        // Если доступные данные соответствуют ожидаемой длине, читаем полное сообщение
+        // Запускаем таймер ожидания данных (мы получили длину, ждем остальное)
+        read_timeout_timer_.expires_from_now(
+            boost::posix_time::seconds(boost::posix_time::seconds(READ_TIMEOUT)));
+        read_timeout_timer_.async_wait(
+            boost::bind(&Client::HandleDataTimeout, this, _1));
+
+        // Читаем остальные данные асинхронно
         boost::asio::async_read(socket_,
                                 boost::asio::buffer(read_msg_.data(), msg_length),
-                                boost::bind(&Client::ReadHandler, this, _1));
+                                boost::bind(&Client::ReadHandler, this, _1, _2));
     } else {
         CloseImpl();
     }
@@ -158,9 +251,14 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
 
 
 
-void Client::ReadHandler(const boost::system::error_code& error)
+void Client::ReadHandler(
+    const boost::system::error_code& error,
+    size_t bytes_readed)
 {
     if (!error) {
+        // Отменяем таймер, поскольку данные были успешно прочитаны
+        read_timeout_timer_.cancel();
+
         // Тут мы уже получаем само сообщение, без его длины
         // потому что длина была отрезана в HeaderHandler
         std::vector<unsigned char> received_msg(read_msg_.begin(), read_msg_.end());

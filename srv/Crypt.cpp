@@ -164,32 +164,33 @@ std::optional<std::vector<unsigned char>> Crypt::Encrypt(
     size_t encrypted_length = 0;
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(public_key, nullptr);
     if (!ctx) {
-        std::cerr << "Encrypt error: Error creating context for encryption" << std::endl;
+        LOG_TXT("Error creating context for encryption");
         return std::nullopt;
     }
 
     if (EVP_PKEY_encrypt_init(ctx) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-        std::cerr << "Encrypt error: Error initializing encryption" << std::endl;
+        LOG_TXT("Error initializing encryption");
         return std::nullopt;
     }
 
     if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-        std::cerr << "Encrypt error: Error setting RSA padding" << std::endl;
+        LOG_TXT("Error setting RSA padding");
         return std::nullopt;
     }
 
-    if (EVP_PKEY_encrypt(ctx, nullptr, &encrypted_length, packed.data(), packed.size()) <= 0) {
+    if (EVP_PKEY_encrypt(
+            ctx, nullptr, &encrypted_length, packed.data(), packed.size()) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-        std::cerr << "Encrypt error: Error determining buffer length for encryption" << std::endl;
+        LOG_TXT("Error determining buffer length for encryption");
         return std::nullopt;
     }
 
     std::vector<unsigned char> encrypted(encrypted_length);
     if (EVP_PKEY_encrypt(ctx, encrypted.data(), &encrypted_length, packed.data(), packed.size()) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-        std::cerr << "Encrypt error: Error encrypting message" << std::endl;
+        LOG_TXT("Error encrypting message");
         return std::nullopt;
     }
 
@@ -203,25 +204,19 @@ std::optional<std::vector<unsigned char>> Crypt::Decrypt(
 {
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(private_key, nullptr);
     if (!ctx) {
-#if (DBG > 0)
-        std::cerr << "Decrypt error: Error creating context for decryption" << std::endl;
-#endif
+        LOG_TXT("Error creating context for decryption");
         return std::nullopt;
     }
 
     if (EVP_PKEY_decrypt_init(ctx) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-#if (DBG > 0)
-        std::cerr << "Decrypt error: Error initializing decryption" << std::endl;
-#endif
+        LOG_TXT("Error initializing decryption");
         return std::nullopt;
     }
 
     if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-#if (DBG > 0)
-        std::cerr << "Decrypt error: Error setting RSA padding" << std::endl;
-#endif
+        LOG_TXT("Error setting RSA padding");
         return std::nullopt;
     }
 
@@ -229,10 +224,7 @@ std::optional<std::vector<unsigned char>> Crypt::Decrypt(
     if (EVP_PKEY_decrypt(ctx, nullptr, &outlen, encrypted_chunk.data(),
                          encrypted_chunk.size()) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-#if (DBG > 0)
-        std::cerr << "Decrypt error: Error determining buffer length for decryption"
-                  << std::endl;
-#endif
+        LOG_TXT("Error determining buffer length for decryption");
         return std::nullopt;
     }
 
@@ -240,9 +232,7 @@ std::optional<std::vector<unsigned char>> Crypt::Decrypt(
     if (EVP_PKEY_decrypt(ctx, out.data(), &outlen, encrypted_chunk.data(),
                          encrypted_chunk.size()) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-#if (DBG > 0)
-        std::cerr << "Decrypt error: Error decrypting chunk" << std::endl;
-#endif
+        LOG_TXT("Error decrypting chunk");
         return std::nullopt;
     }
 
@@ -282,52 +272,6 @@ std::vector<unsigned char> Crypt::Base64Decode(const std::string& encoded) {
     BIO_free_all(bio);
 
     return buffer;
-}
-
-std::optional<std::string> Crypt::DecryptMessage(
-    const std::vector<unsigned char>& encrypted_message, EVP_PKEY* private_key)
-{
-    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(private_key, nullptr);
-    if (!ctx) {
-        std::cerr << "!> Crypt::DecryptMessage(): Error creating context for decryption"
-                  << std::endl;
-        return std::nullopt;
-    }
-
-    if (EVP_PKEY_decrypt_init(ctx) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cerr << "!> Crypt::DecryptMessage():  Error initializing decryption"
-                  << std::endl;
-        return std::nullopt;
-    }
-
-    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cerr << "!> Crypt::DecryptMessage(): Error setting RSA padding"
-                  << std::endl;
-        return std::nullopt;
-    }
-
-    size_t outlen;
-    if (EVP_PKEY_decrypt(ctx, nullptr, &outlen, encrypted_message.data(),
-                         encrypted_message.size()) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cerr << "!> Crypt::DecryptMessage(): Error determining buffer "
-                  << "length for decryption" << std::endl;
-        return std::nullopt;
-    }
-
-    std::vector<unsigned char> out(outlen);
-    if (EVP_PKEY_decrypt(ctx, out.data(), &outlen, encrypted_message.data(),
-                         encrypted_message.size()) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        std::cerr << "!> Crypt::DecryptMessage(): Error decrypting message"
-                  << std::endl;
-        return std::nullopt;
-    }
-
-    EVP_PKEY_CTX_free(ctx);
-    return std::string(out.begin(), out.end());
 }
 
 
@@ -514,10 +458,12 @@ std::vector<unsigned char> Crypt::encipher(
     // Calculate msg_crc = CRC(msg)
     std::array<unsigned char, HASH_SIZE> msg_crc = Crypt::calcCRC(msg);
 
+#if (DBG_CRYPT > 0)
     // Debug print CRC(msg)
     std::vector<unsigned char> vcrc;
     vcrc.insert(vcrc.end(), msg_crc.begin(), msg_crc.end());
     LOG_VEC("msg_crc", vcrc);
+#endif
 
     // -> Write msg_crc to envelope, after msg_size
     envelope.insert(envelope.end(), msg_crc.begin(), msg_crc.end());
@@ -529,10 +475,12 @@ std::vector<unsigned char> Crypt::encipher(
     }
     std::array<unsigned char, SIG_SIZE> msg_sign = *optSign;
 
+#if (DBG_CRYPT > 0)
     // Debug print SIGN(msg)
     std::vector<unsigned char> vsign;
     vsign.insert(vsign.end(), msg_sign.begin(), msg_sign.end());
     LOG_VEC("msg_sign", vsign);
+#endif
 
     // -> Write msg_sign to envelope, after msg_crc
     envelope.insert(envelope.end(), msg_sign.begin(), msg_sign.end());
@@ -540,20 +488,23 @@ std::vector<unsigned char> Crypt::encipher(
     // -> Write msg to envelope, after msg_sign
     envelope.insert(envelope.end(), msg.begin(), msg.end());
 
+#if (DBG_CRYPT > 0)
     // Debug print msg
     std::vector<unsigned char> vmsg;
     vmsg.insert(vmsg.end(), msg.begin(), msg.end());
     LOG_VEC("msg in vector", vmsg);
+#endif
 
     // Calcuate envelope size
     uint16_t envelope_size = static_cast<uint16_t>(envelope.size());
 
+#if (DBG_CRYPT > 0)
     // Debug print envelope size
     LOG_HEX("envelope size in hex", envelope_size, 2);
 
     // Debug print envelope
     LOG_VEC(":envelope", envelope);
-
+#endif
 
     /** Finally Envelope:
         +---------------+
@@ -578,8 +529,10 @@ std::vector<unsigned char> Crypt::encipher(
     // Encrypt every chunk with pubkey and wrute to enc_chunks
     std::vector<std::vector<unsigned char>> enc_chunks;
     for (const auto& chunk : chunks) {
+#if (DBG_CRYPT > 0)
         // Debug print chunk
         LOG_VEC("chunk", chunk);
+#endif
         // ENCRYPT CHUNK
         std::optional<std::vector<unsigned char>> opt_enc_chunk =
             Crypt::Encrypt(chunk, public_key);
@@ -590,8 +543,10 @@ std::vector<unsigned char> Crypt::encipher(
         // SAVE ENCRYPT CHUNK
         std::vector<unsigned char> enc_chunk = *opt_enc_chunk;
         enc_chunks.push_back(enc_chunk);
+#if (DBG_CRYPT > 0)
         // Debug encrypted chunk
         LOG_VEC("enc_chunk", enc_chunk);
+#endif
     }
 
     // Forming a packet to be transmitted over the network
@@ -604,11 +559,13 @@ std::vector<unsigned char> Crypt::encipher(
     pack.push_back(static_cast<unsigned char>(envelope_chunk_size & 0xFF));
     pack.push_back(static_cast<unsigned char>((envelope_chunk_size >> 8) & 0xFF));
 
+#if (DBG_CRYPT > 0)
     // Debug print pack
     LOG_VEC("----Pack before inserting encrypted chunks", pack);
 
     // Debug print envelope chunk size
     LOG_HEX("envelope_chunk_size in hex", envelope_chunk_size, 2);
+#endif
 
     // After write all enc_chunks
     for (const auto& enc_chunk : enc_chunks) {
@@ -624,12 +581,14 @@ std::vector<unsigned char> Crypt::encipher(
         +---------------------+
     */
 
+#if (DBG_CRYPT > 0)
     // Debug print pack
     LOG_VEC("----Pack", pack);
 
     // Debug print pack size
     uint16_t pack_size = static_cast<uint16_t>(pack.size());
     LOG_HEX("pack_size in hex", pack_size, 2);
+#endif
 
     // Return
     return pack;
@@ -639,14 +598,17 @@ std::vector<unsigned char> Crypt::encipher(
 std::string Crypt::decipher (EVP_PKEY* private_key, EVP_PKEY* public_key,
                              std::vector<unsigned char> pack)
 {
+#if (DBG_CRYPT > 0)
     LOG_VEC("----Pack", pack);
-
+#endif
     // Extract envelope_size from pack
     uint16_t envelope_chunk_size =
         static_cast<uint16_t>(pack[0]) | (static_cast<uint16_t>(pack[1]) << 8);
 
+#if (DBG_CRYPT > 0)
     // Debug print envelope chunk size
     LOG_HEX("Envelope chunk size", envelope_chunk_size, 2);
+#endif
 
     // Extract enc_chunks from pack
     std::vector<std::vector<unsigned char>> enc_chunks;
@@ -663,8 +625,10 @@ std::string Crypt::decipher (EVP_PKEY* private_key, EVP_PKEY* public_key,
     std::vector<std::vector<unsigned char>> chunks;
     // size_t bytes_left = size_of_msg;
     for (std::vector<unsigned char> chunk : enc_chunks) {
+#if (DBG_CRYPT > 0)
         // Debug print encrypted chunk
         LOG_VEC("enc-chunk", chunk);
+#endif
         // DECRYPT CHUNK
         std::optional<std::vector<unsigned char>> opt_dec_chunk =
             Crypt::Decrypt(chunk, private_key);
@@ -678,9 +642,10 @@ std::string Crypt::decipher (EVP_PKEY* private_key, EVP_PKEY* public_key,
         dec_chunk.resize(CHUNK_SIZE);
         // SAVE RESULT
         chunks.push_back(dec_chunk);
-
+#if (DBG_CRYPT > 0)
         // Debug print decrypted chunk
         LOG_VEC("dec-chunk", dec_chunk);
+#endif
     }
 
     // Form envelope
@@ -689,8 +654,10 @@ std::string Crypt::decipher (EVP_PKEY* private_key, EVP_PKEY* public_key,
         envelope.insert(envelope.end(), enc_chunk.begin(), enc_chunk.end());
     }
 
+#if (DBG_CRYPT > 0)
     // Debug print Envelope
     LOG_VEC("envelope", envelope);
+#endif
 
     /*
       +---------------+
@@ -712,8 +679,10 @@ std::string Crypt::decipher (EVP_PKEY* private_key, EVP_PKEY* public_key,
     // Extract random_len
     uint8_t random_len = static_cast<uint8_t>(envelope[0]);
 
+#if (DBG_CRYPT > 0)
     // Debug print random length
     LOG_HEX("random_len", random_len, 1);
+#endif
 
     // Calculate ioffset to next field of envelope
     size_t offset = random_len + 1;
@@ -724,8 +693,10 @@ std::string Crypt::decipher (EVP_PKEY* private_key, EVP_PKEY* public_key,
         (static_cast<uint16_t>(envelope[offset+1]) << 8);
     offset += 2;
 
+#if (DBG_CRYPT > 0)
     // Debug print msg size
     LOG_HEX("msg_size", msg_size, 2);
+#endif
 
     // Extract msg_crc
     std::vector<unsigned char> msg_crc;
@@ -733,10 +704,12 @@ std::string Crypt::decipher (EVP_PKEY* private_key, EVP_PKEY* public_key,
         msg_crc.end(), envelope.begin()+offset, envelope.begin()+offset+HASH_SIZE);
     offset += HASH_SIZE;
 
+#if (DBG_CRYPT > 0)
     // Debug print msg_crc
     std::vector<unsigned char> vcrc;
     vcrc.insert(vcrc.end(), msg_crc.begin(), msg_crc.end());
     LOG_VEC("msg_crc", vcrc);
+#endif
 
     // Extract msg_sign
     std::vector<unsigned char> msg_sign;
@@ -744,16 +717,20 @@ std::string Crypt::decipher (EVP_PKEY* private_key, EVP_PKEY* public_key,
         msg_sign.end(), envelope.begin()+offset, envelope.begin()+offset+SIG_SIZE);
     offset += SIG_SIZE;
 
+#if (DBG_CRYPT > 0)
     // Debug print msg_sign
     std::vector<unsigned char> vsign;
     vsign.insert(vsign.end(), msg_sign.begin(), msg_sign.end());
     LOG_VEC("msg_sign", vsign);
+#endif
 
     // Extract msg
     std::string msg(envelope.begin()+offset, envelope.begin()+offset+msg_size);
 
+#if (DBG_CRYPT > 0)
     // Debug print msg
     LOG_TXT("msg: [" << msg << "]");
+#endif
 
     // CHECK SIGNATURE
     if (!Crypt::VerifySignature(msg, msg_sign, public_key))

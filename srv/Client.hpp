@@ -41,20 +41,25 @@ public:
 private:
     void OnConnect(const boost::system::error_code& error);
     void FindSyncMarker();
+    bool checkSyncMarkerInQueue();
+    void HandleDataTimeout(const boost::system::error_code& error);
+    void Recover();
     void HeaderHandler(const boost::system::error_code& error);
-    void ReadHandler(const boost::system::error_code& error);
+    void ReadHandler(const boost::system::error_code& error, size_t bytes_readed);
     void WriteImpl(std::vector<unsigned char> msg);
     void WriteHandler(const boost::system::error_code& error);
     void CloseImpl();
 
     boost::asio::io_service& io_service_;
     tcp::socket socket_;
-    std::vector<char> read_msg_;
+    std::vector<unsigned char> read_msg_;
     std::deque<std::vector<unsigned char>> write_msgs_;
     std::array<char, MAX_NICKNAME> nickname_;
     EVP_PKEY* client_private_key_;
     std::vector<EVP_PKEY*> recipient_public_keys;
     std::vector<std::string> recipient_public_keys_fingerprints;
     size_t zero_byte_count_;
+    boost::asio::deadline_timer read_timeout_timer_;
+    std::deque<unsigned char> read_queue_;
 };
 #endif // CLIENT_HPP
