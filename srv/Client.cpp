@@ -22,7 +22,7 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
     // }
 
     // strcpy(nickname_.data(), nickname.data());
-    // memset(read_msg_.data(), '\0', MAX_IP_PACK_SIZE);
+    // memset(read_msg_.data(), '\0', MAX_PACK_SIZE);
 
     std::string password;
     std::cout << "=> Enter password for private key: ";
@@ -78,6 +78,19 @@ void Client::OnConnect(const boost::system::error_code& error) {
     }
 }
 
+void Client::DbgHandler(const boost::system::error_code& error) {
+    uint16_t msg_length =
+        (static_cast<uint16_t>(read_msg_[1]) << 8) |
+        static_cast<uint16_t>(read_msg_[0]);
+    LOG_ERR("DBG: " << msg_length);
+    // Для отладки зациклим чтение по 2 байта
+    boost::asio::async_read(
+        socket_,
+        boost::asio::buffer(read_msg_.data(), 2),
+        boost::bind(&Client::DbgHandler, this, _1));
+    return;
+}
+
 void Client::HeaderHandler(const boost::system::error_code& error) {
     if (!error) {
         uint16_t msg_length =
@@ -85,16 +98,23 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
             static_cast<uint16_t>(read_msg_[0]);
 
         // Проверка длины полученного сообщения (TODO: уточнить макс размер)
-        if (msg_length > MAX_IP_PACK_SIZE) {
+        if (msg_length > MAX_PACK_SIZE) {
             // TODO: тут нужно разбивать сообщение на блоки,
             // шифровать их по отдельности,
             // нумеровать и отправлять в сокет, но пока мы просто не отправляем
-            LOG_ERR(":> Error: Message is too large to fit in the buffer");
-            CloseImpl();
-            return;
+            LOG_ERR("Error: Message is too large to fit in the buffer: "
+                    << msg_length);
+            // CloseImpl();
+            // return;
+
+            // Для отладки зациклим чтение по 2 байта
+            boost::asio::async_read(
+                socket_,
+                boost::asio::buffer(read_msg_.data(), 2),
+                boost::bind(&Client::DbgHandler, this, _1));
         }
 
-        LOG_MSG("Message length: " << msg_length);
+        LOG_MSG("Message length (-2 bytes length): " << msg_length);
 
         read_msg_.resize(msg_length);
 
@@ -107,28 +127,44 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
     }
 }
 
-void Client::ReadHandler(const boost::system::error_code& error) {
+
+
+void Client::ReadHandler(const boost::system::error_code& error)
+{
     if (!error) {
         // Тут мы уже получаем само сообщение, без его длины
         // потому что длина была отрезана в HeaderHandler
         std::vector<unsigned char> received_msg(read_msg_.begin(), read_msg_.end());
 
+        uint16_t received_msg_size = received_msg.size();
+
+        // Debug print
+        LOG_MSG("Received message size: " << received_msg_size);
+        LOG_HEX("Received message size in hex", received_msg_size, 2);
+        LOG_VEC("Received message", received_msg);
+
         std::string msg_data(received_msg.begin(), received_msg.end());
+
+        LOG_MSG("Received message msg_data: [" << msg_data << "]");
 
         std::vector<unsigned char> decoded_message =
             Crypt::Base64Decode(msg_data);
-        // dbg_out_vec("Decoded message", decoded_message);
 
-        if (!decoded_message.empty()) {
-            std::string decrypted_msg =
-                Crypt::decipher(client_private_key_, recipient_public_keys[0],
-                                decoded_message);
+        // Debug print decoded message
+        LOG_VEC("Decoded message", decoded_message);
 
-            if (decrypted_msg.empty()) {
-                LOG_MSG("Received message is not for me");
-            } else {
-                LOG_MSG("Message received successfully: " << decrypted_msg);
-            }
+        if (decoded_message.empty()) {
+            throw std::runtime_error("Base64 decode failed");
+        }
+
+        std::string decrypted_msg =
+            Crypt::decipher(client_private_key_, recipient_public_keys[0],
+                            decoded_message);
+
+        if (decrypted_msg.empty()) {
+            LOG_MSG("Received message is not for me");
+        } else {
+            LOG_MSG("Message received successfully: " << decrypted_msg);
         }
 
         // Снова начинаем чтение заголовка следующего сообщения
@@ -149,59 +185,59 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
 
     std::string message(reinterpret_cast<char*>(msg.data()));
 
-    // Подпишем сообщение своим приватным ключом
-    std::string signature = "";
-    auto optSign = Crypt::SignMsg(message, client_private_key_);
-    if (!optSign) { return; } else {
-        signature = Crypt::Base64Encode(*optSign);
-    }
     // Для каждого из ключей получателей..
     for (auto i = 0; i < recipient_public_keys.size(); ++i) {
-        // Определить 'to' как отпечаток ключа
-        std::string to = recipient_public_keys_fingerprints[i];
-
         // Шифрование
         std::vector<unsigned char> encrypted_msg =
             Crypt::encipher(client_private_key_, recipient_public_keys[i], message);
 
-        dbg_out_vec("Encrypted message", encrypted_msg);
+        LOG_VEC("Encrypted message", encrypted_msg);
 
-        // И кодирование в Base64
-        std::string encoded = Crypt::Base64Encode(encrypted_msg);
+        // Debug print encrypted msg size
+        uint16_t encrypted_msg_size = static_cast<uint16_t>(encrypted_msg.size());
+        LOG_HEX("Encrypted message size in hex", encrypted_msg_size, 2);
 
-        LOG_MSG("Encoded: " << encoded);
+        // Кодирование в Base64
+        std::string base64encoded_msg = Crypt::Base64Encode(encrypted_msg);
 
-        std::string packed_message = encoded;
+        LOG_MSG("Base64 encoded message: " << base64encoded_msg);
+
+        // Debug print base64 encoded msg size
+        uint16_t base64encoded_msg_size =
+            static_cast<uint16_t>(base64encoded_msg.size());
+        LOG_HEX("Base64 encoded message size in hex", base64encoded_msg_size, 2);
 
         // Проверка длины упакованного сообщения (TODO: уточнить макс размер)
-        if (packed_message.size() > MAX_IP_PACK_SIZE) {
+        if (base64encoded_msg.size() > MAX_PACK_SIZE) {
             // TODO: тут нужно разбивать сообщение на блоки,
             // шифровать их по отдельности,
             // нумеровать и отправлять, но пока мы просто не отправляем
-            LOG_ERR(":> Error: Message is too large to fit in the buffer");
+            LOG_ERR("Error: Message is too large to fit in the buffer");
             return;
-        } else {
-            LOG_MSG("Packed Message Size: " << packed_message.size());
         }
 
-        // Инициализация вектора данными из packed_message
-        std::vector<unsigned char> formatted_msg(
-            packed_message.begin(), packed_message.end());
-        std::cout << ":> Client::WriteImpl(): Sending message of size: "
-                  << formatted_msg.size()
-                  << std::endl;
-        // Помещаем длину вперед formatted_msg
-        uint16_t formatted_msg_len = static_cast<uint16_t>(formatted_msg.size());
-        char len_bytes[2];
-        len_bytes[0] = static_cast<char>(formatted_msg_len & 0xFF); // младший байт
-        len_bytes[1] = static_cast<char>((formatted_msg_len >> 8) & 0xFF); // старший
+        // Инициализация вектора packed_msg данными из base64encoded_msg
+        std::vector<unsigned char> packed_msg(
+            base64encoded_msg.begin(), base64encoded_msg.end());
+
+        // Помещаем длину вперед packed_msg
+        unsigned char len_bytes[2];
+        len_bytes[0] = // младший байт первым
+            static_cast<unsigned char>(base64encoded_msg_size & 0xFF);
+        len_bytes[1] = // старший байт вторым
+            static_cast<unsigned char>((base64encoded_msg_size >> 8) & 0xFF);
         // Вставка двух байтов длины в начало вектора
-        formatted_msg.insert(formatted_msg.begin(), len_bytes, len_bytes + 2);
+        packed_msg.insert(packed_msg.begin(), len_bytes, len_bytes + 2);
 
-        LOG_MSG("Formatted message with length prefix prepared");
+        // Вычисляем длину packed_msg_size
+        uint16_t packed_msg_size = static_cast<uint16_t>(packed_msg.size());
 
-        // Теперь добавляем formatted_msg в очередь сообщений на отправку
-        write_msgs_.push_back(std::move(formatted_msg));
+        // Debug print packed msg size
+        LOG_HEX("Packed msg size in hex", packed_msg_size, 2);
+        LOG_MSG("Packed msg size (+2): " << packed_msg.size());
+
+        // Теперь добавляем packed_msg в очередь сообщений на отправку
+        write_msgs_.push_back(std::move(packed_msg));
     }
 
     // Если в данный момент запись не идет, инициируется асинхронная запись

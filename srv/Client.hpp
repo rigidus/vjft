@@ -40,6 +40,7 @@ public:
 
 private:
     void OnConnect(const boost::system::error_code& error);
+    void DbgHandler(const boost::system::error_code& error);
     void HeaderHandler(const boost::system::error_code& error);
     void ReadHandler(const boost::system::error_code& error);
     void WriteImpl(std::vector<unsigned char> msg);

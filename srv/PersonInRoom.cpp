@@ -48,12 +48,11 @@ void PersonInRoom::HeaderHandler(const boost::system::error_code& error) {
             (static_cast<uint16_t>(read_msg_[1]) << 8) |
             static_cast<uint16_t>(read_msg_[0]);
 
-        std::cout << "PersonInRoom::HeaderHandler(): msg_length: " << msg_length
-                  << std::endl;
+        LOG_MSG("PersonInRoom::HeaderHandler(): msg_length: " << msg_length);
 
-        if (msg_length > MAX_MSG_SIZE) {
-            std::cerr << "Error: Message length exceeds maximum allowed size"
-                      << std::endl;
+        if (msg_length > MAX_PACK_SIZE) {
+            LOG_ERR("Error: Message length exceeds maximum allowed size: "
+                    << msg_length);
             room_.Leave(shared_from_this());
             return;
         }
