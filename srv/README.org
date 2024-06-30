@@ -11,6 +11,13 @@ All messages are signed with the sender's private key and the signature is verif
 
 The server does not know anything about the content of the message, its task is only to forward messages to everyone who has connected to the chat room.
 
+* Build
+
+#+BEGIN_SRC sh
+  sudo apt-get install libboost-all-dev
+  make
+#+END_SRC
+
 * Key generation
 
 First, you should generate the keys. We use keys of size 4096 because this affects the size of the message block that can be encrypted in one go.
