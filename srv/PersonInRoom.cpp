@@ -38,8 +38,8 @@ void PersonInRoom::Start() {
                             boost::asio::buffer(read_msg_.data(), 2),
                             strand_.wrap(boost::bind(&PersonInRoom::HeaderHandler,
                                                      shared_from_this(), _1)));
-    std::cout << "PersonInRoom::Start(): async_read initiated" << std::endl;
-    room_.Enter(shared_from_this(), "ParticipantNickname");
+    LOG_MSG("async_read initiated");
+    room_.Enter(shared_from_this(), "ParticipantNickname"); // TODO: nickname
 }
 
 void PersonInRoom::HeaderHandler(const boost::system::error_code& error) {
@@ -59,14 +59,18 @@ void PersonInRoom::HeaderHandler(const boost::system::error_code& error) {
 
         read_msg_.resize(msg_length);
 
-        // // Установим тайм-аут для чтения тела сообщения
-        // deadline_.expires_after(std::chrono::seconds(5));  // Тайм-аут 5 секунд
+        // Установим тайм-аут для чтения тела сообщения
+        deadline_.expires_after(std::chrono::seconds(READ_TIMEOUT));
 
-        // читаем само сообщение
+        // Асинхронно читаем само сообщение
+        // _1 будет заменён на объект boost::system::error_code,
+        //     который предоставляет информацию об ошибке (или её отсутствии).
+        // _2 будет заменён на размер данных (тип std::size_t),
+        //     указывающий, сколько байт было успешно прочитано.
         boost::asio::async_read(socket_,
                                 boost::asio::buffer(read_msg_.data(), msg_length),
                                 strand_.wrap(boost::bind(&PersonInRoom::ReadHandler,
-                                                         shared_from_this(), _1)));
+                                                         shared_from_this(), _1, _2)));
     } else {
         room_.Leave(shared_from_this());
     }
@@ -88,28 +92,23 @@ void PersonInRoom::OnMessage(const std::vector<unsigned char>& msg) {
     }
 }
 
-void PersonInRoom::ReadHandler(const boost::system::error_code& error) {
+void PersonInRoom::ReadHandler(
+    const boost::system::error_code& error
+    , size_t bytes_readed
+    )
+{
     if (!error) {
         std::vector<unsigned char> received_msg(read_msg_.begin(), read_msg_.end());
-        std::cout << "PersonInRoom::ReadHandler(): Server received message (size: "
-                  << received_msg.size() << "): "
-                  << std::string(received_msg.begin(), received_msg.end())
-                  << std::endl;
 
-        // TODO: Проверка корректности сообщения
-        // if (!verifyMessage(received_msg)) {
-        //     std::cerr << "Error: Message verification failed" << std::endl;
-        //     room_.Leave(shared_from_this());
-        //     return;
-        // }
+        // Debug print
+        uint16_t received_msg_size = received_msg.size();
+        LOG_HEX("Received message size in hex", received_msg_size, 2);
+        LOG_VEC("Received message", received_msg);
 
-        // // Отмена таймера после успешного чтения
-        // deadline_.expires_at(boost::asio::steady_timer::time_point::max());
+        // Отмена таймера после успешного чтения
+        deadline_.expires_at(boost::asio::steady_timer::time_point::max());
 
         room_.Broadcast(received_msg, shared_from_this());
-
-        std::cout << "PersonInRoom::ReadHandler(): Starting async_read for next message"
-                  << std::endl;
 
         // готовим буфер для чтения следующего заголовка
         read_msg_.resize(2);
@@ -125,24 +124,20 @@ void PersonInRoom::ReadHandler(const boost::system::error_code& error) {
 
 void PersonInRoom::WriteHandler(const boost::system::error_code& error) {
     if (!error) {
-        std::cout << "PersonInRoom::WriteHandler(): Message written successfully"
-                  << std::endl;
+        LOG_MSG("Message written successfully");
 
         write_msgs_.pop_front();
 
         if (!write_msgs_.empty()) {
-            std::cout << "PersonInRoom::WriteHandler(): "
-                      << "Starting async_write for next message" << std::endl;
-
-            boost::asio::async_write(socket_,
-                                     boost::asio::buffer(write_msgs_.front().data(),
-                                                         write_msgs_.front().size()),
-                                     strand_.wrap(boost::bind(&PersonInRoom::WriteHandler,
-                                                              shared_from_this(), _1)));
+            boost::asio::async_write(
+                socket_,
+                boost::asio::buffer(write_msgs_.front().data(),
+                                    write_msgs_.front().size()),
+                strand_.wrap(boost::bind(&PersonInRoom::WriteHandler,
+                                         shared_from_this(), _1)));
         }
     } else {
-        std::cerr << "PersonInRoom::WriteHandler(): Error: " << error.message()
-                  << std::endl;
+        LOG_ERR("Message written successfully" << error.message());
         room_.Leave(shared_from_this());
     }
 }

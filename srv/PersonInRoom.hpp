@@ -22,7 +22,7 @@ public:
 
 private:
     void HeaderHandler(const boost::system::error_code& error);
-    void ReadHandler(const boost::system::error_code& error);
+    void ReadHandler(const boost::system::error_code& error, size_t bytes_readed);
     void WriteHandler(const boost::system::error_code& error);
     void CheckDeadline();
 

@@ -3,33 +3,26 @@
 void ChatRoom::Enter(
     std::shared_ptr<Participant> participant, const std::string& nickname)
 {
-    std::cout << "ChatRoom::Enter: Participant entered with nickname: "
-              << nickname << std::endl;
+    LOG_MSG("Participant entered with nickname: " << nickname);
     participants_.insert(participant);
     name_table_[participant] = nickname;
     std::for_each(recent_msgs_.begin(), recent_msgs_.end(),
                   boost::bind(&Participant::OnMessage, participant, _1));
-    std::cout << "ChatRoom::Enter: Participant added. Total participants: "
-              << participants_.size() << std::endl;
+    LOG_MSG("Participant added. Total participants: " << participants_.size());
 }
 
 void ChatRoom::Leave(std::shared_ptr<Participant> participant) {
     std::cout << "ChatRoom::Leave: Participant leaving" << std::endl;
     participants_.erase(participant);
     name_table_.erase(participant);
-    std::cout << "ChatRoom::Leave: Participant removed. Total participants: "
-              << participants_.size() << std::endl;
+    LOG_MSG("Participant removed. Total participants: " << participants_.size());
 }
-
-
 
 void ChatRoom::Broadcast(const std::vector<unsigned char>& msg,
                          std::shared_ptr<Participant> participant)
 {
     std::string dbgstr(msg.begin(), msg.end());
-    std::cout << "\n---ChatRoom::Broadcast(): Broadcasting message: "
-              << dbgstr
-              << std::endl;
+    LOG_VEC("Broadcasting message", msg);
 
     uint16_t msg_len = static_cast<uint16_t>(msg.size());
     char len_bytes[2];
@@ -52,8 +45,7 @@ void ChatRoom::Broadcast(const std::vector<unsigned char>& msg,
         recent_msgs_.pop_front();
     }
 
-    std::cout << "ChatRoom::Broadcast(): Broadcasting to "
-              << participants_.size() << " participants" << std::endl;
+    LOG_MSG("Broadcasting to " << participants_.size() << " participants");
 
     // Рассылка сообщения всем участникам
     std::for_each(participants_.begin(), participants_.end(),

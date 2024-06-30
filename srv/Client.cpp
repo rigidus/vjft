@@ -195,6 +195,8 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
             (static_cast<uint16_t>(read_msg_[1]) << 8) |
             static_cast<uint16_t>(read_msg_[0]);
 
+        LOG_HEX("Message length (-2 bytes length) in hex", msg_length, 2);
+
         // Добавляем прочитанные байты длины в очередь чтения
         read_queue_.push_back(read_msg_[0]);
         read_queue_.push_back(read_msg_[1]);
@@ -203,6 +205,7 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
         if (checkSyncMarkerInQueue()) {
             // Если очередь содержит синхромаркер, которого мы не ожидаем,
             // то переходим к Recover
+            LOG_ERR("Error: Sync marker spotted");
             Recover();
             return;
         }
@@ -210,18 +213,14 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
         // Проверка длины полученного сообщения
         if (msg_length > MIN_PACK_SIZE) {
             // Слишком маленькая длина
-            LOG_ERR("Error: Message length is too SMALL: " << msg_length);
-            LOG_HEX("msg_length in hex", msg_length, 2);
+            LOG_HEX("Error: Message length is too SMALL (hex)", msg_length, 2);
             Recover();
         } else if (msg_length > MAX_PACK_SIZE) {
             // Слишком большая длина
-            LOG_ERR("Error: Message length is too LARGE: " << msg_length);
-            LOG_HEX("msg_length in hex", msg_length, 2);
+            LOG_HEX("Error: Message length is too LARGE (hex) ", msg_length, 2);
             Recover();
             return;
         }
-
-        LOG_MSG("Message length (-2 bytes length): " << msg_length);
 
         // Если мы тут, то все в порядке
         // Обрезаем очередь до последних READ_QUEUE_SIZE элементов
@@ -241,6 +240,10 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
             boost::bind(&Client::HandleDataTimeout, this, _1));
 
         // Читаем остальные данные асинхронно
+        // _1 будет заменён на объект boost::system::error_code,
+        //     который предоставляет информацию об ошибке (или её отсутствии).
+        // _2 будет заменён на размер данных (тип std::size_t),
+        //     указывающий, сколько байт было успешно прочитано.
         boost::asio::async_read(socket_,
                                 boost::asio::buffer(read_msg_.data(), msg_length),
                                 boost::bind(&Client::ReadHandler, this, _1, _2));
@@ -250,64 +253,81 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
 }
 
 
-
 void Client::ReadHandler(
     const boost::system::error_code& error,
     size_t bytes_readed)
 {
-    if (!error) {
-        // Отменяем таймер, поскольку данные были успешно прочитаны
-        read_timeout_timer_.cancel();
-
-        // Тут мы уже получаем само сообщение, без его длины
-        // потому что длина была отрезана в HeaderHandler
-        std::vector<unsigned char> received_msg(read_msg_.begin(), read_msg_.end());
-
-        uint16_t received_msg_size = received_msg.size();
-
-        // Debug print
-        LOG_MSG("Received message size: " << received_msg_size);
-        LOG_HEX("Received message size in hex", received_msg_size, 2);
-        LOG_VEC("Received message", received_msg);
-
-        // TODO: перед декодированием надо отрезать синхромаркер
-        if (received_msg.size() > 32) {
-            received_msg.resize(received_msg.size() - 32);  // Обрезаем синхромаркер
-        }
-
-        std::string msg_data(received_msg.begin(), received_msg.end());
-
-        LOG_MSG("Received message msg_data: [" << msg_data << "]");
-
-        std::vector<unsigned char> decoded_message =
-            Crypt::Base64Decode(msg_data);
-
-        // Debug print decoded message
-        LOG_VEC("Decoded message", decoded_message);
-
-        if (decoded_message.empty()) {
-            throw std::runtime_error("Base64 decode failed");
-        }
-
-        std::string decrypted_msg =
-            Crypt::decipher(client_private_key_, recipient_public_keys[0],
-                            decoded_message);
-
-        if (decrypted_msg.empty()) {
-            LOG_MSG("Received message is not for me");
-        } else {
-            LOG_MSG("Message received successfully: " << decrypted_msg);
-        }
-
-        // Снова начинаем чтение заголовка следующего сообщения
-        read_msg_.resize(2); // готовим буфер для чтения следующего заголовка
-        boost::asio::async_read(socket_,
-                                boost::asio::buffer(read_msg_.data(), 2),
-                                boost::bind(&Client::HeaderHandler, this, _1));
-    } else {
+    if (error) {
+        // Если случилась ошибка - закрываем сокет и выходим
         LOG_ERR("Error reading message: " << error.message());
         CloseImpl();
+        return;
     }
+
+    // Проверяем, соответствует ли количество прочитанных байт ожидаемому
+    if (bytes_readed != read_msg_.size()) {
+        LOG_ERR("Error: Mismatch in the number of bytes read. Expected: "
+                + std::to_string(read_msg_.size()) + ", Read: "
+                + std::to_string(bytes_readed));
+        Recover();
+        return;
+    }
+
+    // Отменяем таймер, поскольку данные были успешно прочитаны
+    read_timeout_timer_.cancel();
+
+    // Тут мы уже получаем само сообщение, без его длины
+    // потому что длина была отрезана в HeaderHandler,
+    // но sync_marker в конце присутствует
+    std::vector<unsigned char> received_msg(read_msg_.begin(), read_msg_.end());
+
+    uint16_t received_msg_size = received_msg.size();
+
+    // Debug print
+    LOG_HEX("Received message size in hex", received_msg_size, 2);
+    LOG_VEC("Received message", received_msg);
+
+
+    if (read_msg_.size() < SYNC_MARKER_SIZE) {
+        // По идее, сообщение не может быть размером меньше чем sync_marker
+        // но если в будущем это изменится, то проверка пригодится
+        LOG_ERR("Sync marker not found or not in the correct position.");
+        Recover();
+    }
+
+    // Проверяем наличие синхромаркера в конце сообщения
+    bool sync_marker_found = true;
+    for (size_t i = read_msg_.size() - SYNC_MARKER_SIZE; i < read_msg_.size(); i++)
+    {
+        if (read_msg_[i] != 0) {
+            sync_marker_found = false;
+            break;
+        }
+    }
+    if (!sync_marker_found) {
+        LOG_ERR("Sync marker not found or not in the correct position.");
+        Recover();
+        return;
+    }
+
+    // Перед декодированием надо отрезать sync_marker
+    received_msg.resize(received_msg.size() - SYNC_MARKER_SIZE);
+
+    std::string decrypted_msg =
+        Crypt::decipher(client_private_key_, recipient_public_keys[0],
+                        received_msg);
+
+    if (decrypted_msg.empty()) {
+        LOG_MSG("Received message is not for me");
+    } else {
+        LOG_MSG("Message received successfully: " << decrypted_msg);
+    }
+
+    // Снова начинаем чтение заголовка следующего сообщения
+    read_msg_.resize(2); // готовим буфер для чтения следующего заголовка
+    boost::asio::async_read(socket_,
+                            boost::asio::buffer(read_msg_.data(), 2),
+                            boost::bind(&Client::HeaderHandler, this, _1));
 }
 
 void Client::WriteImpl(std::vector<unsigned char> msg) {
@@ -315,7 +335,8 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
 
     bool write_in_progress = !write_msgs_.empty();
 
-    std::string message(reinterpret_cast<char*>(msg.data()));
+    // Строка нужна для передачи криптору
+    std::string msg_str(reinterpret_cast<char*>(msg.data()));
 
     // sync_marker : 32 нулевых байта
     std::vector<unsigned char> sync_marker(32, 0);
@@ -324,41 +345,22 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
     for (auto i = 0; i < recipient_public_keys.size(); ++i) {
         // Шифрование
         std::vector<unsigned char> encrypted_msg =
-            Crypt::encipher(client_private_key_, recipient_public_keys[i], message);
+            Crypt::encipher(client_private_key_, recipient_public_keys[i], msg_str);
 
         LOG_VEC("Encrypted message", encrypted_msg);
 
         // Debug print encrypted msg size
         uint16_t encrypted_msg_size = static_cast<uint16_t>(encrypted_msg.size());
-        LOG_HEX("Encrypted message size in hex", encrypted_msg_size, 2);
+        LOG_HEX("encrypted_msg_size (hex)", encrypted_msg_size, 2);
 
-        // Кодирование в Base64
-        std::string base64encoded_msg = Crypt::Base64Encode(encrypted_msg);
-
-        LOG_MSG("Base64 encoded message: " << base64encoded_msg);
-
-        // Debug print base64 encoded msg size
-        uint16_t base64encoded_msg_size =
-            static_cast<uint16_t>(base64encoded_msg.size());
-        LOG_HEX("Base64 encoded message size in hex", base64encoded_msg_size, 2);
-
-        // Проверка длины упакованного сообщения (TODO: уточнить макс размер)
-        if (base64encoded_msg.size() > MAX_PACK_SIZE) {
-            // TODO: тут нужно разбивать сообщение на блоки,
-            // шифровать их по отдельности,
-            // нумеровать и отправлять, но пока мы просто не отправляем
-            LOG_ERR("Error: Message is too large to fit in the buffer");
-            return;
-        }
-
-        // Инициализация вектора packed_msg данными из base64encoded_msg
+        // Инициализация вектора packed_msg данными из base64encoded_msg/encrypted_msg
         std::vector<unsigned char> packed_msg(
-            base64encoded_msg.begin(), base64encoded_msg.end());
+            encrypted_msg.begin(), encrypted_msg.end());
 
         // Вставка синхромаркера в конец packed_msg
         packed_msg.insert(packed_msg.end(), sync_marker.begin(), sync_marker.end());
 
-        // Вычисляем размер packed_msg + sync_marker_size
+        // Вычисляем размер packed_msg + sync_marker (без двух байтов длины)
         uint16_t pack_sync_size =
             static_cast<uint16_t>(packed_msg.size());
 
@@ -375,9 +377,8 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
         uint16_t packed_msg_size = static_cast<uint16_t>(packed_msg.size());
 
         // Debug print packed msg size
-        LOG_HEX("Packed msg size in hex", packed_msg_size, 2);
-        LOG_MSG("Packed msg size (+2): " << packed_msg.size());
-        LOG_VEC("Packed msg" , packed_msg);
+        LOG_HEX("packed_size [len+packed_msg+sync_marker] (hex)", packed_msg_size, 2);
+        LOG_VEC("packed_msg" , packed_msg);
 
         // Теперь добавляем packed_msg в очередь сообщений на отправку
         write_msgs_.push_back(std::move(packed_msg));
@@ -393,8 +394,6 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
             boost::asio::buffer(write_msgs_.front().data(), write_msgs_.front().size()),
             boost::bind(&Client::WriteHandler, this, _1));
     }
-
-    LOG_MSG("End func");
 }
 
 void Client::WriteHandler(const boost::system::error_code& error) {
