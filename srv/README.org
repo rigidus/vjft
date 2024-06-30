@@ -1,25 +1,43 @@
 #+STARTUP: showall indent hidestars
 #+TOC: headlines 3
 
+* Secure Messenger
+
+A safe secure chat room built on asymmetric cryptography.
+
+All messages sent are encrypted with the recipient's public key and can only be encrypted with the recipient's private key.
+
+All messages are signed with the sender's private key and the signature is verified with the sender's public key at the moment the message is received
+
+The server does not know anything about the content of the message, its task is only to forward messages to everyone who has connected to the chat room.
+
 * Key generation
 
 First, you should generate the keys. We use keys of size 4096 because this affects the size of the message block that can be encrypted in one go.
 
 Of course you should use a stronger password for the key.
 
-** Client
+** Alice
 
 #+BEGIN_SRC sh
-  openssl genpkey -algorithm RSA -out client_private_key.pem -pkeyopt rsa_keygen_bits:4096 -aes256 -pass pass:qwe123
-  openssl rsa -pubout -in client_private_key.pem -out client_public_key.pem -passin pass:qwe123
+  openssl genpkey -algorithm RSA -out alice_private_key.pem -pkeyopt rsa_keygen_bits:4096 -aes256 -pass pass:qwe123
+  openssl rsa -pubout -in alice_private_key.pem -out alice_public_key.pem -passin pass:qwe123
 #+END_SRC
 
-** Recipient
+** Bob
 
 #+BEGIN_SRC sh
-  openssl genpkey -algorithm RSA -out recipient_private_key.pem -pkeyopt rsa_keygen_bits:4096 -aes256 -pass pass:qwe123
-  openssl rsa -pubout -in recipient_private_key.pem -out recipient_public_key.pem -passin pass:qwe123
+  openssl genpkey -algorithm RSA -out bob_private_key.pem -pkeyopt rsa_keygen_bits:4096 -aes256 -pass pass:qwe123
+  openssl rsa -pubout -in bob_private_key.pem -out bob_public_key.pem -passin pass:qwe123
 #+END_SRC
+
+** Carol
+
+#+BEGIN_SRC sh
+  openssl genpkey -algorithm RSA -out carol_private_key.pem -pkeyopt rsa_keygen_bits:4096 -aes256 -pass pass:qwe123
+  openssl rsa -pubout -in carol_private_key.pem -out carol_public_key.pem -passin pass:qwe123
+#+END_SRC
+
 
 * Start server
 
@@ -27,24 +45,33 @@ Of course you should use a stronger password for the key.
   ./chat_server 8888
 #+END_SRC
 
-* Start Client
+* Start Clients
+
+** Alice
 
 #+BEGIN_SRC sh
-  ./chat_client ClientNickName 127.0.0.1 8888 client_private_key.pem recipient_public_key.pem
+  ./chat_client alice 127.0.0.1 8888 alice_private_key.pem bob_public_key.pem carol_public_key.pem
 #+END_SRC
 
-* Start Recipient
+** Bob
 
 #+BEGIN_SRC sh
-  ./chat_client nokla 127.0.0.1 8888 recipient_private_key.pem client_public_key.pem
+  ./chat_client bob 127.0.0.1 8888 bob_private_key.pem alice_public_key.pem carol_public_key.pem
 #+END_SRC
+
+** Carol
+
+#+BEGIN_SRC sh
+  ./chat_client carol 127.0.0.1 8888 carol_private_key.pem alice_public_key.pem bob_public_key.pem
+#+END_SRC
+
 
 * Let`s chat
+
 Enjoy
 
 * Todo List
 
-- signature
 - autoupdate
 - screensharing
 - videochat

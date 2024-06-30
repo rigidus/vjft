@@ -47,7 +47,7 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
         }
     }
 
-    LOG_MSG("\nKeys loaded");
+    LOG_MSG("Keys loaded");
 
     boost::asio::async_connect(socket_,
                                endpoint_iterator,
@@ -318,16 +318,18 @@ void Client::ReadHandler(
     // Перед декодированием надо отрезать sync_marker
     received_msg.resize(received_msg.size() - SYNC_MARKER_SIZE);
 
-    std::string decrypted_msg =
-        Crypt::decipher(client_private_key_, recipient_public_keys[0],
-                        received_msg);
 
-    if (decrypted_msg.empty()) {
-        LOG_ERR("Received message is not for me");
-    } else {
-        LOG_MSG(":=>: " << decrypted_msg);
+    // Для каждого из известных нам абонентов
+    for (auto i = 0; i < recipient_public_keys.size(); ++i) {
+        std::string decrypted_msg =
+            Crypt::decipher(client_private_key_, recipient_public_keys[i],
+                            received_msg);
+        if (decrypted_msg.empty()) {
+            LOG_ERR("Received message is not for me");
+        } else {
+            LOG_MSG(decrypted_msg);
+        }
     }
-
     // Снова начинаем чтение заголовка следующего сообщения
     read_msg_.resize(2); // готовим буфер для чтения следующего заголовка
     boost::asio::async_read(socket_,
@@ -426,6 +428,6 @@ void Client::WriteHandler(const boost::system::error_code& error) {
 }
 
 void Client::CloseImpl() {
-    LOG_ERR("Closing socket");
+    LOG_MSG("Closing socket");
     socket_.close();
 }
