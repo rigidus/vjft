@@ -191,11 +191,11 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
         // В данный момент мы знаем, что 2 байта длины пакета прочитаны
         // и находятся в поле класса read_msg_
         // Формируем два байта длины
-        uint16_t msg_length =
+        uint16_t need_read_size =
             (static_cast<uint16_t>(read_msg_[1]) << 8) |
             static_cast<uint16_t>(read_msg_[0]);
 
-        LOG_HEX("Message length (-2 bytes length) in hex", msg_length, 2);
+        LOG_HEX("need read (pack_sync_size-2) (hex)", need_read_size, 2);
 
         // Добавляем прочитанные байты длины в очередь чтения
         read_queue_.push_back(read_msg_[0]);
@@ -211,13 +211,15 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
         }
 
         // Проверка длины полученного сообщения
-        if (msg_length > MIN_PACK_SIZE) {
+        if (need_read_size < MIN_PACK_SIZE) {
             // Слишком маленькая длина
-            LOG_HEX("Error: Message length is too SMALL (hex)", msg_length, 2);
+            LOG_HEX("Error: Message length is too SMALL (hex)", need_read_size, 2);
+            LOG_HEX("Expected (hex)", MIN_PACK_SIZE, 2);
             Recover();
-        } else if (msg_length > MAX_PACK_SIZE) {
+        } else if (need_read_size > MAX_PACK_SIZE) {
             // Слишком большая длина
-            LOG_HEX("Error: Message length is too LARGE (hex) ", msg_length, 2);
+            LOG_HEX("Error: Message length is too LARGE (hex) ", need_read_size, 2);
+            LOG_HEX("Expected (hex)", MAX_PACK_SIZE, 2);
             Recover();
             return;
         }
@@ -231,7 +233,7 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
         }
 
         // Подготавливаем размер буфера для чтения данных сообщения
-        read_msg_.resize(msg_length);
+        read_msg_.resize(need_read_size);
 
         // Запускаем таймер ожидания данных (мы получили длину, ждем остальное)
         read_timeout_timer_.expires_from_now(
@@ -245,7 +247,7 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
         // _2 будет заменён на размер данных (тип std::size_t),
         //     указывающий, сколько байт было успешно прочитано.
         boost::asio::async_read(socket_,
-                                boost::asio::buffer(read_msg_.data(), msg_length),
+                                boost::asio::buffer(read_msg_.data(), need_read_size),
                                 boost::bind(&Client::ReadHandler, this, _1, _2));
     } else {
         CloseImpl();
@@ -351,16 +353,18 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
 
         // Debug print encrypted msg size
         uint16_t encrypted_msg_size = static_cast<uint16_t>(encrypted_msg.size());
-        LOG_HEX("encrypted_msg_size (hex)", encrypted_msg_size, 2);
+        LOG_HEX("encrypted_msg_size [envelope_chunk_size[envelope]] (hex)",
+                encrypted_msg_size, 2);
 
-        // Инициализация вектора packed_msg данными из base64encoded_msg/encrypted_msg
+        // Инициализация вектора packed_msg данными из encrypted_msg
         std::vector<unsigned char> packed_msg(
             encrypted_msg.begin(), encrypted_msg.end());
 
         // Вставка синхромаркера в конец packed_msg
+        // [envelope_chunk_size[envelope]]+[sync_marker]
         packed_msg.insert(packed_msg.end(), sync_marker.begin(), sync_marker.end());
 
-        // Вычисляем размер packed_msg + sync_marker (без двух байтов длины)
+        // Вычисляем размер [envelope_chunk_size[envelope]]+[sync_marker]
         uint16_t pack_sync_size =
             static_cast<uint16_t>(packed_msg.size());
 
@@ -370,14 +374,19 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
             static_cast<unsigned char>(pack_sync_size & 0xFF);
         len_bytes[1] = // старший байт вторым
             static_cast<unsigned char>((pack_sync_size >> 8) & 0xFF);
-        // Вставка двух байтов длины в начало packed_msg перед содержимым
+        // Вставка двух байтов длины в начало packed_msg
+        // [pack_sync_size[[envelope_chunk_size[envelope]]+[sync_marker]]]
         packed_msg.insert(packed_msg.begin(), len_bytes, len_bytes + 2);
 
-        // Вычисляем длину packed_msg_size = длина + содержимое + синхромаркер
+        // Вычисляем длину packed_msg_size
+        // [pack_sync_size[[envelope_chunk_size[envelope]]+[sync_marker]]]
         uint16_t packed_msg_size = static_cast<uint16_t>(packed_msg.size());
 
         // Debug print packed msg size
-        LOG_HEX("packed_size [len+packed_msg+sync_marker] (hex)", packed_msg_size, 2);
+        LOG_TXT("packed_msg_size =");
+        LOG_HEX(
+            "[pack_sync_size[[envelope_chunk_size[envelope]]+[sync_marker]]] (hex)",
+            packed_msg_size, 2);
         LOG_VEC("packed_msg" , packed_msg);
 
         // Теперь добавляем packed_msg в очередь сообщений на отправку
