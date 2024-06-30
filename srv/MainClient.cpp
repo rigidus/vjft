@@ -37,17 +37,13 @@ int main(int argc, char* argv[]) {
         LOG_TXT("MainClient::main(): Starting IO service thread");
         std::thread t(boost::bind(&boost::asio::io_service::run, &io_service));
 
-        // std::array<char, MAX_PACK_SIZE> msg;
-        std::string msg;
-
         while (true) {
+            std::string msg;
             if (std::getline(std::cin, msg) && !msg.empty()) {
                 LOG_TXT("Msg size: " << msg.size());
-                std::vector<unsigned char> msg_vec(
-                    msg.begin(), msg.begin() + strlen(msg.data()));
+                std::vector<unsigned char> msg_vec(msg.begin(), msg.end());
                 LOG_TXT("Sending message: ["
-                        << std::string(msg_vec.begin(), msg_vec.end())
-                        << "]");
+                        << std::string(msg_vec.begin(), msg_vec.end()) << "]");
                 cli.Write(msg_vec);
             } else {
                 std::cin.clear(); //clean up error bit and try to finish reading

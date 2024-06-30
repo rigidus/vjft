@@ -1,6 +1,7 @@
 // defs.hpp
 
-#define DBG 1
+#define DBG 0
+#define DBG_MSG 0
 #define DBG_CRYPT 0
 #define SIG_SIZE 512
 #define HASH_SIZE 32

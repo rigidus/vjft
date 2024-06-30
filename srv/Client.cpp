@@ -11,10 +11,10 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
       socket_(io_service),
       read_timeout_timer_(io_service)
 {
-    LOG_MSG("Initializing async connect");
-    LOG_MSG("Io_service initialized");
-    LOG_MSG("socket open: "  << std::boolalpha << socket_.is_open());
-    LOG_MSG("Endpoint_iterator valid: " << std::boolalpha
+    LOG_ERR("Initializing async connect");
+    LOG_ERR("Io_service initialized");
+    LOG_ERR("socket open: "  << std::boolalpha << socket_.is_open());
+    LOG_ERR("Endpoint_iterator valid: " << std::boolalpha
             << static_cast<bool>(endpoint_iterator != tcp::resolver::iterator()));
 
     // if (endpoint_iterator != tcp::resolver::iterator()) {
@@ -30,7 +30,8 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
     std::string password;
     std::cout << "=> Enter password for private key: ";
     std::cin >> password;
-    client_private_key_ = Crypt::LoadKeyFromFile(client_private_key_file, true, password);
+    client_private_key_ =
+        Crypt::LoadKeyFromFile(client_private_key_file, true, password);
     if (!client_private_key_) {
         abort();
     }
@@ -46,15 +47,17 @@ Client::Client(const std::array<char, MAX_NICKNAME>& nickname,
         }
     }
 
+    LOG_MSG("\nKeys loaded");
+
     boost::asio::async_connect(socket_,
                                endpoint_iterator,
                                boost::bind(&Client::OnConnect, this, _1));
 
-    std::cerr << ":> Client::Client(): Async Connect ok" << std::endl;
+    LOG_ERR("Async Connect ok");
 }
 
 void Client::Write(const std::vector<unsigned char>& msg) {
-    LOG_MSG("Scheduling message write");
+    LOG_ERR("Scheduling message write");
     io_service_.post(boost::bind(&Client::WriteImpl, this, msg));
 }
 
@@ -64,7 +67,7 @@ void Client::Close() {
 
 void Client::OnConnect(const boost::system::error_code& error) {
     if (!error) {
-        LOG_MSG("Connection successful, starting to read header");
+        LOG_ERR("Connection successful, starting to read header");
         // Временно не передаем никнейм
         // boost::asio::async_write(socket_,
         //                          boost::asio::buffer(nickname_, nickname_.size()),
@@ -100,7 +103,7 @@ void Client::FindSyncMarker() {
                 // Проверяем, достигли ли мы 32 нулевых байт подряд
                 if (zero_byte_count_ >= 32) {
                     zero_byte_count_ = 0;
-                    LOG_MSG("Sync marker found, resuming normal operation");
+                    LOG_ERR("Sync marker found, resuming normal operation");
                     // Считываем длину следующего сообщения
                     read_msg_.resize(2);
                     boost::asio::async_read(
@@ -146,7 +149,7 @@ void Client::HandleDataTimeout(const boost::system::error_code& error) {
         Recover();  // Функция Recover должна содержать логику для обработки сбоя чтения
     } else {
         // Таймер был отменен, что означает успешное завершение операции чтения
-        LOG_MSG("Data timeout timer was cancelled, data received successfully");
+        LOG_ERR("Data timeout timer was cancelled, data received successfully");
     }
 }
 
@@ -320,9 +323,9 @@ void Client::ReadHandler(
                         received_msg);
 
     if (decrypted_msg.empty()) {
-        LOG_MSG("Received message is not for me");
+        LOG_ERR("Received message is not for me");
     } else {
-        LOG_MSG("Message received successfully: " << decrypted_msg);
+        LOG_MSG(":=>: " << decrypted_msg);
     }
 
     // Снова начинаем чтение заголовка следующего сообщения
@@ -333,12 +336,12 @@ void Client::ReadHandler(
 }
 
 void Client::WriteImpl(std::vector<unsigned char> msg) {
-    LOG_MSG("");
+    LOG_ERR("");
 
     bool write_in_progress = !write_msgs_.empty();
 
     // Строка нужна для передачи криптору
-    std::string msg_str(reinterpret_cast<char*>(msg.data()));
+    std::string msg_str(msg.begin(), msg.end());
 
     // sync_marker : 32 нулевых байта
     std::vector<unsigned char> sync_marker(32, 0);
@@ -383,10 +386,7 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
         uint16_t packed_msg_size = static_cast<uint16_t>(packed_msg.size());
 
         // Debug print packed msg size
-        LOG_TXT("packed_msg_size =");
-        LOG_HEX(
-            "[pack_sync_size[[envelope_chunk_size[envelope]]+[sync_marker]]] (hex)",
-            packed_msg_size, 2);
+        LOG_HEX("packed_msg_size = [pack_sync_size[[envelope_chunk_size[envelope]]+[sync_marker]]] (hex)", packed_msg_size, 2);
         LOG_VEC("packed_msg" , packed_msg);
 
         // Теперь добавляем packed_msg в очередь сообщений на отправку
@@ -407,7 +407,7 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
 
 void Client::WriteHandler(const boost::system::error_code& error) {
     if (!error) {
-        LOG_MSG("Message written successfully");
+        LOG_ERR("Message written successfully");
 
         // Удаляем только что отправленное сообщение из очереди
         write_msgs_.pop_front();
@@ -426,6 +426,6 @@ void Client::WriteHandler(const boost::system::error_code& error) {
 }
 
 void Client::CloseImpl() {
-    LOG_MSG("Closing socket");
+    LOG_ERR("Closing socket");
     socket_.close();
 }

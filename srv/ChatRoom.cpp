@@ -3,19 +3,19 @@
 void ChatRoom::Enter(
     std::shared_ptr<Participant> participant, const std::string& nickname)
 {
-    LOG_MSG("Participant entered with nickname: " << nickname);
+    LOG_ERR("Participant entered with nickname: " << nickname);
     participants_.insert(participant);
     name_table_[participant] = nickname;
     std::for_each(recent_msgs_.begin(), recent_msgs_.end(),
                   boost::bind(&Participant::OnMessage, participant, _1));
-    LOG_MSG("Participant added. Total participants: " << participants_.size());
+    LOG_ERR("Participant added. Total participants: " << participants_.size());
 }
 
 void ChatRoom::Leave(std::shared_ptr<Participant> participant) {
-    std::cout << "ChatRoom::Leave: Participant leaving" << std::endl;
+    LOG_ERR("Participant leaving");
     participants_.erase(participant);
     name_table_.erase(participant);
-    LOG_MSG("Participant removed. Total participants: " << participants_.size());
+    LOG_ERR("Participant removed. Total participants: " << participants_.size());
 }
 
 void ChatRoom::Broadcast(const std::vector<unsigned char>& msg,
@@ -35,7 +35,7 @@ void ChatRoom::Broadcast(const std::vector<unsigned char>& msg,
     bcast.insert(bcast.end(), msg.begin(), msg.end());
 
     // Debug print
-    LOG_MSG("bcast size:" << msg_len);
+    LOG_ERR("bcast size:" << msg_len);
     LOG_HEX("bcast size in hex", msg_len, 2);
     LOG_VEC("bcast", bcast);
 
@@ -45,7 +45,7 @@ void ChatRoom::Broadcast(const std::vector<unsigned char>& msg,
         recent_msgs_.pop_front();
     }
 
-    LOG_MSG("Broadcasting to " << participants_.size() << " participants");
+    LOG_ERR("Broadcasting to " << participants_.size() << " participants");
 
     // Рассылка сообщения всем участникам
     std::for_each(participants_.begin(), participants_.end(),

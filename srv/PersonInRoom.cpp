@@ -28,17 +28,18 @@ tcp::socket& PersonInRoom::Socket() {
 }
 
 void PersonInRoom::Start() {
-    std::cout << "PersonInRoom::Start(): Participant starting" << std::endl;
+    LOG_ERR("Participant starting");
 
     // Запускаем проверку тайм-аутов после создания объекта
     CheckDeadline();
 
     // читаем сначала 2 байта заголовка
-    boost::asio::async_read(socket_,
-                            boost::asio::buffer(read_msg_.data(), 2),
-                            strand_.wrap(boost::bind(&PersonInRoom::HeaderHandler,
-                                                     shared_from_this(), _1)));
-    LOG_MSG("async_read initiated");
+    boost::asio::async_read(
+        socket_,
+        boost::asio::buffer(read_msg_.data(), 2),
+        strand_.wrap(boost::bind(&PersonInRoom::HeaderHandler,
+                                 shared_from_this(), _1)));
+    LOG_ERR("async_read initiated");
     room_.Enter(shared_from_this(), "ParticipantNickname"); // TODO: nickname
 }
 
@@ -48,7 +49,7 @@ void PersonInRoom::HeaderHandler(const boost::system::error_code& error) {
             (static_cast<uint16_t>(read_msg_[1]) << 8) |
             static_cast<uint16_t>(read_msg_[0]);
 
-        LOG_MSG("PersonInRoom::HeaderHandler(): msg_length: " << msg_length);
+        LOG_ERR("msg_length: " << msg_length);
 
         if (msg_length > MAX_PACK_SIZE) {
             LOG_ERR("Error: Message length exceeds maximum allowed size: "
@@ -67,28 +68,29 @@ void PersonInRoom::HeaderHandler(const boost::system::error_code& error) {
         //     который предоставляет информацию об ошибке (или её отсутствии).
         // _2 будет заменён на размер данных (тип std::size_t),
         //     указывающий, сколько байт было успешно прочитано.
-        boost::asio::async_read(socket_,
-                                boost::asio::buffer(read_msg_.data(), msg_length),
-                                strand_.wrap(boost::bind(&PersonInRoom::ReadHandler,
-                                                         shared_from_this(), _1, _2)));
+        boost::asio::async_read(
+            socket_,
+            boost::asio::buffer(read_msg_.data(), msg_length),
+            strand_.wrap(boost::bind(&PersonInRoom::ReadHandler,
+                                     shared_from_this(), _1, _2)));
     } else {
         room_.Leave(shared_from_this());
     }
 }
 
 void PersonInRoom::OnMessage(const std::vector<unsigned char>& msg) {
-    std::cout << "PersonInRoom::OnMessage(): Adding message to queue" << std::endl;
+    LOG_ERR("Adding message to queue");
     bool write_in_progress = !write_msgs_.empty();
     write_msgs_.push_back(msg);
-    std::cout << "PersonInRoom::OnMessage(): Added message to write queue, size: "
-              << msg.size() << std::endl;
+    LOG_ERR("Added message to write queue, size: " << msg.size());
     if (!write_in_progress) {
-        std::cout << "PersonInRoom::OnMessage(): Starting async_write" << std::endl;
-        boost::asio::async_write(socket_,
-                                 boost::asio::buffer(write_msgs_.front().data(),
-                                                     write_msgs_.front().size()),
-                                 strand_.wrap(boost::bind(&PersonInRoom::WriteHandler,
-                                                          shared_from_this(), _1)));
+        LOG_ERR("Starting async_write");
+        boost::asio::async_write(
+            socket_,
+            boost::asio::buffer(write_msgs_.front().data(),
+                                write_msgs_.front().size()),
+            strand_.wrap(boost::bind(&PersonInRoom::WriteHandler,
+                                     shared_from_this(), _1)));
     }
 }
 
@@ -113,10 +115,11 @@ void PersonInRoom::ReadHandler(
         // готовим буфер для чтения следующего заголовка
         read_msg_.resize(2);
         // снова читаем заголовок
-        boost::asio::async_read(socket_,
-                                boost::asio::buffer(read_msg_.data(), 2),
-                                strand_.wrap(boost::bind(&PersonInRoom::HeaderHandler,
-                                                         shared_from_this(), _1)));
+        boost::asio::async_read(
+            socket_,
+            boost::asio::buffer(read_msg_.data(), 2),
+            strand_.wrap(boost::bind(&PersonInRoom::HeaderHandler,
+                                     shared_from_this(), _1)));
     } else {
         room_.Leave(shared_from_this());
     }
@@ -124,7 +127,7 @@ void PersonInRoom::ReadHandler(
 
 void PersonInRoom::WriteHandler(const boost::system::error_code& error) {
     if (!error) {
-        LOG_MSG("Message written successfully");
+        LOG_ERR("Message written successfully");
 
         write_msgs_.pop_front();
 
