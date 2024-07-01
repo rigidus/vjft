@@ -14,7 +14,7 @@ The server does not know anything about the content of the message, its task is 
 * Build
 
 #+BEGIN_SRC sh
-  sudo apt-get install libboost-all-dev
+  sudo apt-get install make g++ libboost-dev libssl-dev libboost-system-dev libboost-thread-dev
   make
 #+END_SRC
 
