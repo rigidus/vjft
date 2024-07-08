@@ -7,6 +7,12 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+static uint64_t return_42(
+    uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5)
+{
+    return 42;
+}
+
 int main() {
     // Инициализация виртуальной машины uBPF
     struct ubpf_vm *vm = ubpf_create();
@@ -14,6 +20,9 @@ int main() {
         fprintf(stderr, "Failed to create uBPF VM\n");
         return 1;
     }
+
+    // Регистрация helper-функции
+    ubpf_register(vm, 0, "return_42", return_42);
 
     // Загрузка uBPF программы из файла
     int fd = open("minimal_bpf.o", O_RDONLY);
