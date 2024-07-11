@@ -67,7 +67,7 @@ int main() {
     uint64_t ret_val;
     rv = ubpf_exec(vm, NULL, 0, &ret_val);
     if (rv < 0) {
-        fprintf(stderr, "Failed to execute program\n");
+        perror("Failed to execute program: ");
         ubpf_destroy(vm);
         return 1;
     }

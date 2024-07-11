@@ -1,5 +1,5 @@
 BPF_CLANG=clang
-BPF_CFLAGS=-O2 -target bpf -I/usr/include/x86_64-linux-gnu
+BPF_CFLAGS=-O0 -target bpf -I/usr/include/x86_64-linux-gnu
 TARGET = minimal_bpf.o
 
 
