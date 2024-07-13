@@ -36,12 +36,59 @@ void moveCursor(int x, int y) {
 }
 
 
+/* MiniBuffer */
+
+char miniBuffer[MAX_BUFFER] = {0};
+
+void updateMiniBuffer(const char* command) {
+    snprintf(miniBuffer, sizeof(miniBuffer), "Command: %s", command);
+}
+
+
+/* CtrlStack */
+
+typedef struct CtrlStack {
+    char key;
+    struct CtrlStack* next;
+} CtrlStack;
+
+CtrlStack* ctrlStack = NULL;
+
+void pushCtrlStack(char key) {
+    CtrlStack* newElement = malloc(sizeof(CtrlStack));
+    newElement->key = key;
+    newElement->next = ctrlStack;
+    ctrlStack = newElement;
+}
+
+char popCtrlStack() {
+    if (ctrlStack == NULL) {
+        return '\0';
+    }
+    char key = ctrlStack->key;
+    CtrlStack* temp = ctrlStack;
+    ctrlStack = ctrlStack->next;
+    free(temp);
+    return key;
+}
+
+bool isCtrlStackEmpty() {
+    return ctrlStack == NULL;
+}
+
+void clearCtrlStack() {
+    while (!isCtrlStackEmpty()) {
+        popCtrlStack();
+    }
+}
+
+
 /* InputEvent */
 
 typedef enum {
     TEXT_INPUT,
-    SCROLL_UP,
-    SCROLL_DOWN
+    BACKSPACE,
+    CTRL_X
 } EventType;
 
 typedef struct InputEvent {
@@ -69,6 +116,7 @@ void enqueueEvent(EventType type, char c) {
     }
 }
 
+
 bool processEvents(char* input, int* input_size, int* cursor_pos, int* current_row,
                    int* log_window_start, int rows, int logSize)
 {
@@ -80,48 +128,66 @@ bool processEvents(char* input, int* input_size, int* cursor_pos, int* current_r
         eventQueue = eventQueue->next;
 
         switch(type) {
-        case TEXT_INPUT:
-            if (c == '\n') {
-                input[*input_size] = '\0'; // Ensure string is terminated
-                addLogLine(input);
-                memset(input, 0, *input_size);
-                *input_size = 0;
-                *cursor_pos = 0;
+        case CTRL_X:
+            if (isCtrlStackEmpty()) {
+                pushCtrlStack(c);
+            } else {
+                /* Повторный ввод 'C-x' - Ошибка ввода команд, очистим CtrlStack */
+                clearCtrlStack();
+            }
+        case BACKSPACE:
+            printf("\b \b");  // Удаляем символ в терминале
+            if (*input_size > 0 && *cursor_pos > 0) {
+                memmove(&input[*cursor_pos - 1],
+                        &input[*cursor_pos],
+                        *input_size - *cursor_pos);
+                input[--(*input_size)] = '\0';
+                (*cursor_pos)--;
                 updated = true;
-            } else if (c == 127 || c == 8) { /* backspace */
-                if (*input_size > 0 && *cursor_pos > 0) {
-                    memmove(&input[*cursor_pos - 1],
-                            &input[*cursor_pos],
-                            *input_size - *cursor_pos);
-                    input[--(*input_size)] = '\0';
-                    (*cursor_pos)--;
+            }
+            break;
+        case TEXT_INPUT:
+            if (isCtrlStackEmpty()) {
+                /* Обычный ввод */
+                if (c == '\n') {
+                    input[*input_size] = '\0'; // Ensure string is terminated
+                    addLogLine(input);
+                    memset(input, 0, *input_size);
+                    *input_size = 0;
+                    *cursor_pos = 0;
                     updated = true;
+                } else {
+                    if (*input_size < MAX_BUFFER - 1) {
+                        memmove(&input[*cursor_pos + 1],
+                                &input[*cursor_pos],
+                                *input_size - *cursor_pos);
+                        input[*cursor_pos] = c;
+                        (*input_size)++;
+                        (*cursor_pos)++;
+                        updated = true;
+                    }
                 }
             } else {
-                if (*input_size < MAX_BUFFER - 1) {
-                    memmove(&input[*cursor_pos + 1],
-                            &input[*cursor_pos],
-                            *input_size - *cursor_pos);
-                    input[*cursor_pos] = c;
-                    (*input_size)++;
-                    (*cursor_pos)++;
+                /* Ввод команд */
+                if (c == 'p') {
+                    /* SCROLL_UP */
+                    (*log_window_start)--;
+                    if (*log_window_start < 0) {
+                        *log_window_start = 0;
+                    }
                     updated = true;
+                } else if (c == 'n') {
+                    /* SCROLL_DOWN: */
+                    (*log_window_start)++;
+                    if (*log_window_start > logSize - (rows - 1)) {
+                        *log_window_start = logSize - (rows - 1);
+                    }
+                    updated = true;
+                } else {
+                    /* Ошибка ввода команд, выходим из режима ввода команд */
+                    clearCtrlStack();
                 }
             }
-            break;
-        case SCROLL_UP:
-            (*log_window_start)--;
-            if (*log_window_start < 0) {
-                *log_window_start = 0;
-            }
-            updated = true;
-            break;
-        case SCROLL_DOWN:
-            (*log_window_start)++;
-            if (*log_window_start > logSize - (rows - 1)) {
-                *log_window_start = logSize - (rows - 1);
-            }
-            updated = true;
             break;
         }
 
@@ -193,40 +259,6 @@ void drawHorizontalLine(int cols, int y) {
     }
 }
 
-void readInput() {
-    char keySeq[3] = {0};
-    int seqIndex = 0;
-    bool ctrlXMode = false;
-
-    int c;
-    while ((c = getchar()) != EOF) {
-        if (ctrlXMode) {
-            keySeq[seqIndex++] = c;
-            if (seqIndex == 1) {
-                if (keySeq[0] == 'p') {
-                    enqueueEvent(SCROLL_UP, '\0');
-                } else if (keySeq[0] == 'n') {
-                    enqueueEvent(SCROLL_DOWN, '\0');
-                }
-                ctrlXMode = false;
-                seqIndex = 0;
-            }
-        } else if (c == '\x18') { // 'C-x' is 0x18
-            ctrlXMode = true;
-            seqIndex = 0;
-        } else if (c == 127 || c == 8) {
-            enqueueEvent(TEXT_INPUT, c);
-            printf("\b \b");  // Удаляем символ в терминале
-        } else {
-            enqueueEvent(TEXT_INPUT, c);
-            if (c != '\n') {
-                putchar(c);  // Отображаем введённые символы, кроме Enter
-            }
-            if (c == '\n') break;  // Выходим после обработки Enter, чтобы не зацикливаться в бесконечном вводе
-        }
-    }
-}
-
 
 /* Main */
 
@@ -256,26 +288,14 @@ int main() {
 
         moveCursor(cursor_pos + 1, current_row);  // Курсор в конец ввода
 
-        /* int c = getchar(); */
-        readInput();
-
-        /* if (c == '\033') { */
-        /*     char seq[3]; */
-        /*     if (read(STDIN_FILENO, &seq[0], 1) && */
-        /*         read(STDIN_FILENO, &seq[1], 1)) { */
-        /*         if (seq[0] == '[') { */
-        /*             if (seq[1] == 'A') { */
-        /*                 printf("=&^A="); */
-        /*                 enqueueEvent(SCROLL_UP, '\0'); */
-        /*             } else if (seq[1] == 'B') { */
-        /*                 printf("=&^B="); */
-        /*                 enqueueEvent(SCROLL_DOWN, '\0'); */
-        /*             } */
-        /*         } */
-        /*     } */
-        /* } else { */
-        /*     enqueueEvent(TEXT_INPUT, c); */
-        /* } */
+        int c = getchar();
+        if (c == '\x18') { // 'C-x'
+            enqueueEvent(CTRL_X, '\0');
+        } else if (c == 127 || c == 8) { // backspace
+            enqueueEvent(BACKSPACE, '\0');
+        } else {
+            enqueueEvent(TEXT_INPUT, c);
+        }
 
         // Обрабатываем события в конце каждой итерации
         if (processEvents(input, &input_size, &cursor_pos, &current_row,
