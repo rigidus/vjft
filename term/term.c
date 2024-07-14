@@ -4,6 +4,10 @@
 #include <unistd.h>
 #include <termios.h>
 #include <stdbool.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <wchar.h>
+#include <locale.h>
 
 #define MAX_BUFFER 1024
 
@@ -13,7 +17,7 @@ void enableRawMode();
 void clearScreen();
 void moveCursor(int x, int y);
 void drawHorizontalLine(int cols, int y, char sym);
-
+size_t mbStringToWcs(const char* mbstr, wchar_t* wcs, size_t max_len);
 
 /* Term */
 
@@ -25,11 +29,32 @@ void disableRawMode() {
 
 void enableRawMode() {
     tcgetattr(STDIN_FILENO, &orig_termios);
+
     atexit(disableRawMode);
 
     struct termios raw = orig_termios;
     raw.c_lflag &= ~(ECHO | ICANON);
+
+    /* raw.c_lflag &= ~(ICANON | ECHO | ISIG | IEXTEN); */
+    /* raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON); */
+    /* raw.c_cflag |= (CS8); */
+    /* raw.c_oflag &= ~(OPOST); */
+    /* raw.c_cc[VMIN] = 0;  // Minimum number of characters for noncanonical read (1). */
+    /* raw.c_cc[VTIME] = 1; // Timeout in deciseconds for noncanonical read (0.1 seconds). */
+
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+void setNonBlocking(int fd) {
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags == -1) {
+        perror("fcntl F_GETFL");
+        return;
+    }
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
+        perror("fcntl F_SETFL O_NONBLOCK");
+        return;
+    }
 }
 
 void clearScreen() {
@@ -92,21 +117,24 @@ void clearCtrlStack() {
 typedef enum {
     TEXT_INPUT,
     BACKSPACE,
-    CTRL_X
+    CTRL_X,
+    SPECIAL
 } EventType;
 
 typedef struct InputEvent {
     EventType type;
     char c;
+    char* sequence;
     struct InputEvent* next;
 } InputEvent;
 
 InputEvent* eventQueue = NULL;
 
-void enqueueEvent(EventType type, char c) {
+void enqueueEvent(EventType type, char c, char* seq) {
     InputEvent* newEvent = malloc(sizeof(InputEvent));
     newEvent->type = type;
     newEvent->c = c;
+    newEvent->sequence = seq ? strdup(seq) : NULL;
     newEvent->next = NULL;
 
     if (!eventQueue) {
@@ -120,18 +148,86 @@ void enqueueEvent(EventType type, char c) {
     }
 }
 
+void enqueueSpecialEvent() {
+    /* setNonBlocking(STDIN_FILENO); */
+
+    while (1) {
+        char c;
+        ssize_t readBytes = read(STDIN_FILENO, &c, 1);
+
+        if (readBytes == -1) {
+            if (errno == EAGAIN) {
+                // Нет данных для чтения
+                break;
+            } else {
+                perror("read");
+                exit(EXIT_FAILURE);
+            }
+        } else if (readBytes == 0) {
+            // EOF
+            break;
+        } else {
+            // Создаем событие для каждого символа
+            enqueueEvent(SPECIAL, c, NULL);
+            if ( (c >= 'A' && c <= 'Z') ||
+                 (c >= 'a' && c <= 'z') ||
+                 (c == '~' ) ) {
+                break;
+            }
+        }
+    }
+
+    /* // Возвращаем блокирующий режим ввода */
+    /* int flags = fcntl(STDIN_FILENO, F_GETFL, 0); */
+    /* if (flags == -1) { */
+    /*     perror("fcntl F_GETFL"); */
+    /*     exit(EXIT_FAILURE); */
+    /* } */
+    /* if (fcntl(STDIN_FILENO, F_SETFL, flags & ~O_NONBLOCK) == -1) { */
+    /*     perror("fcntl F_SETFL ~O_NONBLOCK"); */
+    /*     exit(EXIT_FAILURE); */
+    /* } */
+}
+
+
+/* #define SEQ_BUFFER_SIZE 64 */
+
+/* void enqueueSpecialEvent() { */
+/*     char seq[SEQ_BUFFER_SIZE]; */
+/*     int length = 0; */
+/*     char c; */
+
+/*     // Читаем пока не получим алфавитный символ, заканчивающий последовательность */
+/*     while (read(STDIN_FILENO, &c, 1) == 1 && length < SEQ_BUFFER_SIZE - 1) { */
+/*         seq[length++] = c; */
+/*         if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) { */
+/*             break; */
+/*         } */
+/*     } */
+/*     seq[length] = '\0'; // Завершаем строку */
+
+/*     enqueueEvent(SPECIAL, '\0', seq);  // Сохраняем последовательность */
+/* } */
 
 bool processEvents(char* input, int* input_size, int* cursor_pos,
                    int* log_window_start, int rows, int logSize)
 {
     bool updated = false;
     while (eventQueue) {
-        InputEvent* temp = eventQueue;
-        EventType type = temp->type;
-        char c = temp->c;
+        InputEvent* event = eventQueue;
+        EventType type = event->type;
+        char c = event->c;
         eventQueue = eventQueue->next;
 
         switch(type) {
+        case SPECIAL:
+            char logMessage[1024];  // Достаточный размер для большинства случаев
+            snprintf(logMessage, sizeof(logMessage),
+                     "Special sequence received: %s | %c",
+                     event->sequence, event->c);
+            addLogLine(logMessage);  // Добавляем в лог
+            free(event->sequence);  // Освобождаем строку после использования
+            break;
         case CTRL_X:
             if (isCtrlStackEmpty()) {
                 pushCtrlStack(c);
@@ -195,7 +291,7 @@ bool processEvents(char* input, int* input_size, int* cursor_pos,
             break;
         }
 
-        free(temp);
+        free(event);
     }
     return updated;
 }
@@ -291,28 +387,32 @@ int showMiniBuffer(const char* content, int cols, int bottom) {
 
 
 int showInputBuffer(char* input, int cursor_pos, int cols, int bottom) {
-    int lines = 0;
-    int line_pos = 0;
     // Подсчитываем, сколько строк нужно для отображения input
-    for (int i = 0; i < strlen(input); ++i) {
-        if (input[i] == '\n') {
+    int lines = 0;
+    int len = strlen(input);
+    int line_pos = 0;
+    for (int i = 0; i < len; ++i) {
+        if ( (input[i] == '\n') || (line_pos >= cols) ) {
             lines++;
             line_pos = 0;
         } else {
             line_pos++;
-            if (line_pos >= cols) {
-                lines++;
-                line_pos=0;
-            }
         }
     }
     // Выводим разделитель
     drawHorizontalLine(cols, bottom - lines - 1, '-');
+    // Очищаем на всякий случай всю область вывода
+    for (int i = bottom; i < bottom - lines; --i) {
+        printf("\033[%d;1H", i);  // Перемещение курсора в строку
+        printf("\033[2K");        // Очистить строку
+    }
+
     // Выводим input
     printf("\033[%d;%dH", bottom - lines, 1);
     for (int i = 0; i < strlen(input); ++i) {
         if (input[i] == '\n') {
-            putchar(input[i]);
+            putchar('\n');
+            moveCursor(1, i);
         } else {
             putchar(input[i]);
         }
@@ -364,17 +464,26 @@ void showOutputBuffer(int log_window_start, int log_window_end, int cols,
     }
 }
 
+/* Wide Strings */
+
+size_t mbStringToWcs(const char* mbstr, wchar_t* wcs, size_t max_len) {
+    mbstate_t state;
+    memset(&state, 0, sizeof(mbstate_t));
+    return mbsrtowcs(wcs, &mbstr, max_len, &state);
+}
+
 
 /* Main */
 
 int main() {
+    setlocale(LC_ALL, "");
     enableRawMode();
 
-    char input[MAX_BUFFER];
-    int input_size = 0;
-    int cursor_pos = 0;  // Позиция курсора в строке ввода
-    int rows, cols;
-    int log_window_start = 0;
+    char input[MAX_BUFFER]={0};
+    int  input_size = 0;
+    int  cursor_pos = 0;  // Позиция курсора в строке ввода
+    int  rows, cols;
+    int  log_window_start = 0;
     bool followTail = true; // Флаг для отслеживания, показывать ли последние команды
 
     // Получаем размер терминала
@@ -412,12 +521,15 @@ int main() {
 
         // Читаем ввод
         int c = getchar();
-        if (c == '\x18') { // 'C-x'
-            enqueueEvent(CTRL_X, '\0');
+        if (c == '\033') { // ESC символ начала управляющей последовательности
+            /* enqueueSpecialEvent(); */
+            enqueueEvent(SPECIAL, c, NULL);
+        /* } else if (c == '\x18') { // 'C-x' */
+        /*     enqueueEvent(CTRL_X, '\0', NULL); */
         } else if (c == 127 || c == 8) { // backspace
-            enqueueEvent(BACKSPACE, '\0');
+            enqueueEvent(BACKSPACE, '\0', NULL);
         } else {
-            enqueueEvent(TEXT_INPUT, c);
+            enqueueEvent(TEXT_INPUT, c, NULL);
         }
 
         // Обрабатываем события в конце каждой итерации
