@@ -8,6 +8,11 @@
 #define MAX_BUFFER 1024
 
 void addLogLine(const char* text);
+void disableRawMode();
+void enableRawMode();
+void clearScreen();
+void moveCursor(int x, int y);
+void drawHorizontalLine(int cols, int y, char sym);
 
 
 /* Term */
@@ -34,7 +39,6 @@ void clearScreen() {
 void moveCursor(int x, int y) {
     printf("\033[%d;%dH", y, x);
 }
-
 
 /* MiniBuffer */
 
@@ -117,7 +121,7 @@ void enqueueEvent(EventType type, char c) {
 }
 
 
-bool processEvents(char* input, int* input_size, int* cursor_pos, int* current_row,
+bool processEvents(char* input, int* input_size, int* cursor_pos,
                    int* log_window_start, int rows, int logSize)
 {
     bool updated = false;
@@ -252,10 +256,111 @@ void printLogWindow(int startLine, int lineCount) {
 
 /* Iface */
 
-void drawHorizontalLine(int cols, int y) {
+void drawHorizontalLine(int cols, int y, char sym) {
     moveCursor(1, y);
     for (int i = 0; i < cols; i++) {
-        putchar('-');
+        putchar(sym);
+    }
+}
+
+
+int showMiniBuffer(const char* content, int cols, int bottom) {
+    int lines = 0;
+    int length = strlen(content);
+    int line_width = 0;
+    drawHorizontalLine(cols, bottom - 1, '=');  // Разделительная линия
+    /* printf("\033[%d;1H", bottom-1);  // Перемещение курсора в предпоследнюю строку окна */
+    /* printf("\033[2K");  // Очистить строку перед отображением минибуфера */
+    /* printf("nmini"); */
+    /* for (int i = 0; i < length; ++i) { */
+    /*     if (content[i] == '\n' || line_width == window_rows - 1) { */
+    /*         if (content[i] == '\n') { */
+    /*             putchar(content[i]); */
+    /*         } else { */
+    /*             printf("\n"); */
+    /*         } */
+    /*         line_width = 0; */
+    /*         lines++; */
+    /*         continue; */
+    /*     } */
+    /*     putchar(content[i]); */
+    /*     line_width++; */
+    /* } */
+    return bottom - 2;
+}
+
+
+int showInputBuffer(char* input, int cursor_pos, int cols, int bottom) {
+    int lines = 0;
+    int line_pos = 0;
+    // Подсчитываем, сколько строк нужно для отображения input
+    for (int i = 0; i < strlen(input); ++i) {
+        if (input[i] == '\n') {
+            lines++;
+            line_pos = 0;
+        } else {
+            line_pos++;
+            if (line_pos >= cols) {
+                lines++;
+                line_pos=0;
+            }
+        }
+    }
+    // Выводим разделитель
+    drawHorizontalLine(cols, bottom - lines - 1, '-');
+    // Выводим input
+    printf("\033[%d;%dH", bottom - lines, 1);
+    for (int i = 0; i < strlen(input); ++i) {
+        if (input[i] == '\n') {
+            putchar(input[i]);
+        } else {
+            putchar(input[i]);
+        }
+    }
+    // Сохраняем текущую позицию курсора
+    printf("\033[s");
+    // Возвращаем новый bottom
+    return bottom - lines - 1;
+}
+
+// Функция для отображения лога с переносом строк
+void showOutputBuffer(int log_window_start, int log_window_end, int cols,
+                      int max_lines)
+{
+    LogLine* current = logHead;
+    int lineIndex = 0;
+    int displayed_lines = 0;
+
+    // Перемещаемся к началу необходимого диапазона
+    while (current && lineIndex < log_window_start) {
+        current = current->next;
+        lineIndex++;
+    }
+
+    // Выводим с начала окна
+    moveCursor(1,1);
+
+    // Выводим лог в заданном диапазоне с учетом возможных переносов строк
+    while (current && lineIndex < log_window_end) {
+        int lineLen = strlen(current->text);
+        int printedLength = 0;
+
+        while (printedLength < lineLen && displayed_lines < max_lines) {
+            // Если строка или остаток строки короче ширины окна, выводим целиком
+            if (lineLen - printedLength <= cols) {
+                printf("%s\n", current->text + printedLength);
+                printedLength = lineLen;
+            } else {
+                // Иначе выводим столько символов, сколько помещается в окно,
+                /* и делаем перенос */
+                fwrite(current->text + printedLength, 1, cols, stdout);
+                putchar('\n');
+                printedLength += cols;
+            }
+        }
+
+        current = current->next;
+        lineIndex++;
     }
 }
 
@@ -269,25 +374,43 @@ int main() {
     int input_size = 0;
     int cursor_pos = 0;  // Позиция курсора в строке ввода
     int rows, cols;
+    int log_window_start = 0;
+    bool followTail = true; // Флаг для отслеживания, показывать ли последние команды
 
     // Получаем размер терминала
     printf("\033[18t");
     fflush(stdout);
     scanf("\033[8;%d;%dt", &rows, &cols);
 
-    int current_row = rows;
-    int log_window_start = 0;
-
     while (1) {
         clearScreen();
-        printLogWindow(log_window_start, rows - 1);
-        drawHorizontalLine(cols, current_row - 1);  // Рисуем линию разделения
 
-        moveCursor(1, current_row); // Курсор в начало окна ввода
-        printf("%s", input);
+        // Отображаем минибуфер и получаем номер строки над ним
+        int bottom = showMiniBuffer(miniBuffer, cols, rows);
 
-        moveCursor(cursor_pos + 1, current_row);  // Курсор в конец ввода
+        // Отображаем InputBuffer и получаем номер строки над ним
+        // NB!: Функция сохраняет позицию курсора с помощью escape-последовательности
+        bottom = showInputBuffer(input, cursor_pos, cols, bottom);
 
+        int outputBufferAvailableLines = bottom - 1;
+
+        if (followTail) {
+            // Определяем, с какой строки начать вывод,
+            // чтобы показать только последние команды
+            if (logSize - outputBufferAvailableLines > 0) {
+                log_window_start = logSize - outputBufferAvailableLines;
+            } else {
+                log_window_start = 0;
+            }
+        }
+
+        // Показываем OutputBuffer в оставшемся пространстве
+        showOutputBuffer(log_window_start, logSize, cols, outputBufferAvailableLines);
+
+        // Восстанавливаем сохраненную в функции showInputBuffer позицию курсора
+        printf("\033[u");
+
+        // Читаем ввод
         int c = getchar();
         if (c == '\x18') { // 'C-x'
             enqueueEvent(CTRL_X, '\0');
@@ -298,7 +421,7 @@ int main() {
         }
 
         // Обрабатываем события в конце каждой итерации
-        if (processEvents(input, &input_size, &cursor_pos, &current_row,
+        if (processEvents(input, &input_size, &cursor_pos,
                           &log_window_start, rows, logSize)) {
             /* Тут не требуется дополнительных действий, т.к. в начале */
             /* следующего цикла все будет перерисовано */
