@@ -137,6 +137,12 @@ void enqueueEvent(EventType type, char c, char* seq) {
     newEvent->sequence = seq ? strdup(seq) : NULL;
     newEvent->next = NULL;
 
+    if (seq) {
+        printf("Debug: Event %d with sequence %s\n", type, seq);
+    } else {
+        printf("Debug: Event %d with character %c\n", type, c);
+    }
+
     if (!eventQueue) {
         eventQueue = newEvent;
     } else {
@@ -149,65 +155,117 @@ void enqueueEvent(EventType type, char c, char* seq) {
 }
 
 void enqueueSpecialEvent() {
-    /* setNonBlocking(STDIN_FILENO); */
+    // Здесь мы оказываемся, когда '\033' (ESC) уже получен
+    char nc;
+    char seq[10]; // Достаточно для хранения ESC последовательности
 
-    while (1) {
-        char c;
-        ssize_t readBytes = read(STDIN_FILENO, &c, 1);
+    // Устанавливаем неблокирующий режим ввода
+    setNonBlocking(STDIN_FILENO);
+    /* Ввод с клавиатуры в терминале, особенно управляющих
+       последовательностей может разбиваться на несколько низкоуровневых
+       событий.
+       Это актуально в неблокирующем режиме, где read может вернуть EAGAIN
+       если следующий символ последовательности ещё не доступен.
+       Одним из способов решения этой проблемы является использование
+       временной задержки для ожидания полной последовательности перед тем,
+       как продолжить обработку. Это может быть реализовано с помощью
+       select или poll, которые позволяют ожидать наличие
+       данных ввода в течение заданного времени */
 
-        if (readBytes == -1) {
-            if (errno == EAGAIN) {
-                // Нет данных для чтения
-                break;
-            } else {
-                perror("read");
-                exit(EXIT_FAILURE);
-            }
-        } else if (readBytes == 0) {
-            // EOF
-            break;
-        } else {
-            // Создаем событие для каждого символа
-            enqueueEvent(SPECIAL, c, NULL);
-            if ( (c >= 'A' && c <= 'Z') ||
-                 (c >= 'a' && c <= 'z') ||
-                 (c == '~' ) ) {
-                break;
-            }
+    // Инициализация структур для select
+    int nread = 0;
+    fd_set read_fds;
+    struct timeval timeout;
+
+    // Устанавливаем время ожидания
+    timeout.tv_sec = 0;  // 0 секунд
+    timeout.tv_usec = 500;  // 50000 микросекунд (50 миллисекунд)
+
+    FD_ZERO(&read_fds);
+    FD_SET(STDIN_FILENO, &read_fds);
+
+    // Цикл для считывания всей последовательности
+    while (select(STDIN_FILENO + 1, &read_fds, NULL, NULL, &timeout) > 0) {
+        if (read(STDIN_FILENO, &nc, 1) > 0) {
+            enqueueEvent(SPECIAL, nc, NULL);
+            seq[nread++] = nc;
+            if (nread >= sizeof(seq) - 1) break; // Предотвращаем переполнение буфера
+
+            // Обновляем таймер для следующего символа
+            timeout.tv_usec = 500;  // Сброс таймаута
         }
+        FD_SET(STDIN_FILENO, &read_fds);
+    }
+    seq[nread] = '\0'; // Завершаем строку
+
+    if (nread > 0) {
+        enqueueEvent(SPECIAL, '\0', seq);
     }
 
-    /* // Возвращаем блокирующий режим ввода */
-    /* int flags = fcntl(STDIN_FILENO, F_GETFL, 0); */
-    /* if (flags == -1) { */
-    /*     perror("fcntl F_GETFL"); */
-    /*     exit(EXIT_FAILURE); */
+    /* ------------------------------------- */
+
+    /* size_t readBytes; */
+    /* while ((readBytes = read(STDIN_FILENO, &c, 1)) > 0) { */
+    /*     if (readBytes == -1) { */
+    /*         if (errno == EAGAIN) { */
+    /*             // Нет данных для чтения */
+    /*             break; */
+    /*         } */
+    /*     } else if (readBytes == 0) { */
+    /*         // EOF */
+    /*         break; */
+    /*     } else { */
+    /*         // Создаем событие для каждого символа */
+    /*         enqueueEvent(SPECIAL, c, NULL); */
+    /*         // Проверяем не закончилась ли последовательность */
+    /*         if ( (c >= 'A' && c <= 'Z') || */
+    /*              (c >= 'a' && c <= 'z') || */
+    /*              (c == '~' ) ) { */
+    /*             break; */
+    /*         } */
+    /*     } */
     /* } */
-    /* if (fcntl(STDIN_FILENO, F_SETFL, flags & ~O_NONBLOCK) == -1) { */
-    /*     perror("fcntl F_SETFL ~O_NONBLOCK"); */
-    /*     exit(EXIT_FAILURE); */
+
+    /* -------------------------------- */
+
+    /* while (1) { */
+    /*     char c; */
+    /*     ssize_t readBytes = read(STDIN_FILENO, &c, 1); */
+
+    /*     if (readBytes == -1) { */
+    /*         if (errno == EAGAIN) { */
+    /*             // Нет данных для чтения */
+    /*             break; */
+    /*         } else { */
+    /*             perror("read"); */
+    /*             exit(EXIT_FAILURE); */
+    /*         } */
+    /*     } else if (readBytes == 0) { */
+    /*         // EOF */
+    /*         break; */
+    /*     } else { */
+    /*         // Создаем событие для каждого символа */
+    /*         enqueueEvent(SPECIAL, c, NULL); */
+    /*         if ( (c >= 'A' && c <= 'Z') || */
+    /*              (c >= 'a' && c <= 'z') || */
+    /*              (c == '~' ) ) { */
+    /*             break; */
+    /*         } */
+    /*     } */
     /* } */
+
+    // Возвращаем блокирующий режим ввода
+    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+    if (flags == -1) {
+        perror("fcntl F_GETFL");
+        exit(EXIT_FAILURE);
+    }
+    if (fcntl(STDIN_FILENO, F_SETFL, flags & ~O_NONBLOCK) == -1) {
+        perror("fcntl F_SETFL ~O_NONBLOCK");
+        exit(EXIT_FAILURE);
+    }
 }
 
-
-/* #define SEQ_BUFFER_SIZE 64 */
-
-/* void enqueueSpecialEvent() { */
-/*     char seq[SEQ_BUFFER_SIZE]; */
-/*     int length = 0; */
-/*     char c; */
-
-/*     // Читаем пока не получим алфавитный символ, заканчивающий последовательность */
-/*     while (read(STDIN_FILENO, &c, 1) == 1 && length < SEQ_BUFFER_SIZE - 1) { */
-/*         seq[length++] = c; */
-/*         if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) { */
-/*             break; */
-/*         } */
-/*     } */
-/*     seq[length] = '\0'; // Завершаем строку */
-
-/*     enqueueEvent(SPECIAL, '\0', seq);  // Сохраняем последовательность */
-/* } */
 
 bool processEvents(char* input, int* input_size, int* cursor_pos,
                    int* log_window_start, int rows, int logSize)
@@ -221,14 +279,30 @@ bool processEvents(char* input, int* input_size, int* cursor_pos,
 
         switch(type) {
         case SPECIAL:
-            char logMessage[1024];  // Достаточный размер для большинства случаев
-            snprintf(logMessage, sizeof(logMessage),
-                     "Special sequence received: %s | %c",
-                     event->sequence, event->c);
-            addLogLine(logMessage);  // Добавляем в лог
-            free(event->sequence);  // Освобождаем строку после использования
+            if (event->sequence != NULL) {
+                char logMessage[1024];  // Достаточный размер
+                snprintf(logMessage, sizeof(logMessage),
+                         "Special sequence received: %s | %c",
+                         event->sequence, event->c);
+                addLogLine(logMessage);  // Добавляем в лог
+                //
+                if (strcmp(event->sequence, "[1p") == 0) { // Ctrl+Alt+p
+                    (*log_window_start)--;
+                    updated = true;
+                } else if (strcmp(event->sequence, "[1n") == 0) { // Ctrl+Alt+n
+                    (*log_window_start)++;
+                    updated = true;
+                }
+            } else {
+                addLogLine("Special key without sequence received");
+            }
+            // Освобождаем строку после использования
+            if (event->sequence != NULL) {
+                free(event->sequence);
+            }
             break;
         case CTRL_X:
+            addLogLine("Ctrl+X received");
             if (isCtrlStackEmpty()) {
                 pushCtrlStack(c);
             } else {
@@ -521,11 +595,10 @@ int main() {
 
         // Читаем ввод
         int c = getchar();
-        if (c == '\033') { // ESC символ начала управляющей последовательности
-            /* enqueueSpecialEvent(); */
-            enqueueEvent(SPECIAL, c, NULL);
-        /* } else if (c == '\x18') { // 'C-x' */
-        /*     enqueueEvent(CTRL_X, '\0', NULL); */
+        if (c == '\033') { // ESC - символ начала управляющей последовательности
+            enqueueSpecialEvent();
+        } else if (c == '\x18') { // 'C-x'
+            enqueueEvent(CTRL_X, '\0', NULL);
         } else if (c == 127 || c == 8) { // backspace
             enqueueEvent(BACKSPACE, '\0', NULL);
         } else {
