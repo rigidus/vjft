@@ -11,13 +11,10 @@
 
 #define MAX_BUFFER 1024
 
+char miniBuffer[MAX_BUFFER] = {0};
+
 void addLogLine(const char* text);
-void disableRawMode();
-void enableRawMode();
-void clearScreen();
-void moveCursor(int x, int y);
 void drawHorizontalLine(int cols, int y, char sym);
-size_t mbStringToWcs(const char* mbstr, wchar_t* wcs, size_t max_len);
 
 /* Term */
 
@@ -29,32 +26,22 @@ void disableRawMode() {
 
 void enableRawMode() {
     tcgetattr(STDIN_FILENO, &orig_termios);
-
     atexit(disableRawMode);
-
     struct termios raw = orig_termios;
+    // Отключаем эхо и канонический режим
     raw.c_lflag &= ~(ECHO | ICANON);
-
-    /* raw.c_lflag &= ~(ICANON | ECHO | ISIG | IEXTEN); */
-    /* raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON); */
-    /* raw.c_cflag |= (CS8); */
-    /* raw.c_oflag &= ~(OPOST); */
-    /* raw.c_cc[VMIN] = 0;  // Minimum number of characters for noncanonical read (1). */
-    /* raw.c_cc[VTIME] = 1; // Timeout in deciseconds for noncanonical read (0.1 seconds). */
-
+    /* // Отключаем управление потоком */
+    /* raw.c_iflag &= ~IXON; */
+    /* /\* raw.c_lflag &= ~(ICANON | ECHO | ISIG | IEXTEN); *\/ */
+    /* /\* raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON); *\/ */
+    /* /\* raw.c_cflag |= (CS8); *\/ */
+    /* /\* raw.c_oflag &= ~(OPOST); *\/ */
+    /* // Minimum number of characters for noncanonical read (1) */
+    /* raw.c_cc[VMIN] = 0; */
+    /* // Timeout in deciseconds for noncanonical read (0.1 seconds) */
+    /* raw.c_cc[VTIME] = 0; */
+    // Устанавливаем raw mode
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
-}
-
-void setNonBlocking(int fd) {
-    int flags = fcntl(fd, F_GETFL, 0);
-    if (flags == -1) {
-        perror("fcntl F_GETFL");
-        return;
-    }
-    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-        perror("fcntl F_SETFL O_NONBLOCK");
-        return;
-    }
 }
 
 void clearScreen() {
@@ -65,13 +52,13 @@ void moveCursor(int x, int y) {
     printf("\033[%d;%dH", y, x);
 }
 
-/* MiniBuffer */
+/* /\* MiniBuffer *\/ */
 
-char miniBuffer[MAX_BUFFER] = {0};
+/* char miniBuffer[MAX_BUFFER] = {0}; */
 
-void updateMiniBuffer(const char* command) {
-    snprintf(miniBuffer, sizeof(miniBuffer), "Command: %s", command);
-}
+/* void updateMiniBuffer(const char* command) { */
+/*     snprintf(miniBuffer, sizeof(miniBuffer), "Command: %s", command); */
+/* } */
 
 
 /* CtrlStack */
@@ -137,12 +124,6 @@ void enqueueEvent(EventType type, char c, char* seq) {
     newEvent->sequence = seq ? strdup(seq) : NULL;
     newEvent->next = NULL;
 
-    if (seq) {
-        printf("Debug: Event %d with sequence %s\n", type, seq);
-    } else {
-        printf("Debug: Event %d with character %c\n", type, c);
-    }
-
     if (!eventQueue) {
         eventQueue = newEvent;
     } else {
@@ -153,119 +134,6 @@ void enqueueEvent(EventType type, char c, char* seq) {
         temp->next = newEvent;
     }
 }
-
-void enqueueSpecialEvent() {
-    // Здесь мы оказываемся, когда '\033' (ESC) уже получен
-    char nc;
-    char seq[10]; // Достаточно для хранения ESC последовательности
-
-    // Устанавливаем неблокирующий режим ввода
-    setNonBlocking(STDIN_FILENO);
-    /* Ввод с клавиатуры в терминале, особенно управляющих
-       последовательностей может разбиваться на несколько низкоуровневых
-       событий.
-       Это актуально в неблокирующем режиме, где read может вернуть EAGAIN
-       если следующий символ последовательности ещё не доступен.
-       Одним из способов решения этой проблемы является использование
-       временной задержки для ожидания полной последовательности перед тем,
-       как продолжить обработку. Это может быть реализовано с помощью
-       select или poll, которые позволяют ожидать наличие
-       данных ввода в течение заданного времени */
-
-    // Инициализация структур для select
-    int nread = 0;
-    fd_set read_fds;
-    struct timeval timeout;
-
-    // Устанавливаем время ожидания
-    timeout.tv_sec = 0;  // 0 секунд
-    timeout.tv_usec = 500;  // 50000 микросекунд (50 миллисекунд)
-
-    FD_ZERO(&read_fds);
-    FD_SET(STDIN_FILENO, &read_fds);
-
-    // Цикл для считывания всей последовательности
-    while (select(STDIN_FILENO + 1, &read_fds, NULL, NULL, &timeout) > 0) {
-        if (read(STDIN_FILENO, &nc, 1) > 0) {
-            enqueueEvent(SPECIAL, nc, NULL);
-            seq[nread++] = nc;
-            if (nread >= sizeof(seq) - 1) break; // Предотвращаем переполнение буфера
-
-            // Обновляем таймер для следующего символа
-            timeout.tv_usec = 500;  // Сброс таймаута
-        }
-        FD_SET(STDIN_FILENO, &read_fds);
-    }
-    seq[nread] = '\0'; // Завершаем строку
-
-    if (nread > 0) {
-        enqueueEvent(SPECIAL, '\0', seq);
-    }
-
-    /* ------------------------------------- */
-
-    /* size_t readBytes; */
-    /* while ((readBytes = read(STDIN_FILENO, &c, 1)) > 0) { */
-    /*     if (readBytes == -1) { */
-    /*         if (errno == EAGAIN) { */
-    /*             // Нет данных для чтения */
-    /*             break; */
-    /*         } */
-    /*     } else if (readBytes == 0) { */
-    /*         // EOF */
-    /*         break; */
-    /*     } else { */
-    /*         // Создаем событие для каждого символа */
-    /*         enqueueEvent(SPECIAL, c, NULL); */
-    /*         // Проверяем не закончилась ли последовательность */
-    /*         if ( (c >= 'A' && c <= 'Z') || */
-    /*              (c >= 'a' && c <= 'z') || */
-    /*              (c == '~' ) ) { */
-    /*             break; */
-    /*         } */
-    /*     } */
-    /* } */
-
-    /* -------------------------------- */
-
-    /* while (1) { */
-    /*     char c; */
-    /*     ssize_t readBytes = read(STDIN_FILENO, &c, 1); */
-
-    /*     if (readBytes == -1) { */
-    /*         if (errno == EAGAIN) { */
-    /*             // Нет данных для чтения */
-    /*             break; */
-    /*         } else { */
-    /*             perror("read"); */
-    /*             exit(EXIT_FAILURE); */
-    /*         } */
-    /*     } else if (readBytes == 0) { */
-    /*         // EOF */
-    /*         break; */
-    /*     } else { */
-    /*         // Создаем событие для каждого символа */
-    /*         enqueueEvent(SPECIAL, c, NULL); */
-    /*         if ( (c >= 'A' && c <= 'Z') || */
-    /*              (c >= 'a' && c <= 'z') || */
-    /*              (c == '~' ) ) { */
-    /*             break; */
-    /*         } */
-    /*     } */
-    /* } */
-
-    // Возвращаем блокирующий режим ввода
-    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-    if (flags == -1) {
-        perror("fcntl F_GETFL");
-        exit(EXIT_FAILURE);
-    }
-    if (fcntl(STDIN_FILENO, F_SETFL, flags & ~O_NONBLOCK) == -1) {
-        perror("fcntl F_SETFL ~O_NONBLOCK");
-        exit(EXIT_FAILURE);
-    }
-}
-
 
 bool processEvents(char* input, int* input_size, int* cursor_pos,
                    int* log_window_start, int rows, int logSize)
@@ -303,12 +171,13 @@ bool processEvents(char* input, int* input_size, int* cursor_pos,
             break;
         case CTRL_X:
             addLogLine("Ctrl+X received");
-            if (isCtrlStackEmpty()) {
-                pushCtrlStack(c);
-            } else {
-                /* Повторный ввод 'C-x' - Ошибка ввода команд, очистим CtrlStack */
-                clearCtrlStack();
-            }
+            /* if (isCtrlStackEmpty()) { */
+            /*     pushCtrlStack(c); */
+            /* } else { */
+            /*     /\* Повторный ввод 'C-x' - Ошибка ввода команд, очистим CtrlStack *\/ */
+            /*     clearCtrlStack(); */
+            /* } */
+            break;
         case BACKSPACE:
             printf("\b \b");  // Удаляем символ в терминале
             if (*input_size > 0 && *cursor_pos > 0) {
@@ -408,22 +277,6 @@ void freeLog() {
 }
 
 
-void printLogWindow(int startLine, int lineCount) {
-    LogLine* current = logHead;
-    int lineNum = 0;
-
-    while (current && lineNum < startLine) {
-        current = current->next;
-        lineNum++;
-    }
-
-    while (current && lineCount--) {
-        printf("%s\n", current->text);
-        current = current->next;
-    }
-}
-
-
 /* Iface */
 
 void drawHorizontalLine(int cols, int y, char sym) {
@@ -458,7 +311,6 @@ int showMiniBuffer(const char* content, int cols, int bottom) {
     /* } */
     return bottom - 2;
 }
-
 
 int showInputBuffer(char* input, int cursor_pos, int cols, int bottom) {
     // Подсчитываем, сколько строк нужно для отображения input
@@ -538,81 +390,111 @@ void showOutputBuffer(int log_window_start, int log_window_end, int cols,
     }
 }
 
-/* Wide Strings */
-
-size_t mbStringToWcs(const char* mbstr, wchar_t* wcs, size_t max_len) {
-    mbstate_t state;
-    memset(&state, 0, sizeof(mbstate_t));
-    return mbsrtowcs(wcs, &mbstr, max_len, &state);
-}
-
-
 /* Main */
 
-int main() {
-    setlocale(LC_ALL, "");
-    enableRawMode();
+#define READ_TIMEOUT 50000 // 50000 микросекунд (50 миллисекунд)
+#define SLEEP_TIMEOUT 100000 // 100 микросекунд
 
+int main() {
+    // Отключение буферизации для stdout
+    setvbuf(stdout, NULL, _IONBF, 0);
+    // Включаем сырой режим
+    enableRawMode(STDIN_FILENO);
+    // Устанавливаем неблокирующий режим
+
+    char nc;
+
+    bool need_redraw = true;
+    int  rows, cols;
     char input[MAX_BUFFER]={0};
     int  input_size = 0;
     int  cursor_pos = 0;  // Позиция курсора в строке ввода
-    int  rows, cols;
+    bool followTail = true; // Флаг (показывать ли последние команды)
     int  log_window_start = 0;
-    bool followTail = true; // Флаг для отслеживания, показывать ли последние команды
 
     // Получаем размер терминала
     printf("\033[18t");
     fflush(stdout);
     scanf("\033[8;%d;%dt", &rows, &cols);
 
+    fd_set read_fds;
+    struct timeval timeout;
+
     while (1) {
-        clearScreen();
-
-        // Отображаем минибуфер и получаем номер строки над ним
-        int bottom = showMiniBuffer(miniBuffer, cols, rows);
-
-        // Отображаем InputBuffer и получаем номер строки над ним
-        // NB!: Функция сохраняет позицию курсора с помощью escape-последовательности
-        bottom = showInputBuffer(input, cursor_pos, cols, bottom);
-
-        int outputBufferAvailableLines = bottom - 1;
-
-        if (followTail) {
-            // Определяем, с какой строки начать вывод,
-            // чтобы показать только последние команды
-            if (logSize - outputBufferAvailableLines > 0) {
-                log_window_start = logSize - outputBufferAvailableLines;
-            } else {
-                log_window_start = 0;
-            }
-        }
-
-        // Показываем OutputBuffer в оставшемся пространстве
-        showOutputBuffer(log_window_start, logSize, cols, outputBufferAvailableLines);
-
-        // Восстанавливаем сохраненную в функции showInputBuffer позицию курсора
-        printf("\033[u");
-
-        // Читаем ввод
-        int c = getchar();
-        if (c == '\033') { // ESC - символ начала управляющей последовательности
-            enqueueSpecialEvent();
-        } else if (c == '\x18') { // 'C-x'
-            enqueueEvent(CTRL_X, '\0', NULL);
-        } else if (c == 127 || c == 8) { // backspace
-            enqueueEvent(BACKSPACE, '\0', NULL);
-        } else {
-            enqueueEvent(TEXT_INPUT, c, NULL);
-        }
-
-        // Обрабатываем события в конце каждой итерации
-        if (processEvents(input, &input_size, &cursor_pos,
+        // Переинициализация структур для select
+        FD_ZERO(&read_fds);
+        FD_SET(STDIN_FILENO, &read_fds);
+        // Устанавливаем время ожидания
+        timeout.tv_sec = 0;
+        timeout.tv_usec = READ_TIMEOUT;
+        // Вызываем Select
+        int select_result = select(STDIN_FILENO + 1, &read_fds, NULL, NULL, &timeout);
+        if (select_result > 0) {
+            if (read(STDIN_FILENO, &nc, 1) > 0) {
+                // Обрабатываем комбинацию Ctrl-D для выхода
+                if (nc == '\x04') {
+                    printf("\n");
+                    break;
+                } else if (nc == '\033') {
+                    // ESC - символ начала управляющей последовательности
+                    // TODO: считывать всю последовательность
+                    /* enqueueSpecialEvent(); */
+                    enqueueEvent(SPECIAL, '\0', NULL);
+                    /* // Проверяем не закончилась ли последовательность */
+                    /* if ( (c >= 'A' && c <= 'Z') || */
+                    /*      (c >= 'a' && c <= 'z') || */
+                    /*      (c == '~' ) ) { */
+                    /*     break; */
+                } else if (nc == '\x18') { // 'C-x'
+                    enqueueEvent(CTRL_X, '\0', NULL);
+                } else if (nc == 127 || nc == 8) { // backspace
+                    enqueueEvent(BACKSPACE, '\0', NULL);
+                } else {
+                    enqueueEvent(TEXT_INPUT, nc, NULL);
+                }
+                // Обработка:
+                // Обрабатываем события в конце каждой итерации
+                if (processEvents(input, &input_size, &cursor_pos,
                           &log_window_start, rows, logSize)) {
-            /* Тут не требуется дополнительных действий, т.к. в начале */
-            /* следующего цикла все будет перерисовано */
+                    /* Тут не требуется дополнительных действий, т.к. в начале */
+                    /* следующего цикла все будет перерисовано */
+                }
+                // Отображение:
+                // Очищаем экран
+                clearScreen();
+                // Отображаем минибуфер и получаем номер строки над ним
+                int bottom = showMiniBuffer(miniBuffer, cols, rows);
+                /* Отображаем InputBuffer и получаем номер строки над ним */
+                /* NB!: Функция сохраняет позицию курсора с помощью */
+                /* escape-последовательности */
+                bottom = showInputBuffer(input, cursor_pos, cols, bottom);
+                int outputBufferAvailableLines = bottom - 1;
+                if (followTail && logSize - outputBufferAvailableLines > 0) {
+                    // Определяем, с какой строки начать вывод,
+                    // чтобы показать только последние команды
+                    if (logSize - outputBufferAvailableLines > 0) {
+                        log_window_start = logSize - outputBufferAvailableLines;
+                    } else {
+                        log_window_start = 0;
+                    }
+                }
+                // Показываем OutputBuffer в оставшемся пространстве
+                showOutputBuffer(log_window_start, logSize, cols,
+                                 outputBufferAvailableLines);
+                // Восстанавливаем сохраненную в функции showInputBuffer позицию курсора
+                printf("\033[u");
+                // ...
+                /* write(STDOUT_FILENO, &nc, 1);  // Эмулируем поведение ECHO */
+                /* write(STDOUT_FILENO, "-", 1);  // Эмулируем поведение ECHO */
+            }
+        } else if (select_result == 0) {
+            // Обработка таймаута
+            usleep(SLEEP_TIMEOUT);
+        } else {
+            perror("select failed");
+            exit(EXIT_FAILURE);
         }
     }
-
     freeLog();
     return 0;
 }
