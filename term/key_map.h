@@ -54,6 +54,8 @@ Ctrl-V перед специальной клавишей заставит cat �
 // Список клавиатурных входов
 #define KEY_MAP(X)                              \
     X(KEY_UNKNOWN, "")                          \
+    X(KEY_TAB,       "\x09")                    \
+    X(KEY_SHIFT_TAB, "\x1b[Z")                  \
     X(KEY_BACKSPACE,          "\x7f")           \
     X(KEY_CTRL_BACKSPACE,     "\x08")           \
     X(KEY_ALT_BACKSPACE,      "\x1b\x7f")       \
