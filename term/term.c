@@ -568,6 +568,36 @@ bool keyb () {
     }
 }
 
+
+void reDraw(int rows, int cols, char* input, int* cursor_pos, bool* followTail,
+            int* log_window_start)
+{
+    // Очищаем экран
+    clearScreen();
+    // Отображаем минибуфер и получаем номер строки над ним
+    int bottom = showMiniBuffer(miniBuffer, cols, rows);
+    /* Отображаем InputBuffer и получаем номер строки над ним */
+    /* NB!: Функция сохраняет позицию курсора с помощью */
+    /* escape-последовательности */
+    bottom = showInputBuffer(input, *cursor_pos, cols, bottom);
+    int outputBufferAvailableLines = bottom - 1;
+    if (*followTail && logSize - outputBufferAvailableLines > 0) {
+        // Определяем, с какой строки начать вывод,
+        // чтобы показать только последние команды
+        if (logSize - outputBufferAvailableLines > 0) {
+            *log_window_start = logSize - outputBufferAvailableLines;
+        } else {
+            *log_window_start = 0;
+        }
+    }
+    // Показываем OutputBuffer в оставшемся пространстве
+    showOutputBuffer(*log_window_start, logSize, cols,
+                     outputBufferAvailableLines);
+    // Восстанавливаем сохраненную в функции showInputBuffer позицию курсора
+    printf("\033[u");
+}
+
+
 /* Main */
 
 #define READ_TIMEOUT 50000 // 50000 микросекунд (50 миллисекунд)
@@ -600,6 +630,7 @@ int main() {
 
     bool terminate = false;
 
+    reDraw(rows, cols, input, &cursor_pos, &followTail, &log_window_start);
     while (!terminate) {
         // Переинициализация структур для select
         FD_ZERO(&read_fds);
@@ -616,39 +647,18 @@ int main() {
             perror("select failed");
             exit(EXIT_FAILURE);
         } else { // select_result > 0
+            // ПОЛУЧЕНИЕ ВВОДА:
             terminate = keyb();
             // ОБРАБОТКА:
             // Обрабатываем события в конце каждой итерации
             if (processEvents(input, &input_size, &cursor_pos,
                               &log_window_start, rows, logSize)) {
-                /* Тут не требуется дополнительных действий, т.к. в начале
-                   /* следующего цикла все будет перерисовано */
+                /* Тут не требуется дополнительных действий, т.к. в начале */
+                /* следующего цикла все будет перерисовано */
             }
             // ОТОБРАЖЕНИЕ:
-            // Очищаем экран
-            clearScreen();
-            // Отображаем минибуфер и получаем номер строки над ним
-            int bottom = showMiniBuffer(miniBuffer, cols, rows);
-            /* Отображаем InputBuffer и получаем номер строки над ним */
-            /* NB!: Функция сохраняет позицию курсора с помощью */
-            /* escape-последовательности */
-            bottom = showInputBuffer(input, cursor_pos, cols, bottom);
-            int outputBufferAvailableLines = bottom - 1;
-            if (followTail && logSize - outputBufferAvailableLines > 0) {
-                // Определяем, с какой строки начать вывод,
-                // чтобы показать только последние команды
-                if (logSize - outputBufferAvailableLines > 0) {
-                    log_window_start = logSize - outputBufferAvailableLines;
-                } else {
-                    log_window_start = 0;
-                }
-            }
-            // Показываем OutputBuffer в оставшемся пространстве
-            showOutputBuffer(log_window_start, logSize, cols,
-                             outputBufferAvailableLines);
-            // Восстанавливаем сохраненную в функции showInputBuffer позицию курсора
-            printf("\033[u");
-        }
+            reDraw(rows, cols, input, &cursor_pos, &followTail, &log_window_start);
+         }
     }
     freeLog();
     return 0;
