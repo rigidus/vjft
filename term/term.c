@@ -10,6 +10,8 @@
 #include <locale.h>
 #include <ctype.h>
 
+#include "key_map.h"
+
 #define MAX_BUFFER 1024
 
 char miniBuffer[MAX_BUFFER] = {0};
@@ -22,7 +24,7 @@ void convertToAsciiCodes(const char *input, char *output, size_t outputSize) {
     size_t offset = 0;
 
     for (size_t i = 0; i < inputLen; i++) {
-        int written = snprintf(output + offset, outputSize - offset, "%d", (unsigned char)input[i]);
+        int written = snprintf(output + offset, outputSize - offset, "%x", (unsigned char)input[i]);
         if (written < 0 || written >= outputSize - offset) {
             // Output buffer is full or an error occurred
             break;
@@ -138,7 +140,7 @@ typedef enum {
 
 typedef struct InputEvent {
     EventType type;
-    char* sequence;
+    char* seq;
     struct InputEvent* next;
 } InputEvent;
 
@@ -148,11 +150,11 @@ void enqueueEvent(EventType type, char* seq) {
     InputEvent* newEvent = malloc(sizeof(InputEvent));
     newEvent->type = type;
     if (seq) {
-        newEvent->sequence = malloc(strlen(seq));
-        strcpy(newEvent->sequence, seq);
+        newEvent->seq = malloc(strlen(seq));
+        strcpy(newEvent->seq, seq);
     } else {
-        newEvent->sequence = malloc(strlen("_"));
-        strcpy(newEvent->sequence, "_");
+        newEvent->seq = malloc(strlen("_"));
+        strcpy(newEvent->seq, "_");
     }
     newEvent->next = NULL;
 
@@ -167,6 +169,40 @@ void enqueueEvent(EventType type, char* seq) {
     }
 }
 
+// Создание enum с помощью макроса
+#define GENERATE_ENUM(val, str) val,
+typedef enum {
+    KEY_MAP(GENERATE_ENUM)
+} Key;
+
+// Создание массива строковых представлений для enum
+#define GENERATE_STRING(val, str) str,
+const char* key_strings[] = {
+    KEY_MAP(GENERATE_STRING)
+};
+
+// Создание функции key_to_string
+#define GENERATE_KEY_STR(val, str) #val,
+const char* key_to_str(Key key) {
+    static const char* key_names[] = {
+        KEY_MAP(GENERATE_KEY_STR)
+    };
+    return key_names[key];
+}
+
+// Создание функции identify_key
+Key identify_key(const char* seq) {
+    for (int i = 0; i < sizeof(key_strings) / sizeof(key_strings[0]); i++) {
+        if (strcmp(seq, key_strings[i]) == 0) {
+            return (Key)i;
+        }
+    }
+    return KEY_UNKNOWN; // Возвращает KEY_UNKNOWN если последовательность не найдена
+}
+
+#define ASCII_CODES_BUF_SIZE 127
+#define DBG_LOG_MSG_SIZE 255
+
 bool processEvents(char* input, int* input_size, int* cursor_pos,
                    int* log_window_start, int rows, int logSize)
 {
@@ -177,108 +213,103 @@ bool processEvents(char* input, int* input_size, int* cursor_pos,
         eventQueue = eventQueue->next;
 
         switch(type) {
-        case SPECIAL:
-            if (event->sequence != NULL) {
-                char asciiCodes[1024];
-                convertToAsciiCodes(event->sequence, asciiCodes, 1024);
+        /* case SPECIAL: */
+        /*     if (event->seq != NULL) { */
+        /*     } else { */
+        /*         addLogLine("Special key without seq received"); */
+        /*     } */
+        /*     break; */
+        /* case CTRL: */
+        /*     char buffer[100]; */
+        /*     snprintf(buffer, sizeof(buffer), "CTRL-%s", event->seq); */
+        /*     addLogLine(buffer); */
+        /*     /\* if (isCtrlStackEmpty()) { *\/ */
+        /*     /\*     pushCtrlStack(c); *\/ */
+        /*     /\* } else { *\/ */
+        /*     /\*     /\\* Повторный ввод 'C-x' - Ошибка ввода команд, очистим CtrlStack *\\/ *\/ */
+        /*     /\*     clearCtrlStack(); *\/ */
+        /*     /\* } *\/ */
+        /*     break; */
+        /* case BACKSPACE: */
+        /*     printf("\b \b");  // Удаляем символ в терминале */
+        /*     if (*input_size > 0 && *cursor_pos > 0) { */
+        /*         memmove(&input[*cursor_pos - 1], */
+        /*                 &input[*cursor_pos], */
+        /*                 *input_size - *cursor_pos); */
+        /*         input[--(*input_size)] = '\0'; */
+        /*         (*cursor_pos)--; */
+        /*         updated = true; */
+        /*     } */
+        /*     break; */
+        /* case TEXT_INPUT: */
+        /*     if (event->seq[0] != '\0') { */
+        /*         int seq_len = strlen(event->seq); */
+        /*         if (isCtrlStackEmpty()) { */
+        /*             if (seq_len == 1 && event->seq[0] == '\n') { */
+        /*                 // Обрабатываем перевод строки */
+        /*                 input[*input_size] = '\0'; // Ensure string is terminated */
+        /*                 addLogLine(input); */
+        /*                 memset(input, 0, *input_size); */
+        /*                 *input_size = 0; */
+        /*                 *cursor_pos = 0; */
+        /*                 updated = true; */
+        /*             } else { */
+        /*                 // Обрабатываем обычный символ */
+        /*                 if (*input_size + seq_len < MAX_BUFFER - 1) { */
+        /*                     memmove(&input[*cursor_pos + seq_len], */
+        /*                             &input[*cursor_pos], */
+        /*                             *input_size - *cursor_pos); */
+        /*                     memcpy(&input[*cursor_pos], event->seq, seq_len); */
+        /*                     *input_size += seq_len; */
+        /*                     *cursor_pos += seq_len; */
+        /*                     updated = true; */
+        /*                 } */
 
-                char logMessage[1024];
-                snprintf(logMessage, sizeof(logMessage),
-                         "Special sequence received: <%s> [%s]",
-                         event->sequence,
-                         asciiCodes
-                    );
-                addLogLine(logMessage);  // Добавляем в лог
-                //
-                /* if (strcmp(event->sequence, "[1p") == 0) { // Ctrl+Alt+p */
-                /*     (*log_window_start)--; */
-                /*     updated = true; */
-                /* } else if (strcmp(event->sequence, "[1n") == 0) { // Ctrl+Alt+n */
-                /*     (*log_window_start)++; */
-                /*     updated = true; */
-                /* } */
-            } else {
-                addLogLine("Special key without sequence received");
-            }
-            break;
-        case CTRL:
-            char buffer[100];
-            snprintf(buffer, sizeof(buffer), "CTRL-%s", event->sequence);
-            addLogLine(buffer);
-            /* if (isCtrlStackEmpty()) { */
-            /*     pushCtrlStack(c); */
-            /* } else { */
-            /*     /\* Повторный ввод 'C-x' - Ошибка ввода команд, очистим CtrlStack *\/ */
-            /*     clearCtrlStack(); */
-            /* } */
-            break;
-        case BACKSPACE:
-            printf("\b \b");  // Удаляем символ в терминале
-            if (*input_size > 0 && *cursor_pos > 0) {
-                memmove(&input[*cursor_pos - 1],
-                        &input[*cursor_pos],
-                        *input_size - *cursor_pos);
-                input[--(*input_size)] = '\0';
-                (*cursor_pos)--;
-                updated = true;
-            }
-            break;
-        case TEXT_INPUT:
-            if (event->sequence[0] != '\0') {
-                int seq_len = strlen(event->sequence);
-                if (isCtrlStackEmpty()) {
-                    if (seq_len == 1 && event->sequence[0] == '\n') {
-                        // Обрабатываем перевод строки
-                        input[*input_size] = '\0'; // Ensure string is terminated
-                        addLogLine(input);
-                        memset(input, 0, *input_size);
-                        *input_size = 0;
-                        *cursor_pos = 0;
-                        updated = true;
-                    } else {
-                        // Обрабатываем обычный символ
-                        if (*input_size + seq_len < MAX_BUFFER - 1) {
-                            memmove(&input[*cursor_pos + seq_len],
-                                    &input[*cursor_pos],
-                                    *input_size - *cursor_pos);
-                            memcpy(&input[*cursor_pos], event->sequence, seq_len);
-                            *input_size += seq_len;
-                            *cursor_pos += seq_len;
-                            updated = true;
-                        }
-
-                    }
-                } else {
-                    /* /\* Ввод команд *\/ */
-                    /* if (c == 'p') { */
-                    /*     /\* SCROLL_UP *\/ */
-                    /*     (*log_window_start)--; */
-                    /*     if (*log_window_start < 0) { */
-                    /*         *log_window_start = 0; */
-                    /*     } */
-                    /*     updated = true; */
-                    /* } else if (c == 'n') { */
-                    /*     /\* SCROLL_DOWN: *\/ */
-                    /*     (*log_window_start)++; */
-                    /*     if (*log_window_start > logSize - (rows - 1)) { */
-                    /*         *log_window_start = logSize - (rows - 1); */
-                    /*     } */
-                    /*     updated = true; */
-                    /* } else { */
-                    /*     /\* Ошибка, выходим из режима ввода команд *\/ */
-                    /*     clearCtrlStack(); */
-                    /* } */
-                }
-            }
-            break;
+        /*             } */
+        /*         } else { */
+        /*             /\* /\\* Ввод команд *\\/ *\/ */
+        /*             /\* if (c == 'p') { *\/ */
+        /*             /\*     /\\* SCROLL_UP *\\/ *\/ */
+        /*             /\*     (*log_window_start)--; *\/ */
+        /*             /\*     if (*log_window_start < 0) { *\/ */
+        /*             /\*         *log_window_start = 0; *\/ */
+        /*             /\*     } *\/ */
+        /*             /\*     updated = true; *\/ */
+        /*             /\* } else if (c == 'n') { *\/ */
+        /*             /\*     /\\* SCROLL_DOWN: *\\/ *\/ */
+        /*             /\*     (*log_window_start)++; *\/ */
+        /*             /\*     if (*log_window_start > logSize - (rows - 1)) { *\/ */
+        /*             /\*         *log_window_start = logSize - (rows - 1); *\/ */
+        /*             /\*     } *\/ */
+        /*             /\*     updated = true; *\/ */
+        /*             /\* } else { *\/ */
+        /*             /\*     /\\* Ошибка, выходим из режима ввода команд *\\/ *\/ */
+        /*             /\*     clearCtrlStack(); *\/ */
+        /*             /\* } *\/ */
+        /*         } */
+        /*     } */
+        /*     break; */
         case DBG:
-            if (event->sequence != NULL) {
-                addLogLine(event->sequence);
+            if (event->seq != NULL) {
+                int  seq_len = strlen(event->seq);
+                char asciiCodes[ASCII_CODES_BUF_SIZE] = {0};
+                convertToAsciiCodes(event->seq, asciiCodes, ASCII_CODES_BUF_SIZE);
+                char logMsg[DBG_LOG_MSG_SIZE] = {0};
+
+                Key key = identify_key(event->seq);
+                if (KEY_UNKNOWN == identify_key) {
+                    snprintf(logMsg, sizeof(logMsg), "[DBG]: %s, [%s] <%s>",
+                             key_to_str(key), asciiCodes,  event->seq);
+                } else {
+                    snprintf(logMsg, sizeof(logMsg), "[DBG]: %s, [%s]",
+                             key_to_str(key), asciiCodes);
+                }
+                addLogLine(logMsg);
             }
             break;
         }
-        if (event->sequence != NULL) {
-            free(event->sequence);
+        if (event->seq != NULL) {
+            free(event->seq);
         }
         free(event);
     }
@@ -486,6 +517,56 @@ int read_utf8_char_or_esc_seq(int fd, char* buf, int buf_size) {
     return len;
 }
 
+#define MAX_INPUT_BUFFER 40
+
+bool keyb () {
+    char input_buffer[MAX_INPUT_BUFFER];
+    int len = read_utf8_char_or_esc_seq(
+        STDIN_FILENO, input_buffer, sizeof(input_buffer));
+    enqueueEvent(DBG, input_buffer);
+    if (len == 1) {
+        // SingleByte
+        if (input_buffer[0] == '\x04') {
+            // Обрабатываем Ctrl-D для выхода
+            printf("\n");
+            return true;
+        /* } else if (input_buffer[0] == 127 || input_buffer[0] == 8) { */
+        /*     // Обрабатываем BackSpace */
+        /*     enqueueEvent(BACKSPACE, NULL); */
+        /* } else if (input_buffer[0] >= 1 && input_buffer[0] <= 26 ) { */
+        /*     // Обрабатываем Ctrl-key для команд */
+        /*     input_buffer[0] = 'A' + input_buffer[0] - 1; */
+        /*     enqueueEvent(CTRL, input_buffer); */
+        /* } else if (input_buffer[0] == '\033') { */
+        /*     // Escape-последовательность */
+        /*     enqueueEvent(SPECIAL, input_buffer); */
+        /* } else { */
+        /*     // Обычный однобайтовый символ - выводим */
+        /*     enqueueEvent(TEXT_INPUT, input_buffer); */
+        }
+    } else {
+        /* // Multibyte */
+        /* if (input_buffer[0] == '\033') { */
+        /*     // Escape-последовательность */
+        /*     char buffer[100]; */
+        /*     snprintf(buffer, sizeof(buffer), "ESC:%d <%s>", len, */
+        /*              input_buffer+1); */
+        /*     // Отладочный вывод */
+        /*     enqueueEvent(DBG, buffer); */
+        /*     // Escape-последовательность - выводим */
+        /*     enqueueEvent(SPECIAL, input_buffer+1); */
+        /* } else { */
+        /*     // Многобайтовый символ */
+        /*     char buffer[100]; */
+        /*     snprintf(buffer, sizeof(buffer), "MulitByteSym: %d [%s]", len, */
+        /*              input_buffer); */
+        /*     // Отладочный вывод */
+        /*     enqueueEvent(DBG, buffer); */
+        /*     // Обычный многобайтовый символ */
+        /*     enqueueEvent(TEXT_INPUT, input_buffer); */
+        /* } */
+    }
+}
 
 /* Main */
 
@@ -517,10 +598,9 @@ int main() {
     fd_set read_fds;
     struct timeval timeout;
 
-    char input_buffer[40];  // Максимальный размер UTF-8 символа (последовательность?)
-    int len;
+    bool terminate = false;
 
-    while (1) {
+    while (!terminate) {
         // Переинициализация структур для select
         FD_ZERO(&read_fds);
         FD_SET(STDIN_FILENO, &read_fds);
@@ -536,50 +616,7 @@ int main() {
             perror("select failed");
             exit(EXIT_FAILURE);
         } else { // select_result > 0
-            len = read_utf8_char_or_esc_seq(
-                STDIN_FILENO, input_buffer, sizeof(input_buffer));
-            if (len == 1) {
-                // Отладочный вывод
-                enqueueEvent(DBG, input_buffer);
-                if (input_buffer[0] == '\x04') {
-                    // Обрабатываем Ctrl-D для выхода
-                    printf("\n");
-                    break;
-                } else if (input_buffer[0] >= 1 && input_buffer[0] <= 26 ) {
-                    // Обрабатываем Ctrl-key для команд
-                    input_buffer[0] = 'A' + input_buffer[0] - 1;
-                    enqueueEvent(CTRL, input_buffer);
-                } else if (input_buffer[0] == 127 || input_buffer[0] == 8) {
-                    // Обрабатываем BackSpace
-                    enqueueEvent(BACKSPACE, NULL);
-                } else if (input_buffer[0] == '\033') {
-                    // \033 (ESC) - начало управляющей последовательности
-                    enqueueEvent(SPECIAL, input_buffer);
-                } else {
-                    // Обычный однобайтовый символ - выводим
-                    enqueueEvent(TEXT_INPUT, input_buffer);
-                }
-            } else {
-                if (input_buffer[0] == '\033') {
-                    // Escape-последовательность
-                    char buffer[100];
-                    snprintf(buffer, sizeof(buffer), "ESC:%d <%s>", len,
-                             input_buffer+1);
-                    // Отладочный вывод
-                    enqueueEvent(DBG, buffer);
-                    // Escape-последовательность - выводим
-                    enqueueEvent(SPECIAL, input_buffer+1);
-                } else {
-                    // Многобайтовый символ
-                    char buffer[100];
-                    snprintf(buffer, sizeof(buffer), "MulitByteSym: %d [%s]", len,
-                             input_buffer);
-                    // Отладочный вывод
-                    enqueueEvent(DBG, buffer);
-                    // Обычный многобайтовый символ
-                    enqueueEvent(TEXT_INPUT, input_buffer);
-                }
-            }
+            terminate = keyb();
             // ОБРАБОТКА:
             // Обрабатываем события в конце каждой итерации
             if (processEvents(input, &input_size, &cursor_pos,
