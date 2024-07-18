@@ -141,20 +141,23 @@ typedef enum {
 typedef struct InputEvent {
     EventType type;
     char* seq;
+    int seq_size;
     struct InputEvent* next;
 } InputEvent;
 
 InputEvent* eventQueue = NULL;
 
-void enqueueEvent(EventType type, char* seq) {
+void enqueueEvent(EventType type, char* seq, int seq_size) {
     InputEvent* newEvent = malloc(sizeof(InputEvent));
     newEvent->type = type;
     if (seq) {
         newEvent->seq = malloc(strlen(seq));
         strcpy(newEvent->seq, seq);
+        newEvent->seq_size = seq_size;
     } else {
         newEvent->seq = malloc(strlen("_"));
         strcpy(newEvent->seq, "_");
+        newEvent->seq_size = seq_size;
     }
     newEvent->next = NULL;
 
@@ -170,19 +173,19 @@ void enqueueEvent(EventType type, char* seq) {
 }
 
 // Создание enum с помощью макроса
-#define GENERATE_ENUM(val, str) val,
+#define GENERATE_ENUM(val, len, str) val,
 typedef enum {
     KEY_MAP(GENERATE_ENUM)
 } Key;
 
 // Создание массива строковых представлений для enum
-#define GENERATE_STRING(val, str) str,
+#define GENERATE_STRING(val, len, str) str,
 const char* key_strings[] = {
     KEY_MAP(GENERATE_STRING)
 };
 
 // Создание функции key_to_string
-#define GENERATE_KEY_STR(val, str) #val,
+#define GENERATE_KEY_STR(val, len, str) #val,
 const char* key_to_str(Key key) {
     static const char* key_names[] = {
         KEY_MAP(GENERATE_KEY_STR)
@@ -190,15 +193,22 @@ const char* key_to_str(Key key) {
     return key_names[key];
 }
 
-// Создание функции identify_key
-Key identify_key(const char* seq) {
+#define GENERATE_LENGTH(val, len, str) len,
+const int key_lengths[] = {
+    KEY_MAP(GENERATE_LENGTH)
+};
+
+
+Key identify_key(const char* seq, int seq_size) {
     for (int i = 0; i < sizeof(key_strings) / sizeof(key_strings[0]); i++) {
-        if (strcmp(seq, key_strings[i]) == 0) {
+        if ( (key_lengths[i] == seq_size) &&
+             (strncmp(seq, key_strings[i], key_lengths[i]) == 0) ) {
             return (Key)i;
         }
     }
     return KEY_UNKNOWN; // Возвращает KEY_UNKNOWN если последовательность не найдена
 }
+
 
 #define ASCII_CODES_BUF_SIZE 127
 #define DBG_LOG_MSG_SIZE 255
@@ -291,19 +301,12 @@ bool processEvents(char* input, int* input_size, int* cursor_pos,
         /*     break; */
         case DBG:
             if (event->seq != NULL) {
-                int  seq_len = strlen(event->seq);
                 char asciiCodes[ASCII_CODES_BUF_SIZE] = {0};
                 convertToAsciiCodes(event->seq, asciiCodes, ASCII_CODES_BUF_SIZE);
                 char logMsg[DBG_LOG_MSG_SIZE] = {0};
-
-                Key key = identify_key(event->seq);
-                if (KEY_UNKNOWN == identify_key) {
-                    snprintf(logMsg, sizeof(logMsg), "[DBG]: %s, [%s] <%s>",
-                             key_to_str(key), asciiCodes,  event->seq);
-                } else {
-                    snprintf(logMsg, sizeof(logMsg), "[DBG]: %s, [%s]",
-                             key_to_str(key), asciiCodes);
-                }
+                Key key = identify_key(event->seq, event->seq_size);
+                snprintf(logMsg, sizeof(logMsg), "[DBG]: %s, [%s] (%d)",
+                         key_to_str(key), asciiCodes, event->seq_size);
                 addLogLine(logMsg);
             }
             break;
@@ -540,7 +543,7 @@ bool keyb () {
     char input_buffer[MAX_INPUT_BUFFER];
     int len = read_utf8_char_or_esc_seq(
         STDIN_FILENO, input_buffer, sizeof(input_buffer));
-    enqueueEvent(DBG, input_buffer);
+    enqueueEvent(DBG, input_buffer, len);
     if (len == 1) {
         // SingleByte
         if (input_buffer[0] == '\x04') {
