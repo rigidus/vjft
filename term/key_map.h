@@ -162,6 +162,41 @@ Ctrl-V перед специальной клавишей заставит cat �
     X(KEY_CTRL_BACKTICK, 1, "")                                    \
     X(KEY_SHIFT_CTRL_BACKTICK_IS_CTRL_TILDE, 1, "\x1e")            \
     X(KEY_SHIFT_ALT_CTRL_BACKTICK_ALT_CTRL_TILDE, 2, "\x1b\x1e")   \
+    X(KEY_1, 1, "\x31")                                            \
+    X(KEY_SHIFT_1_IS_EXCL, 1, "\x21")                              \
+    X(KEY_SHIFT_ALT_1_IS_ALT_EXCL, 2, "\x1b\x21")                  \
+    X(KEY_ALT_CTRL_1, 2, "\x1b\x31")                               \
+    X(KEY_2, 1, "\x32")                                            \
+    X(KEY_SHIFT_2_IS_ATSIGN, 1, "\x40")                            \
+    X(KEY_SHIFT_ALT_2_IS_ALT_ATSIGN, 2, "\x1b\x40")                \
+    X(KEY_SHIFT_ALT_CTRL_2_IS_ALT_CTRL_ATSIGN, 2, "\x1b\x0")       \
+    X(KEY_3, 1, "\x33")                                            \
+    X(KEY_SHIFT_3_IS_NUMBERSIGN, 1, "\x23")                        \
+    X(KEY_SHIFT_ALT_3_IS_ALT_NUMBERSIGN, 2, "\x1b\x23")            \
+    X(KEY_4, 1, "\x34")                                            \
+    X(KEY_SHIFT_4_IS_DOLLARSIGN, 1, "\x24")                        \
+    X(KEY_SHIFT_ALT_4_IS_ALT_DOLLARSIGN, 2, "\x1b\x24")            \
+    X(KEY_5, 1, "\x35")                                            \
+    X(KEY_SHIFT_5_IS_PERCENTSIGN, 1, "\x25")                       \
+    X(KEY_SHIFT_ALT_5_IS_ALT_PERCENTSIGN, 2, "\x1b\x25")           \
+    X(KEY_6, 1, "\x36")                                            \
+    X(KEY_SHIFT_6_IS_CARET, 1, "\x5e")                             \
+    X(KEY_SHIFT_ALT_6_IS_ALT_CARET, 2, "\x1b\x5e")                 \
+    X(KEY_7, 1, "\x37")                                            \
+    X(KEY_SHIFT_7_IS_AMPERSAND, 1, "\x26")                         \
+    X(KEY_SHIFT_ALT_7_IS_ALT_AMPERSAND, 2, "\x1b\x26")             \
+    X(KEY_CTRL_ALT_7, 1, "\x1f")                                   \
+    X(KEY_8, 1, "\x38")                                            \
+    X(KEY_SHIFT_8_IS_ASTERISK, 1, "\x2a")                          \
+    X(KEY_SHIFT_ALT_8_IS_ALT_ASTERISK, 2, "\x1b\x2a")              \
+    X(KEY_9, 1, "\x39")                                            \
+    X(KEY_SHIFT_9_IS_LPAR, 1, "\x28")                              \
+    X(KEY_SHIFT_ALT_9_IS_ALT_LPAR, 2, "\x1b\x28")                  \
+    X(KEY_ALT_CTRL_9, 2, "\x1b\x39")                               \
+    X(KEY_0, 1, "\x30")                                            \
+    X(KEY_SHIFT_0_IS_RPAR, 1, "\x29")                              \
+    X(KEY_SHIFT_ALT_0_IS_ALT_RPAR, 2, "\x1b\x29")                  \
+    X(KEY_ALT_CTRL_0, 2, "\x1b\x30")                               \
 
 
 /*
