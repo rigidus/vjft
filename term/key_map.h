@@ -81,7 +81,8 @@ Ctrl-V перед специальной клавишей заставит cat �
     X(KEY_ALT_CTRL_PGUP, "\x1b[5;7~")           \
     X(KEY_PGDOWN,          "\x1b[6~")           \
     X(KEY_ALT_PGDOWN,      "\x1b[6;3~")         \
-    X(KEY_ALT_CTRL_PGDOWN, "\x1b[6;7~")         \
+    X(KEY_ENTER,      "\xa")                    \
+    X(KEY_ALT_ENTER, "\x1b\xa")                 \
     X(KEY_F1,            "\x1bOP")              \
     X(KEY_SHIFT_F1,      "\x1b[1;2P")           \
     X(KEY_ALT_F1,        "\x1b[1;3P")           \
