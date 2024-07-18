@@ -185,7 +185,6 @@ Ctrl-V перед специальной клавишей заставит cat �
     X(KEY_7, 1, "\x37")                                            \
     X(KEY_SHIFT_7_IS_AMPERSAND, 1, "\x26")                         \
     X(KEY_SHIFT_ALT_7_IS_ALT_AMPERSAND, 2, "\x1b\x26")             \
-    X(KEY_CTRL_ALT_7, 1, "\x1f")                                   \
     X(KEY_8, 1, "\x38")                                            \
     X(KEY_SHIFT_8_IS_ASTERISK, 1, "\x2a")                          \
     X(KEY_SHIFT_ALT_8_IS_ALT_ASTERISK, 2, "\x1b\x2a")              \
@@ -197,6 +196,15 @@ Ctrl-V перед специальной клавишей заставит cat �
     X(KEY_SHIFT_0_IS_RPAR, 1, "\x29")                              \
     X(KEY_SHIFT_ALT_0_IS_ALT_RPAR, 2, "\x1b\x29")                  \
     X(KEY_ALT_CTRL_0, 2, "\x1b\x30")                               \
+    X(KEY_SHIFT_MINUS_IS_UNDERSCORE, 1, "_")                       \
+    X(KEY_MINUS, 1, "-")                                           \
+    X(KEY_ALT_MINUS, 2, "\x1b-")                                   \
+    X(KEY_SHIFT_ALT_MINUS_IS_ALT_UNDERSCORE, 2, "\x1b_")           \
+    X(KEY_EQ, 1, "=")                                              \
+    X(KEY_SHIFT_EQ_IS_PLUS, 1, "+")                                \
+    X(KEY_ALT_EQ, 2, "\x1b=")                                      \
+    X(KEY_SHIFT_ALT_EQ_IS_ALT_PLUS, 2, "\x1b+")                    \
+
 
 
 /*
