@@ -189,12 +189,12 @@ Ctrl-V перед специальной клавишей заставит cat �
     X(KEY_SHIFT_8_IS_ASTERISK, 1, "\x2a")                          \
     X(KEY_SHIFT_ALT_8_IS_ALT_ASTERISK, 2, "\x1b\x2a")              \
     X(KEY_9, 1, "\x39")                                            \
-    X(KEY_SHIFT_9_IS_LPAR, 1, "\x28")                              \
-    X(KEY_SHIFT_ALT_9_IS_ALT_LPAR, 2, "\x1b\x28")                  \
+    X(KEY_SHIFT_9_IS_LEFT_PAREN, 1, "\x28")                        \
+    X(KEY_SHIFT_ALT_9_IS_ALT_LEFT_PAREN, 2, "\x1b\x28")            \
     X(KEY_ALT_CTRL_9, 2, "\x1b\x39")                               \
     X(KEY_0, 1, "\x30")                                            \
-    X(KEY_SHIFT_0_IS_RPAR, 1, "\x29")                              \
-    X(KEY_SHIFT_ALT_0_IS_ALT_RPAR, 2, "\x1b\x29")                  \
+    X(KEY_SHIFT_0_IS_RIGHT_PAREN, 1, "\x29")                       \
+    X(KEY_SHIFT_ALT_0_IS_ALT_RIGHT_PAREN, 2, "\x1b\x29")           \
     X(KEY_ALT_CTRL_0, 2, "\x1b\x30")                               \
     X(KEY_SHIFT_MINUS_IS_UNDERSCORE, 1, "_")                       \
     X(KEY_MINUS, 1, "-")                                           \
@@ -204,6 +204,74 @@ Ctrl-V перед специальной клавишей заставит cat �
     X(KEY_SHIFT_EQ_IS_PLUS, 1, "+")                                \
     X(KEY_ALT_EQ, 2, "\x1b=")                                      \
     X(KEY_SHIFT_ALT_EQ_IS_ALT_PLUS, 2, "\x1b+")                    \
+    X(KEY_Q, 1, "q")                                               \
+    X(KEY_SHIFT_Q, 1, "Q")                    \
+    X(KEY_W, 1, "w")                    \
+    X(KEY_SHIFT_W, 1, "W")                    \
+    X(KEY_E, 1, "e")                    \
+    X(KEY_SHIFT_E, 1, "E")                    \
+    X(KEY_R, 1, "r")                    \
+    X(KEY_SHIFT_R, 1, "R")                    \
+    X(KEY_T, 1, "t")                    \
+    X(KEY_SHIFT_T, 1, "T")                    \
+    X(KEY_Y, 1, "y")                    \
+    X(KEY_SHIFT_Y, 1, "Y")                    \
+    X(KEY_U, 1, "u")                    \
+    X(KEY_SHIFT_U, 1, "U")                    \
+    X(KEY_I, 1, "i")                    \
+    X(KEY_SHIFT_I, 1, "I")                    \
+    X(KEY_O, 1, "o")                    \
+    X(KEY_SHIFT_O, 1, "O")                    \
+    X(KEY_P, 1, "p")                    \
+    X(KEY_SHIFT_P, 1, "P")                    \
+    X(KEY_LEFT_SQUARE_BRACKET, 1, "[")  \
+    X(KEY_SHIFT_LEFT_SQUARE_BRACKET_IS_LEFT_CURVE_BRACKET, 1, "{")    \
+    X(KEY_RIGHT_SQUARE_BRACKET, 1, "]")                               \
+    X(KEY_SHIFT_RIGHT_SQUARE_BRACKET_IS_RIGHT_CURVE_BRACKET, 1, "}")  \
+    X(KEY_BACKSLASH, 1, "\\")                                         \
+    X(KEY_SHIFT_BACKSLASH_IS_VERTICAL_LINE, 1, "|")                   \
+    X(KEY_A, 1, "a")                    \
+    X(KEY_SHIFT_A, 1, "A")                    \
+    X(KEY_S, 1, "s")                    \
+    X(KEY_SHIFT_S, 1, "S")                    \
+    X(KEY_D, 1, "d")                    \
+    X(KEY_SHIFT_D, 1, "D")                    \
+    X(KEY_F, 1, "f")                    \
+    X(KEY_SHIFT_F, 1, "F")                    \
+    X(KEY_G, 1, "g")                    \
+    X(KEY_SHIFT_G, 1, "G")                    \
+    X(KEY_H, 1, "h")                    \
+    X(KEY_SHIFT_H, 1, "H")                    \
+    X(KEY_J, 1, "j")                    \
+    X(KEY_SHIFT_J, 1, "J")                    \
+    X(KEY_K, 1, "k")                    \
+    X(KEY_SHIFT_K, 1, "K")                    \
+    X(KEY_L, 1, "l")                    \
+    X(KEY_SHIFT_L, 1, "L")                    \
+    X(KEY_SEMICOLON, 1, ";")            \
+    X(KEY_SHIFT_SEMICOLON_IS_COLON, 1, ":")            \
+    X(KEY_TICK, 1, "'")                 \
+    X(KEY_SHIFT_TICK_IS_QUOTATIONS, 1, "\"")                 \
+    X(KEY_Z, 1, "z")                    \
+    X(KEY_SHIFT_Z, 1, "Z")                    \
+    X(KEY_X, 1, "x")                    \
+    X(KEY_SHIFT_X, 1, "X")                    \
+    X(KEY_C, 1, "c")                    \
+    X(KEY_SHIFT_C, 1, "C")                    \
+    X(KEY_V, 1, "v")                    \
+    X(KEY_SHIFT_V, 1, "V")                    \
+    X(KEY_B, 1, "b")                    \
+    X(KEY_SHIFT_B, 1, "B")                    \
+    X(KEY_N, 1, "n")                    \
+    X(KEY_SHIFT_N, 1, "N")                    \
+    X(KEY_M, 1, "m")                    \
+    X(KEY_SHIFT_M, 1, "M")                    \
+    X(KEY_COLON, 1, ",")                \
+    X(KEY_SHIFT_COMMA_IS_LESS , 1, "<")                \
+    X(KEY_DOT, 1, ".")                  \
+    X(KEY_SHIFT_DOT_IS_GREATER, 1, ">")                  \
+    X(KEY_SLASH, 1, "/")                \
+    X(KEY_SHIFT_SLASH_IS_QUESTION, 1, "?")                \
 
 
 
