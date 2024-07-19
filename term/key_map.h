@@ -304,6 +304,10 @@ Ctrl-V перед специальной клавишей заставит cat �
     X(KEY_SHIFT_CYRILLIC_YA, 2, "Я")                                  \
     X(KEY_X, 1, "x")                                                  \
     X(KEY_SHIFT_X, 1, "X")                                            \
+    X(KEY_ALT_X, 2, "\x1bx")                                          \
+    X(KEY_SHIFT_ALT_X, 2, "\x1bX")                                    \
+    X(KEY_CTRL_X, 1, "\x18")                                          \
+    X(KEY_ALT_CTRL_X, 2, "\x1b\x18")                                  \
     X(KEY_CYRILLIC_CHE, 2, "ч")                                       \
     X(KEY_SHIFT_CYRILLIC_CHE, 2, "Ч")                                 \
     X(KEY_C, 1, "c")                                                  \
