@@ -316,6 +316,10 @@ Ctrl-V перед специальной клавишей заставит cat �
     X(KEY_SHIFT_CYRILLIC_ES, 2, "С")                                  \
     X(KEY_V, 1, "v")                                                  \
     X(KEY_SHIFT_V, 1, "V")                                            \
+    X(KEY_ALT_V, 2, "\x1bv")                                          \
+    X(KEY_SHIFT_ALT_V, 2, "\x1bV")                                    \
+    X(KEY_CTRL_V, 1, "\x16")                                          \
+    X(KEY_ALT_CTRL_V, 2, "\x1b\x16")                                  \
     X(KEY_CYRILLIC_EM, 2, "м")                                        \
     X(KEY_SHIFT_CYRILLIC_EM, 2, "М")                                  \
     X(KEY_B, 1, "b")                                                  \
