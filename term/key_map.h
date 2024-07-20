@@ -324,6 +324,10 @@ Ctrl-V перед специальной клавишей заставит cat �
     X(KEY_SHIFT_CYRILLIC_EM, 2, "М")                                  \
     X(KEY_B, 1, "b")                                                  \
     X(KEY_SHIFT_B, 1, "B")                                            \
+    X(KEY_ALT_B, 2, "\x1b\x62")                                       \
+    X(KEY_SHIFT_ALT_B, 2, "\x1b\x42")                                 \
+    X(KEY_CTRL_B, 1, "\x02")                                          \
+    X(KEY_ALT_CTRL_B, 2, "\x1b\x06")                                  \
     X(KEY_CYRILLIC_I, 2, "и")                                         \
     X(KEY_SHIFT_CYRILLIC_I, 2, "И")                                   \
     X(KEY_N, 1, "n")                                                  \
