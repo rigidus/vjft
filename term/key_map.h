@@ -38,6 +38,72 @@ Ctrl-V перед специальной клавишей заставит cat �
 
 /*
 
+Соответствие между Ctrl-символами и их обозначениями заключается в том,
+что ^char — это символ, код которого на 64 меньше, чем char . В двоичном формате
+это имеет смысл: символы — это символы, номер которых записан 0 1 0vwxyz, а
+соответствующий управляющий символ - это тот, номер которого  0 0 0vwxyz.
+Для ^? перевернутый бит тот же, но он установлен, а не очищен: ? это 0 0 111111
+и ^? - 0 1 111111.
+
+*/
+
+/*
+C-c отправляет SIGINT
+С-4 или C-\ отправляет SIGQUIT
+
+Вы всегда можете вводить непечатаемые символы в bash с помощью "C-v, key".
+Ctrl-V сообщает терминалу не интерпретировать следующий символ.
+
+https://unix.stackexchange.com/questions/226327/what-does-ctrl4-and-ctrl-do-in-bash/226333#226333
+
+*/
+
+/*
+
+В те времена, когда серьезные компьютеры были размером с несколько вертикальных
+холодильников, терминал связывался с центральным компьютером по последовательному
+кабелю, используя только символы и символы. Символы были частью некоторого
+стандартизированного набора символов, например ASCII или EBCDIC, но обычно ASCII.
+
+ASCII имеет 33 управляющих символа, и оператор терминала отправлял их, нажимая
+специальную клавишу (например, DEL) или удерживая клавишу CTRL и нажимая
+другую клавишу. Центральный компьютер видел только полученный управляющий
+символ; он не знал, какие клавиши были нажаты для создания символа.
+
+Программа эмуляции терминала, такая как xterm, имитирует это поведение. Эмулятор
+ терминала предоставляет возможность отправить все 33 управляющих символа ASCII
+
+Эмуляторы терминала обычно используют следующие сопоставления для генерации
+управляющих символов:
+
+keypress       ASCII
+--------------------
+ESCAPE          27
+DELETE          127
+BACKSPACE       8
+CTRL+SPACE      0
+CTRL+@          0
+CTRL+A          1
+CTRL+B          2
+CTRL+C          3
+etc...
+CTRL+X          24
+CTRL+Y          25
+CTRL+Z          26
+CTRL+[          27
+CTRL+\          28
+CTRL+]          29
+CTRL+^          30
+CTRL+_          31
+
+см также: https://unix.stackexchange.com/questions/79374/are-there-any-linux-terminals-which-can-handle-all-key-combinations/79561#79561
+
+https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-output-work/116630#116630
+
+*/
+
+/*
+
 Порядок модификаторов:
 - SHIFT
 - ALT
@@ -48,7 +114,6 @@ Ctrl-V перед специальной клавишей заставит cat �
 - SHIFT_ALT_CTRL
 
 */
-
 
 // Список клавиатурных входов
 #define KEY_MAP(X)                                                    \
@@ -83,6 +148,22 @@ Ctrl-V перед специальной клавишей заставит cat �
     X(KEY_PGDOWN, 4,          "\x1b[6~")                              \
     X(KEY_ALT_PGDOWN, 6,      "\x1b[6;3~")                            \
     X(KEY_ALT_CTRL_PGDOWN, 6, "\x1b[6;7~")                            \
+    X(KEY_UP, 3, "\x1b\x5b\x41")                                      \
+    X(KEY_ALT_UP, 6, "\x1b\x5b\x31\x3b\x33\x41")                      \
+    X(KEY_SHIFT_ALT_UP, 6, "\x1b\x5b\x31\x3b\x34\x41")                \
+    X(KEY_CTRL_UP, 6, "\x1b\x5b\x31\x3b\x35\x41")                     \
+    X(KEY_DOWN, 3, "\x1b\x5b\x42")                                    \
+    X(KEY_ALT_DOWN, 6, "\x1b\x5b\x31\x3b\x33\x42")                    \
+    X(KEY_SHIFT_ALT_DOWN, 6, "\x1b\x5b\x31\x3b\x34\x42")              \
+    X(KEY_CTRL_DOWN, 6, "\x1b\x5b\x31\x3b\x35\x42")                   \
+    X(LEY_RIGTH, 3, "\x1b\x5b\x43")                                   \
+    X(KEY_ALT_RIGHT, 6, "\x1b\x5b\x31\x3b\x33\x43")                   \
+    X(KEY_SHIFT_ALT_RIGHT, 6, "\x1b\x5b\x31\x3b\x34\x43")             \
+    X(KEY_CTRL_RIGHT, 6, "\x1b\x5b\x31\x3b\x35\x43")                  \
+    X(KEY_LEFT, 3, "\x1b\x5b\x44")                                    \
+    X(KEY_ALT_LEFT, 6, "\x1b\x5b\x31\x3b\x33\x44")                    \
+    X(KEY_SHIFT_ALT_LEFT, 6, "\x1b\x5b\x31\x3b\x34\x44")              \
+    X(KEY_CTRL_LEFT, 6, "\x1b\x5b\x31\x3b\x35\x44")                   \
     X(KEY_ENTER, 1,     "\xa")                                        \
     X(KEY_ALT_ENTER, 2, "\x1b\xa")                                    \
     X(KEY_F1, 3,            "\x1bOP")                                 \
@@ -206,96 +287,182 @@ Ctrl-V перед специальной клавишей заставит cat �
     X(KEY_SHIFT_ALT_EQ_IS_ALT_PLUS, 2, "\x1b+")                       \
     X(KEY_Q, 1, "q")                                                  \
     X(KEY_SHIFT_Q, 1, "Q")                                            \
+    X(KEY_ALT_Q, 2, "\x1b\x71")                                       \
+    X(KEY_SHIFT_ALT_Q, 2, "\x1b\x51") /* C-q = DC1, C-M-Q = \1b = ESC */ \
     X(KEY_CYRILLIC_SHORT_I, 2, "й")                                   \
     X(KEY_SHIFT_CYRILLIC_SHORT_I, 2, "Й")                             \
     X(KEY_W, 1, "w")                                                  \
     X(KEY_SHIFT_W, 1, "W")                                            \
+    X(KEY_ALT_W, 2, "\x1b\x77")                                       \
+    X(KEY_SHIFT_ALT_W, 2, "\x1b\x57")                                 \
+    X(KEY_CTRL_W, 1, "\x17")                                          \
+    X(KEY_ALT_CTRL_W, 2, "\x1b\x17")                                  \
     X(KEY_CYRILLIC_TSE, 2, "ц")                                       \
     X(KEY_SHIFT_CYRILLIC_TSE, 2, "Ц")                                 \
     X(KEY_E, 1, "e")                                                  \
     X(KEY_SHIFT_E, 1, "E")                                            \
+    X(KEY_ALT_E, 2, "\x1b\x65")                                       \
+    X(KEY_SHIFT_ALT_E, 2, "\x1b\x45")                                 \
+    X(KEY_CTRL_E, 1, "\x05")                                          \
+    X(KEY_ALT_CTRL_E, 2, "\x1b\x05")                                  \
     X(KEY_CYRILLIC_U, 2, "у")                                         \
     X(KEY_SHIFT_CYRILLIC_U, 2, "У")                                   \
     X(KEY_R, 1, "r")                                                  \
     X(KEY_SHIFT_R, 1, "R")                                            \
+    X(KEY_ALT_R, 2, "\x1b\x72")                                       \
+    X(KEY_SHIFT_ALT_R, 2, "\x1b\x52")                                 \
+    X(KEY_CTRL_R, 1, "\x12")                                          \
+    X(KEY_ALT_CTRL_R, 2, "\x1b\x12")                                  \
     X(KEY_CYRILLIC_K, 2, "к")                                         \
     X(KEY_SHIFT_CYRILLIC_K, 2, "К")                                   \
     X(KEY_T, 1, "t")                                                  \
     X(KEY_SHIFT_T, 1, "T")                                            \
+    X(KEY_ALT_T, 2, "\x1b\x74")                                       \
+    X(KEY_SHIFT_ALT_T, 2, "\x1b\x54")                                 \
+    X(KEY_CTRL_T, 1, "\x14")                                          \
+    X(KEY_ALT_CTRL_T, 2, "\x1b\x14")                                  \
     X(KEY_CYRILLIC_EH, 2, "е")                                        \
     X(KEY_SHIFT_CYRILLIC_EH, 2, "Е")                                  \
     X(KEY_Y, 1, "y")                                                  \
     X(KEY_SHIFT_Y, 1, "Y")                                            \
+    X(KEY_ALT_Y, 2, "\x1b\x79")                                       \
+    X(KEY_SHIFT_ALT_Y, 2, "\x1b\x59")                                 \
+    X(KEY_CTRL_Y, 1, "\x19")                                          \
+    X(KEY_ALT_CTRL_Y, 2, "\x1b\x19")                                  \
     X(KEY_CYRILLIC_EN, 2, "н")                                        \
     X(KEY_SHIFT_CYRILLIC_EN, 2, "Н")                                  \
     X(KEY_U, 1, "u")                                                  \
     X(KEY_SHIFT_U, 1, "U")                                            \
+    X(KEY_ALT_U, 2, "\x1b\x75")                                       \
+    X(KEY_SHIFT_ALT_U, 2, "\x1b\x55")                                 \
+    X(KEY_CTRL_U, 1, "\x15")                                          \
+    X(KEY_ALT_CTRL_U, 2, "\x1b\x15")                                  \
     X(KEY_CYRILLIC_GE, 2, "г")                                        \
     X(KEY_SHIFT_CYRILLIC_GE, 2, "Г")                                  \
     X(KEY_I, 1, "i")                                                  \
     X(KEY_SHIFT_I, 1, "I")                                            \
+    X(KEY_ALT_I, 2, "\x1b\x69")                                       \
+    X(KEY_SHIFT_ALT_I, 2, "\x1b\x49")                                 \
+    /* Note: Ctrl+I = Tab */                                          \
+    X(KEY_ALT_CTRL_I, 2, "\x1b\x09")                                  \
     X(KEY_CYRILLIC_SHA, 2, "ш")                                       \
     X(KEY_SHIFT_CYRILLIC_SHA, 2, "Ш")                                 \
     X(KEY_O, 1, "o")                                                  \
     X(KEY_SHIFT_O, 1, "O")                                            \
+    X(KEY_ALT_O, 2, "\x1b\x6f")                                       \
+    X(KEY_SHIFT_ALT_O, 2, "\x1b\x4f") /* fixme: duplicate bug */      \
+    X(KEY_CTRL_O, 1, "\x0f")                                          \
+    X(KEY_ALT_CTRL_O, 2, "\x1b\x0f")                                  \
     X(KEY_CYRILLIC_SHCHA, 2, "щ")                                     \
     X(KEY_SHIFT_CYRILLIC_SHCHA, 2, "Щ")                               \
     X(KEY_P, 1, "p")                                                  \
     X(KEY_SHIFT_P, 1, "P")                                            \
+    X(KEY_ALT_P, 2, "\x1b\x70")                                       \
+    X(KEY_SHIFT_ALT_P, 2, "\x1b\x50")                                 \
+    X(KEY_CTRL_P, 1, "\x10")                                          \
+    X(KEY_ALT_CTRL_P, 2, "\x1b\x50")                                  \
     X(KEY_CYRILLIC_ZE, 2, "з")                                        \
     X(KEY_SHIFT_CYRILLIC_ZE, 2, "З")                                  \
     X(KEY_LEFT_SQUARE_BRACKET, 1, "[")                                \
     X(KEY_SHIFT_LEFT_SQUARE_BRACKET_IS_LEFT_CURVE_BRACKET, 1, "{")    \
+    X(KEY_ALT_LEFT_SQUARE_BRACKET, 2, "\x1b\x5b") /* fixme ^[... */   \
+    X(KEY_SHIFT_ALT_LEFT_SQUARE_BRACKET, 2, "\x1b\x7b")               \
+    /* Ctrl+[ = ESC */                                                \
+    X(KEY_ALT_CTRL_LEFT_SQUARE_BRACKET, 2, "\x1b\x1b")                \
     X(KEY_CYRILLIC_KHA, 2, "х")                                       \
     X(KEY_SHIFT_CYRILLIC_KHA, 2, "Х")                                 \
     X(KEY_RIGHT_SQUARE_BRACKET, 1, "]")                               \
+    X(KEY_ALT_RIGHT_SQUARE_BRACKET, 2, "\x1b\x5d")                    \
+    X(KEY_SHIFT_ALT_RIGHT_SQUARE_BRACKET, 2, "\x1b\x7d")              \
+    X(KEY_CTRL_RIGHT_SQUARE_BRACKET, 1, "\x1d")                       \
+    X(KEY_ALT_CTRL_RIGHT_SQUARE_BRACKET, 2, "\x1b\x1d")               \
     X(KEY_SHIFT_RIGHT_SQUARE_BRACKET_IS_RIGHT_CURVE_BRACKET, 1, "}")  \
     X(KEY_CYRILLIC_HARDSIGN, 2, "ъ")                                  \
     X(KEY_SHIFT_CYRILLIC_HARDSIGN, 2, "Ъ")                            \
     X(KEY_BACKSLASH, 1, "\\")                                         \
     X(KEY_SHIFT_BACKSLASH_IS_VERTICAL_LINE, 1, "|")                   \
+    X(KEY_ALT_BACKSLASH, 2, "\x1b\x5c")                               \
+    X(KEY_SHIFT_ALT_BACKSLASH, 2, "\x1b\x7c")                         \
+    /* CTRL_BACKSLASH = SIGQUIT */                                    \
+    /* ALT_CTRL_BACKSLASH = SIGQUIT */                                \
     X(KEY_A, 1, "a")                                                  \
     X(KEY_SHIFT_A, 1, "A")                                            \
+    X(KEY_ALT_A, 2, "\x1b\x61")                                       \
+    X(KEY_SHIFT_ALT_A, 2, "\x1b\x41")                                 \
+    X(KEY_CTRL_A, 1, "\x01")                                          \
+    X(KEY_ALT_CTRL_A, 2, "\x1b\x01")                                  \
     X(KEY_CYRILLIC_EF, 2, "ф")                                        \
     X(KEY_SHIFT_CYRILLIC_EF, 2, "Ф")                                  \
     X(KEY_S, 1, "s")                                                  \
     X(KEY_SHIFT_S, 1, "S")                                            \
+    X(KEY_ALT_S, 2, "\x1b\x73")                                       \
+    X(KEY_SHIFT_ALT_S, 2, "\x1b\x53") /* C-s = C-M-s = STOP_OUTPUT */ \
     X(KEY_CYRILLIC_YERY, 2, "ы")                                      \
     X(KEY_SHIFT_CYRILLIC_YERY, 2, "Ы")                                \
     X(KEY_D, 1, "d")                                                  \
     X(KEY_SHIFT_D, 1, "D")                                            \
+    X(KEY_ALT_D, 2, "\x1b\x64")                                       \
+    X(KEY_SHIFT_ALT_D, 2, "\x1b\x44")                                 \
+    X(KEY_CTRL_D, 1, "\x04")                                          \
+    X(KEY_ALT_CTRL_D, 2, "\x1b\x04")                                  \
     X(KEY_CYRILLIC_VE, 2, "в")                                        \
     X(KEY_SHIFT_CYRILLIC_VE, 2, "В")                                  \
     X(KEY_F, 1, "f")                                                  \
     X(KEY_SHIFT_F, 1, "F")                                            \
+    X(KEY_ALT_F, 2, "\x1b\x66")                                       \
+    X(KEY_SHIFT_ALT_F, 2, "\x1b\x46")                                 \
+    X(KEY_CTRL_F, 1, "\x06")                                          \
+    X(KEY_ALT_CTRL_F, 2, "\x1b\x06")                                  \
     X(KEY_CYRILLIC_A, 2, "а")                                         \
     X(KEY_SHIFT_CYRILLIC_A, 2, "А")                                   \
     X(KEY_G, 1, "g")                                                  \
     X(KEY_SHIFT_G, 1, "G")                                            \
+    X(KEY_ALT_G, 2, "\x1b\x67")                                       \
+    X(KEY_SHIFT_ALT_G, 2, "\x1b\x47")                                 \
+    X(KEY_CTRL_G, 1, "\x07")                                          \
+    X(KEY_ALT_CTRL_G, 2, "\x1b\x07")                                  \
     X(KEY_CYRILLIC_PE, 2, "п")                                        \
     X(KEY_SHIFT_CYRILLIC_PE, 2, "П")                                  \
     X(KEY_H, 1, "h")                                                  \
     X(KEY_SHIFT_H, 1, "H")                                            \
+    X(KEY_ALT_H, 2, "\x1b\x68")                                       \
+    X(KEY_SHIFT_ALT_H, 2, "\x1b\x48") /* C-h = C-BS, C-M-h = C-M-BS */ \
     X(KEY_CYRILLIC_ER, 2, "р")                                        \
     X(KEY_SHIFT_CYRILLIC_ER, 2, "Р")                                  \
     X(KEY_J, 1, "j")                                                  \
     X(KEY_SHIFT_J, 1, "J")                                            \
+    X(KEY_ALT_J, 2, "\x1b\x67")                                       \
+    X(KEY_SHIFT_ALT_J, 2, "\x1b\x4a") /* C-j = C-Enter, C-M-j = M-Enter */ \
     X(KEY_CYRILLIC_O, 2, "о")                                         \
     X(KEY_SHIFT_CYRILLIC_O, 2, "О")                                   \
     X(KEY_K, 1, "k")                                                  \
     X(KEY_SHIFT_K, 1, "K")                                            \
+    X(KEY_ALT_K, 2, "\x1b\x6b")                                       \
+    X(KEY_SHIFT_ALT_K, 2, "\x1b\x4b")                                 \
+    X(KEY_CTRL_K, 1, "\x0b")                                          \
+    X(KEY_ALT_CTRL_K, 2, "\x1b\x0b")                                  \
     X(KEY_CYRILLIC_EL, 2, "л")                                        \
     X(KEY_SHIFT_CYRILLIC_EL, 2, "Л")                                  \
     X(KEY_L, 1, "l")                                                  \
     X(KEY_SHIFT_L, 1, "L")                                            \
+    X(KEY_ALT_L, 2, "\x1b\x6c")                                       \
+    X(KEY_SHIFT_ALT_L, 2, "\x1b\x4c")                                 \
+    X(KEY_CTRL_L, 1, "\x0c")                                          \
+    X(KEY_ALT_CTRL_L, 2, "\x1b\x0c")                                  \
     X(KEY_CYRILLIC_DE, 2, "д")                                        \
     X(KEY_SHIFT_CYRILLIC_DE, 2, "Д")                                  \
     X(KEY_SEMICOLON, 1, ";")                                          \
     X(KEY_SHIFT_SEMICOLON_IS_COLON, 1, ":")                           \
+    X(KEY_ALT_SEMICOLON, 2, "\x1b\x3b")                               \
+    X(KEY_SHIFT_ALT_SEMICOLON, 2, "\x1b\x3a")                         \
+    X(KEY_CTRL_SEMICOLON, 1, "\x0c")                                  \
+    X(KEY_ALT_CTRL_SEMICOLON, 2, "\x1b\x0c")                          \
     X(KEY_CYRILLIC_ZHE, 2, "ж")                                       \
     X(KEY_SHIFT_CYRILLIC_ZHE, 2, "Ж")                                 \
     X(KEY_TICK, 1, "'")                                               \
     X(KEY_SHIFT_TICK_IS_QUOTATIONS, 1, "\"")                          \
+    X(KEY_ALT_TICK, 2, "\x1b\x27")                                    \
+    X(KEY_SHIFT_ALT_TICK, 2, "\x1b\x22") /* no C- & C-M- */           \
     X(KEY_CYRILLIC_E, 2, "э")                                         \
     X(KEY_SHIFT_CYRILLIC_E, 2, "Э")                                   \
     X(KEY_Z, 1, "z")                                                  \
@@ -327,27 +494,40 @@ Ctrl-V перед специальной клавишей заставит cat �
     X(KEY_ALT_B, 2, "\x1b\x62")                                       \
     X(KEY_SHIFT_ALT_B, 2, "\x1b\x42")                                 \
     X(KEY_CTRL_B, 1, "\x02")                                          \
-    X(KEY_ALT_CTRL_B, 2, "\x1b\x06")                                  \
+    X(KEY_ALT_CTRL_B, 2, "\x1b\x02")                                  \
     X(KEY_CYRILLIC_I, 2, "и")                                         \
     X(KEY_SHIFT_CYRILLIC_I, 2, "И")                                   \
     X(KEY_N, 1, "n")                                                  \
     X(KEY_SHIFT_N, 1, "N")                                            \
+    X(KEY_ALT_N, 2, "\x1b\x6e")                                       \
+    X(KEY_SHIFT_ALT_N, 2, "\x1b\x4e")                                 \
+    X(KEY_CTRL_N, 1, "\x0e")                                          \
+    X(KEY_ALT_CTRL_N, 2, "\x1b\x0e")                                  \
     X(KEY_CYRILLIC_TE, 2, "т")                                        \
     X(KEY_SHIFT_CYRILLIC_TE, 2, "Т")                                  \
     X(KEY_M, 1, "m")                                                  \
     X(KEY_SHIFT_M, 1, "M")                                            \
+    X(KEY_ALT_M, 2, "\x1b\x6d")                                       \
+    X(KEY_SHIFT_ALT_M, 2, "\x1b\x4d") /* C-m = Enter, C-M-m = M-Enter*/ \
     X(KEY_CYRILLIC_SOFTSIGN, 2, "ь")                                  \
     X(KEY_SHIFT_CYRILLIC_SOFTSIGN, 2, "Ь")                            \
     X(KEY_COLON, 1, ",")                                              \
     X(KEY_SHIFT_COMMA_IS_LESS , 1, "<")                               \
+    X(KEY_ALT_COLON, 2, "\x1b\x2c")                                   \
+    X(KEY_SHIFT_ALT_COLON, 2, "\x1b\x3c") /* not C- & C-M */          \
     X(KEY_CYRILLIC_BE , 2, "б")                                       \
     X(KEY_SHIFT_CYRILLIC_BE , 2, "Б")                                 \
     X(KEY_DOT, 1, ".")                                                \
     X(KEY_SHIFT_DOT_IS_GREATER, 1, ">")                               \
+    X(KEY_ALT_DOT, 2, "\x1b\x2e")                                     \
+    X(KEY_SHIFT_ALT_DOT, 2, "\x1b\x3e") /* not C- & C-M */            \
     X(KEY_CYRILLIC_YU, 2, "ю")                                        \
     X(KEY_SHIFT_CYRILLIC_YU, 2, "Ю")                                  \
     X(KEY_SLASH, 1, "/")                                              \
     X(KEY_SHIFT_SLASH_IS_QUESTION, 1, "?")                            \
+    X(KEY_ALT_SLASH, 2, "\x1b\x2f")                                   \
+    X(KEY_SHIFT_ALT_SLASH, 2, "\x1b\x3d") /* not C- & C-M */          \
+
 
 /*
 
