@@ -527,7 +527,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_SHIFT_SLASH_IS_QUESTION, 1, "?")                            \
     X(KEY_ALT_SLASH, 2, "\x1b\x2f")                                   \
     X(KEY_SHIFT_ALT_SLASH, 2, "\x1b\x3d") /* not C- & C-M */          \
-
+    X(KEY_SPACE, 1, "\x20")                                           \
+    X(KEY_SHIFT_ALT_SPACE, 2, "\x1b\x20")                             \
 
 /*
 
