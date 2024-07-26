@@ -100,6 +100,10 @@ CTRL+_          31
 
 https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-output-work/116630#116630
 
+https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-output-work/116630#116630
+
+
+
 */
 
 /*
@@ -291,6 +295,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_SHIFT_ALT_Q, 2, "\x1b\x51") /* C-q = DC1, C-M-Q = \1b = ESC */ \
     X(KEY_CYRILLIC_SHORT_I, 2, "й")                                   \
     X(KEY_SHIFT_CYRILLIC_SHORT_I, 2, "Й")                             \
+    X(KEY_ALT_CYRILLIC_SHORT_I, 2, "\x1bй")                           \
+    X(KEY_SHIFT_ALT_CYRILLIC_SHORT_I, 2, "\x1bЙ")                     \
     X(KEY_W, 1, "w")                                                  \
     X(KEY_SHIFT_W, 1, "W")                                            \
     X(KEY_ALT_W, 2, "\x1b\x77")                                       \
