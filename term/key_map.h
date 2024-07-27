@@ -295,8 +295,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_SHIFT_ALT_Q, 2, "\x1b\x51") /* C-q = DC1, C-M-Q = \1b = ESC */ \
     X(KEY_CYRILLIC_SHORT_I, 2, "й")                                   \
     X(KEY_SHIFT_CYRILLIC_SHORT_I, 2, "Й")                             \
-    X(KEY_ALT_CYRILLIC_SHORT_I, 2, "\x1bй")                           \
-    X(KEY_SHIFT_ALT_CYRILLIC_SHORT_I, 2, "\x1bЙ")                     \
+    X(KEY_ALT_CYRILLIC_SHORT_I, 3, "\x1bй")                           \
+    X(KEY_SHIFT_ALT_CYRILLIC_SHORT_I, 3, "\x1bЙ")                     \
     X(KEY_W, 1, "w")                                                  \
     X(KEY_SHIFT_W, 1, "W")                                            \
     X(KEY_ALT_W, 2, "\x1b\x77")                                       \
@@ -305,6 +305,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_W, 2, "\x1b\x17")                                  \
     X(KEY_CYRILLIC_TSE, 2, "ц")                                       \
     X(KEY_SHIFT_CYRILLIC_TSE, 2, "Ц")                                 \
+    X(KEY_ALT_CYRILLIC_TSE, 3, "\x1bц")                               \
+    X(KEY_ALT_SHIFT_CYRILLIC_TSE, 3, "\x1bЦ")                         \
     X(KEY_E, 1, "e")                                                  \
     X(KEY_SHIFT_E, 1, "E")                                            \
     X(KEY_ALT_E, 2, "\x1b\x65")                                       \
@@ -313,6 +315,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_E, 2, "\x1b\x05")                                  \
     X(KEY_CYRILLIC_U, 2, "у")                                         \
     X(KEY_SHIFT_CYRILLIC_U, 2, "У")                                   \
+    X(KEY_ALT_CYRILLIC_U, 3, "\x1bу")                                 \
+    X(KEY_SHIFT_ALT_CYRILLIC_U, 3, "\x1bУ")                           \
     X(KEY_R, 1, "r")                                                  \
     X(KEY_SHIFT_R, 1, "R")                                            \
     X(KEY_ALT_R, 2, "\x1b\x72")                                       \
@@ -321,6 +325,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_R, 2, "\x1b\x12")                                  \
     X(KEY_CYRILLIC_K, 2, "к")                                         \
     X(KEY_SHIFT_CYRILLIC_K, 2, "К")                                   \
+    X(KEY_ALT_CYRILLIC_K, 3, "\x1bк")                                 \
+    X(KEY_SHIFT_ALT_CYRILLIC_K, 3, "\x1bК")                           \
     X(KEY_T, 1, "t")                                                  \
     X(KEY_SHIFT_T, 1, "T")                                            \
     X(KEY_ALT_T, 2, "\x1b\x74")                                       \
@@ -329,6 +335,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_T, 2, "\x1b\x14")                                  \
     X(KEY_CYRILLIC_EH, 2, "е")                                        \
     X(KEY_SHIFT_CYRILLIC_EH, 2, "Е")                                  \
+    X(KEY_ALT_CYRILLIC_EH, 3, "\x1bе")                                \
+    X(KEY_SHIFT_ALT_CYRILLIC_EH, 3, "\x1bЕ")                          \
     X(KEY_Y, 1, "y")                                                  \
     X(KEY_SHIFT_Y, 1, "Y")                                            \
     X(KEY_ALT_Y, 2, "\x1b\x79")                                       \
@@ -337,6 +345,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_Y, 2, "\x1b\x19")                                  \
     X(KEY_CYRILLIC_EN, 2, "н")                                        \
     X(KEY_SHIFT_CYRILLIC_EN, 2, "Н")                                  \
+    X(KEY_ALT_CYRILLIC_EN, 3, "\x1bн")                                \
+    X(KEY_SHIFT_ALT_CYRILLIC_EN, 3, "\x1bН")                          \
     X(KEY_U, 1, "u")                                                  \
     X(KEY_SHIFT_U, 1, "U")                                            \
     X(KEY_ALT_U, 2, "\x1b\x75")                                       \
@@ -345,6 +355,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_U, 2, "\x1b\x15")                                  \
     X(KEY_CYRILLIC_GE, 2, "г")                                        \
     X(KEY_SHIFT_CYRILLIC_GE, 2, "Г")                                  \
+    X(KEY_ALT_CYRILLIC_GE, 3, "\x1bг")                                \
+    X(KEY_SHIFT_ALT_CYRILLIC_GE, 3, "\x1bГ")                          \
     X(KEY_I, 1, "i")                                                  \
     X(KEY_SHIFT_I, 1, "I")                                            \
     X(KEY_ALT_I, 2, "\x1b\x69")                                       \
@@ -353,6 +365,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_I, 2, "\x1b\x09")                                  \
     X(KEY_CYRILLIC_SHA, 2, "ш")                                       \
     X(KEY_SHIFT_CYRILLIC_SHA, 2, "Ш")                                 \
+    X(KEY_ALT_CYRILLIC_SHA, 3, "\x1bш")                               \
+    X(KEY_SHIFT_ALT_CYRILLIC_SHA, 3, "\x1bШ")                         \
     X(KEY_O, 1, "o")                                                  \
     X(KEY_SHIFT_O, 1, "O")                                            \
     X(KEY_ALT_O, 2, "\x1b\x6f")                                       \
@@ -361,6 +375,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_O, 2, "\x1b\x0f")                                  \
     X(KEY_CYRILLIC_SHCHA, 2, "щ")                                     \
     X(KEY_SHIFT_CYRILLIC_SHCHA, 2, "Щ")                               \
+    X(KEY_ALT_CYRILLIC_SHCHA, 3, "\x1bщ")                             \
+    X(KEY_SHIFT_ALT_CYRILLIC_SHCHA, 3, "\x1bЩ")                       \
     X(KEY_P, 1, "p")                                                  \
     X(KEY_SHIFT_P, 1, "P")                                            \
     X(KEY_ALT_P, 2, "\x1b\x70")                                       \
@@ -369,6 +385,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_P, 2, "\x1b\x50")                                  \
     X(KEY_CYRILLIC_ZE, 2, "з")                                        \
     X(KEY_SHIFT_CYRILLIC_ZE, 2, "З")                                  \
+    X(KEY_ALT_CYRILLIC_ZE, 3, "\x1bз")                                \
+    X(KEY_SHIFT_ALT_CYRILLIC_ZE, 3, "\x1bЗ")                          \
     X(KEY_LEFT_SQUARE_BRACKET, 1, "[")                                \
     X(KEY_SHIFT_LEFT_SQUARE_BRACKET_IS_LEFT_CURVE_BRACKET, 1, "{")    \
     X(KEY_ALT_LEFT_SQUARE_BRACKET, 2, "\x1b\x5b") /* fixme ^[... */   \
@@ -377,6 +395,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_LEFT_SQUARE_BRACKET, 2, "\x1b\x1b")                \
     X(KEY_CYRILLIC_KHA, 2, "х")                                       \
     X(KEY_SHIFT_CYRILLIC_KHA, 2, "Х")                                 \
+    X(KEY_ALT_CYRILLIC_KHA, 3, "\x1bх")                               \
+    X(KEY_SHIFT_ALT_CYRILLIC_KHA, 3, "\x1bХ")                         \
     X(KEY_RIGHT_SQUARE_BRACKET, 1, "]")                               \
     X(KEY_ALT_RIGHT_SQUARE_BRACKET, 2, "\x1b\x5d")                    \
     X(KEY_SHIFT_ALT_RIGHT_SQUARE_BRACKET, 2, "\x1b\x7d")              \
@@ -385,6 +405,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_SHIFT_RIGHT_SQUARE_BRACKET_IS_RIGHT_CURVE_BRACKET, 1, "}")  \
     X(KEY_CYRILLIC_HARDSIGN, 2, "ъ")                                  \
     X(KEY_SHIFT_CYRILLIC_HARDSIGN, 2, "Ъ")                            \
+    X(KEY_ALT_CYRILLIC_HARDSIGN, 3, "\x1bъ")                          \
+    X(KEY_SHIFT_ALT_CYRILLIC_HARDSIGN, 3, "\x1bЪ")                    \
     X(KEY_BACKSLASH, 1, "\\")                                         \
     X(KEY_SHIFT_BACKSLASH_IS_VERTICAL_LINE, 1, "|")                   \
     X(KEY_ALT_BACKSLASH, 2, "\x1b\x5c")                               \
@@ -399,12 +421,16 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_A, 2, "\x1b\x01")                                  \
     X(KEY_CYRILLIC_EF, 2, "ф")                                        \
     X(KEY_SHIFT_CYRILLIC_EF, 2, "Ф")                                  \
+    X(KEY_ALT_CYRILLIC_EF, 3, "\x1bф")                                \
+    X(KEY_SHIFT_ALT_CYRILLIC_EF, 3, "\x1bФ")                          \
     X(KEY_S, 1, "s")                                                  \
     X(KEY_SHIFT_S, 1, "S")                                            \
     X(KEY_ALT_S, 2, "\x1b\x73")                                       \
     X(KEY_SHIFT_ALT_S, 2, "\x1b\x53") /* C-s = C-M-s = STOP_OUTPUT */ \
     X(KEY_CYRILLIC_YERY, 2, "ы")                                      \
     X(KEY_SHIFT_CYRILLIC_YERY, 2, "Ы")                                \
+    X(KEY_ALT_CYRILLIC_YERY, 3, "\x1bы")                              \
+    X(KEY_SHIFT_ALT_CYRILLIC_YERY, 3, "\x1bЫ")                        \
     X(KEY_D, 1, "d")                                                  \
     X(KEY_SHIFT_D, 1, "D")                                            \
     X(KEY_ALT_D, 2, "\x1b\x64")                                       \
@@ -413,6 +439,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_D, 2, "\x1b\x04")                                  \
     X(KEY_CYRILLIC_VE, 2, "в")                                        \
     X(KEY_SHIFT_CYRILLIC_VE, 2, "В")                                  \
+    X(KEY_ALT_CYRILLIC_VE, 3, "\x1bв")                                \
+    X(KEY_SHIFT_ALT_CYRILLIC_VE, 3, "\x1bВ")                          \
     X(KEY_F, 1, "f")                                                  \
     X(KEY_SHIFT_F, 1, "F")                                            \
     X(KEY_ALT_F, 2, "\x1b\x66")                                       \
@@ -421,6 +449,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_F, 2, "\x1b\x06")                                  \
     X(KEY_CYRILLIC_A, 2, "а")                                         \
     X(KEY_SHIFT_CYRILLIC_A, 2, "А")                                   \
+    X(KEY_ALT_CYRILLIC_A, 3, "\x1bа")                                 \
+    X(KEY_SHIFT_ALT_CYRILLIC_A, 3, "\x1bА")                           \
     X(KEY_G, 1, "g")                                                  \
     X(KEY_SHIFT_G, 1, "G")                                            \
     X(KEY_ALT_G, 2, "\x1b\x67")                                       \
@@ -429,18 +459,24 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_G, 2, "\x1b\x07")                                  \
     X(KEY_CYRILLIC_PE, 2, "п")                                        \
     X(KEY_SHIFT_CYRILLIC_PE, 2, "П")                                  \
+    X(KEY_ALT_CYRILLIC_PE, 3, "\x1bп")                                \
+    X(KEY_SHIFT_ALT_CYRILLIC_PE, 3, "\x1bП")                          \
     X(KEY_H, 1, "h")                                                  \
     X(KEY_SHIFT_H, 1, "H")                                            \
     X(KEY_ALT_H, 2, "\x1b\x68")                                       \
-    X(KEY_SHIFT_ALT_H, 2, "\x1b\x48") /* C-h = C-BS, C-M-h = C-M-BS */ \
+    X(KEY_SHIFT_ALT_H, 2, "\x1b\x48") /* C-h = C-BS, C-M-h = C-M-BS */\
     X(KEY_CYRILLIC_ER, 2, "р")                                        \
     X(KEY_SHIFT_CYRILLIC_ER, 2, "Р")                                  \
+    X(KEY_ALT_CYRILLIC_ER, 3, "\x1bр")                                \
+    X(KEY_SHIFT_ALT_CYRILLIC_ER, 3, "\x1bР")                          \
     X(KEY_J, 1, "j")                                                  \
     X(KEY_SHIFT_J, 1, "J")                                            \
     X(KEY_ALT_J, 2, "\x1b\x67")                                       \
     X(KEY_SHIFT_ALT_J, 2, "\x1b\x4a") /* C-j = C-Enter, C-M-j = M-Enter */ \
     X(KEY_CYRILLIC_O, 2, "о")                                         \
     X(KEY_SHIFT_CYRILLIC_O, 2, "О")                                   \
+    X(KEY_ALT_CYRILLIC_O, 3, "\x1bо")                                 \
+    X(KEY_SHIFT_ALT_CYRILLIC_O, 3, "\x1bО")                           \
     X(KEY_K, 1, "k")                                                  \
     X(KEY_SHIFT_K, 1, "K")                                            \
     X(KEY_ALT_K, 2, "\x1b\x6b")                                       \
@@ -449,6 +485,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_K, 2, "\x1b\x0b")                                  \
     X(KEY_CYRILLIC_EL, 2, "л")                                        \
     X(KEY_SHIFT_CYRILLIC_EL, 2, "Л")                                  \
+    X(KEY_ALT_CYRILLIC_EL, 3, "\x1bл")                                \
+    X(KEY_SHIFT_ALT_CYRILLIC_EL, 3, "\x1bЛ")                          \
     X(KEY_L, 1, "l")                                                  \
     X(KEY_SHIFT_L, 1, "L")                                            \
     X(KEY_ALT_L, 2, "\x1b\x6c")                                       \
@@ -457,6 +495,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_L, 2, "\x1b\x0c")                                  \
     X(KEY_CYRILLIC_DE, 2, "д")                                        \
     X(KEY_SHIFT_CYRILLIC_DE, 2, "Д")                                  \
+    X(KEY_ALT_CYRILLIC_DE, 3, "\x1bд")                                \
+    X(KEY_SHIFT_ALT_CYRILLIC_DE, 3, "\x1bД")                          \
     X(KEY_SEMICOLON, 1, ";")                                          \
     X(KEY_SHIFT_SEMICOLON_IS_COLON, 1, ":")                           \
     X(KEY_ALT_SEMICOLON, 2, "\x1b\x3b")                               \
@@ -465,16 +505,22 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_SEMICOLON, 2, "\x1b\x0c")                          \
     X(KEY_CYRILLIC_ZHE, 2, "ж")                                       \
     X(KEY_SHIFT_CYRILLIC_ZHE, 2, "Ж")                                 \
+    X(KEY_ALT_CYRILLIC_ZHE, 3, "\x1bж")                               \
+    X(KEY_SHIFT_ALT_CYRILLIC_ZHE, 3, "\x1bЖ")                         \
     X(KEY_TICK, 1, "'")                                               \
     X(KEY_SHIFT_TICK_IS_QUOTATIONS, 1, "\"")                          \
     X(KEY_ALT_TICK, 2, "\x1b\x27")                                    \
     X(KEY_SHIFT_ALT_TICK, 2, "\x1b\x22") /* no C- & C-M- */           \
     X(KEY_CYRILLIC_E, 2, "э")                                         \
     X(KEY_SHIFT_CYRILLIC_E, 2, "Э")                                   \
+    X(KEY_ALT_CYRILLIC_E, 3, "\x1bэ")                                 \
+    X(KEY_SHIFT_ALT_CYRILLIC_E, 3, "\x1bЭ")                           \
     X(KEY_Z, 1, "z")                                                  \
     X(KEY_SHIFT_Z, 1, "Z")                                            \
     X(KEY_CYRILLIC_YA, 2, "я")                                        \
     X(KEY_SHIFT_CYRILLIC_YA, 2, "Я")                                  \
+    X(KEY_ALT_CYRILLIC_YA, 3, "\x1bя")                                \
+    X(KEY_SHIFT_ALT_CYRILLIC_YA, 3, "\x1bЯ")                          \
     X(KEY_X, 1, "x")                                                  \
     X(KEY_SHIFT_X, 1, "X")                                            \
     X(KEY_ALT_X, 2, "\x1bx")                                          \
@@ -483,10 +529,14 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_X, 2, "\x1b\x18")                                  \
     X(KEY_CYRILLIC_CHE, 2, "ч")                                       \
     X(KEY_SHIFT_CYRILLIC_CHE, 2, "Ч")                                 \
+    X(KEY_ALT_CYRILLIC_CHE, 3, "\x1bч")                               \
+    X(KEY_SHIFT_ALT_CYRILLIC_CHE, 3, "\x1bЧ")                         \
     X(KEY_C, 1, "c")                                                  \
     X(KEY_SHIFT_C, 1, "C")                                            \
     X(KEY_CYRILLIC_ES, 2, "с")                                        \
     X(KEY_SHIFT_CYRILLIC_ES, 2, "С")                                  \
+    X(KEY_ALT_CYRILLIC_ES, 3, "\x1bс")                                \
+    X(KEY_SHIFT_ALT_CYRILLIC_ES, 3, "\x1bС")                          \
     X(KEY_V, 1, "v")                                                  \
     X(KEY_SHIFT_V, 1, "V")                                            \
     X(KEY_ALT_V, 2, "\x1bv")                                          \
@@ -495,6 +545,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_V, 2, "\x1b\x16")                                  \
     X(KEY_CYRILLIC_EM, 2, "м")                                        \
     X(KEY_SHIFT_CYRILLIC_EM, 2, "М")                                  \
+    X(KEY_ALT_CYRILLIC_EM, 3, "\x1bм")                                \
+    X(KEY_SHIFT_ALT_CYRILLIC_EM, 3, "\x1bМ")                          \
     X(KEY_B, 1, "b")                                                  \
     X(KEY_SHIFT_B, 1, "B")                                            \
     X(KEY_ALT_B, 2, "\x1b\x62")                                       \
@@ -503,6 +555,8 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_B, 2, "\x1b\x02")                                  \
     X(KEY_CYRILLIC_I, 2, "и")                                         \
     X(KEY_SHIFT_CYRILLIC_I, 2, "И")                                   \
+    X(KEY_ALT_CYRILLIC_I, 3, "\x1bи")                                 \
+    X(KEY_SHIFT_ALT_CYRILLIC_I, 3, "\x1bИ")                           \
     X(KEY_N, 1, "n")                                                  \
     X(KEY_SHIFT_N, 1, "N")                                            \
     X(KEY_ALT_N, 2, "\x1b\x6e")                                       \
@@ -511,24 +565,32 @@ https://unix.stackexchange.com/questions/116629/how-do-keyboard-input-and-text-o
     X(KEY_ALT_CTRL_N, 2, "\x1b\x0e")                                  \
     X(KEY_CYRILLIC_TE, 2, "т")                                        \
     X(KEY_SHIFT_CYRILLIC_TE, 2, "Т")                                  \
+    X(KEY_ALT_CYRILLIC_TE, 3, "\x1bт")                                \
+    X(KEY_SHIFT_ALT_CYRILLIC_TE, 3, "\x1bТ")                          \
     X(KEY_M, 1, "m")                                                  \
     X(KEY_SHIFT_M, 1, "M")                                            \
     X(KEY_ALT_M, 2, "\x1b\x6d")                                       \
     X(KEY_SHIFT_ALT_M, 2, "\x1b\x4d") /* C-m = Enter, C-M-m = M-Enter*/ \
     X(KEY_CYRILLIC_SOFTSIGN, 2, "ь")                                  \
     X(KEY_SHIFT_CYRILLIC_SOFTSIGN, 2, "Ь")                            \
+    X(KEY_ALT_CYRILLIC_SOFTSIGN, 3, "\x1bь")                          \
+    X(KEY_SHIFT_ALT_CYRILLIC_SOFTSIGN, 3, "\x1bЬ")                    \
     X(KEY_COLON, 1, ",")                                              \
     X(KEY_SHIFT_COMMA_IS_LESS , 1, "<")                               \
     X(KEY_ALT_COLON, 2, "\x1b\x2c")                                   \
     X(KEY_SHIFT_ALT_COLON, 2, "\x1b\x3c") /* not C- & C-M */          \
     X(KEY_CYRILLIC_BE , 2, "б")                                       \
     X(KEY_SHIFT_CYRILLIC_BE , 2, "Б")                                 \
+    X(KEY_ALT_CYRILLIC_BE , 3, "\x1bб")                               \
+    X(KEY_SHIFT_ALT_CYRILLIC_BE , 3, "\x1bБ")                         \
     X(KEY_DOT, 1, ".")                                                \
     X(KEY_SHIFT_DOT_IS_GREATER, 1, ">")                               \
     X(KEY_ALT_DOT, 2, "\x1b\x2e")                                     \
     X(KEY_SHIFT_ALT_DOT, 2, "\x1b\x3e") /* not C- & C-M */            \
     X(KEY_CYRILLIC_YU, 2, "ю")                                        \
     X(KEY_SHIFT_CYRILLIC_YU, 2, "Ю")                                  \
+    X(KEY_ALT_CYRILLIC_YU, 3, "\x1bю")                                \
+    X(KEY_SHIFT_ALT_CYRILLIC_YU, 3, "\x1bЮ")                          \
     X(KEY_SLASH, 1, "/")                                              \
     X(KEY_SHIFT_SLASH_IS_QUESTION, 1, "?")                            \
     X(KEY_ALT_SLASH, 2, "\x1b\x2f")                                   \
