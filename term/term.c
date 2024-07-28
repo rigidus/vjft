@@ -132,10 +132,6 @@ void clearCtrlStack() {
 /* InputEvent */
 
 typedef enum {
-    TEXT_INPUT,
-    BACKSPACE,
-    CTRL,
-    SPECIAL,
     DBG,
     CMD
 } EventType;
@@ -282,82 +278,6 @@ bool processEvents(GapBuffer* outputBuffer, char* input, int* input_size,
         eventQueue = eventQueue->next;
 
         switch(type) {
-        /* case SPECIAL: */
-        /*     if (event->seq != NULL) { */
-        /*     } else { */
-        /*         addLogLine("Special key without seq received"); */
-        /*     } */
-        /*     break; */
-        /* case CTRL: */
-        /*     char buffer[100]; */
-        /*     snprintf(buffer, sizeof(buffer), "CTRL-%s", event->seq); */
-        /*     addLogLine(buffer); */
-        /*     /\* if (isCtrlStackEmpty()) { *\/ */
-        /*     /\*     pushCtrlStack(c); *\/ */
-        /*     /\* } else { *\/ */
-        /*     /\*     /\\* Повторный ввод 'C-x' - Ошибка ввода команд, очистим CtrlStack *\\/ *\/ */
-        /*     /\*     clearCtrlStack(); *\/ */
-        /*     /\* } *\/ */
-        /*     break; */
-        /* case BACKSPACE: */
-        /*     printf("\b \b");  // Удаляем символ в терминале */
-        /*     if (*input_size > 0 && *cursor_pos > 0) { */
-        /*         memmove(&input[*cursor_pos - 1], */
-        /*                 &input[*cursor_pos], */
-        /*                 *input_size - *cursor_pos); */
-        /*         input[--(*input_size)] = '\0'; */
-        /*         (*cursor_pos)--; */
-        /*         updated = true; */
-        /*     } */
-        /*     break; */
-        /* case TEXT_INPUT: */
-        /*     if (event->seq[0] != '\0') { */
-        /*         int seq_len = strlen(event->seq); */
-        /*         if (isCtrlStackEmpty()) { */
-        /*             if (seq_len == 1 && event->seq[0] == '\n') { */
-        /*                 // Обрабатываем перевод строки */
-        /*                 input[*input_size] = '\0'; // Ensure string is terminated */
-        /*                 addLogLine(input); */
-        /*                 memset(input, 0, *input_size); */
-        /*                 *input_size = 0; */
-        /*                 *cursor_pos = 0; */
-        /*                 updated = true; */
-        /*             } else { */
-        /*                 // Обрабатываем обычный символ */
-        /*                 if (*input_size + seq_len < MAX_BUFFER - 1) { */
-        /*                     memmove(&input[*cursor_pos + seq_len], */
-        /*                             &input[*cursor_pos], */
-        /*                             *input_size - *cursor_pos); */
-        /*                     memcpy(&input[*cursor_pos], event->seq, seq_len); */
-        /*                     *input_size += seq_len; */
-        /*                     *cursor_pos += seq_len; */
-        /*                     updated = true; */
-        /*                 } */
-
-        /*             } */
-        /*         } else { */
-        /*             /\* /\\* Ввод команд *\\/ *\/ */
-        /*             /\* if (c == 'p') { *\/ */
-        /*             /\*     /\\* SCROLL_UP *\\/ *\/ */
-        /*             /\*     (*log_window_start)--; *\/ */
-        /*             /\*     if (*log_window_start < 0) { *\/ */
-        /*             /\*         *log_window_start = 0; *\/ */
-        /*             /\*     } *\/ */
-        /*             /\*     updated = true; *\/ */
-        /*             /\* } else if (c == 'n') { *\/ */
-        /*             /\*     /\\* SCROLL_DOWN: *\\/ *\/ */
-        /*             /\*     (*log_window_start)++; *\/ */
-        /*             /\*     if (*log_window_start > logSize - (rows - 1)) { *\/ */
-        /*             /\*         *log_window_start = logSize - (rows - 1); *\/ */
-        /*             /\*     } *\/ */
-        /*             /\*     updated = true; *\/ */
-        /*             /\* } else { *\/ */
-        /*             /\*     /\\* Ошибка, выходим из режима ввода команд *\\/ *\/ */
-        /*             /\*     clearCtrlStack(); *\/ */
-        /*             /\* } *\/ */
-        /*         } */
-        /*     } */
-        /*     break; */
         case DBG:
             if (event->seq != NULL) {
                 char asciiCodes[ASCII_CODES_BUF_SIZE] = {0};
@@ -372,13 +292,12 @@ bool processEvents(GapBuffer* outputBuffer, char* input, int* input_size,
             break;
         case CMD:
             if (event->seq != NULL) {
-                char logMsg[DBG_LOG_MSG_SIZE];
-                snprintf(logMsg, sizeof(logMsg), "[CMD]: %s executed\n", event->seq);
+                char logMsg[DBG_LOG_MSG_SIZE] = {0};
+                snprintf(logMsg, sizeof(logMsg), "[CMD]: %s\n", event->seq);
                 gap_buffer_insert_string(outputBuffer, logMsg);
                 updated = true;
             }
             break;
-
         }
         if (event->seq != NULL) {
             free(event->seq);
