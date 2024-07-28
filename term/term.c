@@ -12,12 +12,12 @@
 #include <pthread.h>
 
 #include "key_map.h"
+#include "gap-buffer.c"
 
 #define MAX_BUFFER 1024
 
 char miniBuffer[MAX_BUFFER] = {0};
 
-void addLogLine(const char* text);
 void drawHorizontalLine(int cols, int y, char sym);
 
 void convertToAsciiCodes(const char *input, char *output, size_t outputSize) {
@@ -271,8 +271,8 @@ const KeyMap* findCommandByKey(Key key) {
 #define ASCII_CODES_BUF_SIZE 127
 #define DBG_LOG_MSG_SIZE 255
 
-bool processEvents(char* input, int* input_size, int* cursor_pos,
-                   int* log_window_start, int rows, int logSize)
+bool processEvents(GapBuffer* outputBuffer, char* input, int* input_size,
+                   int* cursor_pos, int* log_window_start, int rows)
 {
     pthread_mutex_lock(&eventQueue_mutex);
     bool updated = false;
@@ -362,22 +362,23 @@ bool processEvents(char* input, int* input_size, int* cursor_pos,
             if (event->seq != NULL) {
                 char asciiCodes[ASCII_CODES_BUF_SIZE] = {0};
                 convertToAsciiCodes(event->seq, asciiCodes, ASCII_CODES_BUF_SIZE);
-                char logMsg[DBG_LOG_MSG_SIZE] = {0};
                 Key key = identify_key(event->seq, event->seq_size);
-                snprintf(logMsg, sizeof(logMsg), "[DBG]: %s, [%s] (%d)",
+                char logMsg[DBG_LOG_MSG_SIZE] = {0};
+                snprintf(logMsg, sizeof(logMsg), "[DBG]: %s, [%s] (%d)\n",
                          key_to_str(key), asciiCodes, event->seq_size);
-                addLogLine(logMsg);
+                gap_buffer_insert_string(outputBuffer, logMsg);
                 updated = true;
             }
             break;
         case CMD:
             if (event->seq != NULL) {
-                char logMsg[DBG_LOG_MSG_SIZE] = {0};
-                snprintf(logMsg, sizeof(logMsg), "[CMD]: %s", event->seq);
-                addLogLine(logMsg);
+                char logMsg[DBG_LOG_MSG_SIZE];
+                snprintf(logMsg, sizeof(logMsg), "[CMD]: %s executed\n", event->seq);
+                gap_buffer_insert_string(outputBuffer, logMsg);
                 updated = true;
             }
             break;
+
         }
         if (event->seq != NULL) {
             free(event->seq);
@@ -388,42 +389,6 @@ bool processEvents(char* input, int* input_size, int* cursor_pos,
     return updated;
 }
 
-
-/* LogLine */
-
-typedef struct LogLine {
-    char* text;
-    struct LogLine* next;
-} LogLine;
-
-LogLine* logHead = NULL;
-LogLine* logTail = NULL;
-int logSize = 0;
-
-void addLogLine(const char* text) {
-    LogLine* newLine = malloc(sizeof(LogLine));
-    newLine->text = strdup(text);
-    newLine->next = NULL;
-
-    if (!logHead) {
-        logHead = newLine;
-        logTail = newLine;
-    } else {
-        logTail->next = newLine;
-        logTail = newLine;
-    }
-    logSize++;
-}
-
-void freeLog() {
-    LogLine* current = logHead;
-    while (current) {
-        LogLine* next = current->next;
-        free(current->text);
-        free(current);
-        current = next;
-    }
-}
 
 /* Iface */
 
@@ -497,46 +462,51 @@ int showInputBuffer(char* input, int cursor_pos, int cols, int bottom) {
     return bottom - lines - 1;
 }
 
-// Функция для отображения лога с переносом строк
-void showOutputBuffer(int log_window_start, int log_window_end, int cols,
-                      int max_lines)
+void showOutputBuffer(GapBuffer* gb, int log_window_start, int log_window_end,
+                      int cols, int max_lines)
 {
-    LogLine* current = logHead;
-    int lineIndex = 0;
-    int displayed_lines = 0;
+    // Получаем содержимое GAP-буфера как единую строку
+    char* content = gap_buffer_get_content(gb);
+    if (!content) return;
 
-    // Перемещаемся к началу необходимого диапазона
-    while (current && lineIndex < log_window_start) {
-        current = current->next;
-        lineIndex++;
+    int lineIndex = 0;  // Индекс текущей строки
+    int displayed_lines = 0;  // Количество уже отображенных строк
+
+    // Перемещение к началу нужного диапазона
+    char* current_pos = content;
+    while (*current_pos && lineIndex < log_window_start) {
+        if (*current_pos == '\n') lineIndex++;
+        current_pos++;
     }
 
-    // Выводим с начала окна
-    moveCursor(1,1);
+    // Вывод с начала окна
+    moveCursor(1, 1);
 
-    // Выводим лог в заданном диапазоне с учетом возможных переносов строк
-    while (current && lineIndex < log_window_end) {
-        int lineLen = strlen(current->text);
-        int printedLength = 0;
-
-        while (printedLength < lineLen && displayed_lines < max_lines) {
+    int line_len = 0;
+    char* line_start = current_pos;
+    while (*current_pos && lineIndex < log_window_end && displayed_lines < max_lines) {
+        if (*current_pos == '\n' || line_len >= cols) {
             // Если строка или остаток строки короче ширины окна, выводим целиком
-            if (lineLen - printedLength <= cols) {
-                printf("%s\n", current->text + printedLength);
-                printedLength = lineLen;
+            if (line_len < cols) {
+                printf("%.*s\n", line_len, line_start);
             } else {
                 // Иначе выводим столько символов, сколько помещается в окно,
-                /* и делаем перенос */
-                fwrite(current->text + printedLength, 1, cols, stdout);
+                // и делаем перенос
+                fwrite(line_start, 1, cols, stdout);
                 putchar('\n');
-                printedLength += cols;
             }
+            line_start = current_pos + 1;  // Перемещаем начало следующей строки
+            line_len = 0;
+            lineIndex++;
+            displayed_lines++;
         }
-
-        current = current->next;
-        lineIndex++;
+        line_len++;
+        current_pos++;
     }
+
+    free(content);
 }
+
 
 /* UTF-8 */
 
@@ -669,8 +639,9 @@ bool keyb () {
 }
 
 
-void reDraw(int rows, int cols, char* input, int* cursor_pos, bool* followTail,
-            int* log_window_start)
+void reDraw(GapBuffer* outputBuffer,
+            int rows, int cols, char* input, int* cursor_pos,
+            bool* followTail, int* log_window_start)
 {
     // Очищаем экран
     clearScreen();
@@ -681,18 +652,10 @@ void reDraw(int rows, int cols, char* input, int* cursor_pos, bool* followTail,
     /* escape-последовательности */
     bottom = showInputBuffer(input, *cursor_pos, cols, bottom);
     int outputBufferAvailableLines = bottom - 1;
-    if (*followTail && logSize - outputBufferAvailableLines > 0) {
-        // Определяем, с какой строки начать вывод,
-        // чтобы показать только последние команды
-        if (logSize - outputBufferAvailableLines > 0) {
-            *log_window_start = logSize - outputBufferAvailableLines;
-        } else {
-            *log_window_start = 0;
-        }
-    }
     // Показываем OutputBuffer в оставшемся пространстве
-    showOutputBuffer(*log_window_start, logSize, cols,
-                     outputBufferAvailableLines);
+    /* showOutputBuffer(outputBuffer, *log_window_start, logSize, cols, */
+    /*                  outputBufferAvailableLines); */
+    showOutputBuffer(outputBuffer, 0, rows, cols, rows);
     // Восстанавливаем сохраненную в функции showInputBuffer позицию курсора
     printf("\033[u");
 }
@@ -711,14 +674,26 @@ int main() {
     // Устанавливаем неблокирующий режим
 
     char nc;
-
-    bool need_redraw = true;
-    int  rows, cols;
     char input[MAX_BUFFER]={0};
     int  input_size = 0;
-    int  cursor_pos = 0;  // Позиция курсора в строке ввода
-    bool followTail = true; // Флаг (показывать ли последние команды)
     int  log_window_start = 0;
+    GapBuffer outputBuffer;
+    size_t initialCapacity = 1024;
+    gap_buffer_init(&outputBuffer, initialCapacity);
+
+    // Вставка тестовых строк в GAP-буфер
+    const char* testStrings[] = {
+        "Hello, World!\n",
+        "This is a test of the GAP buffer system.\n",
+    };
+    for (int i = 0; i < 2; i++) {
+        gap_buffer_insert_string(&outputBuffer, testStrings[i]);
+    }
+
+    int  rows, cols;
+    bool need_redraw = true;
+    bool followTail = true; // Флаг (показывать ли последние команды)
+    int  cursor_pos = 0;  // Позиция курсора в строке ввода
 
     // Получаем размер терминала
     printf("\033[18t");
@@ -730,7 +705,8 @@ int main() {
 
     bool terminate = false;
 
-    reDraw(rows, cols, input, &cursor_pos, &followTail, &log_window_start);
+    reDraw(&outputBuffer, rows, cols, input, &cursor_pos,
+           &followTail, &log_window_start);
     while (!terminate) {
         // Переинициализация структур для select
         FD_ZERO(&read_fds);
@@ -751,16 +727,17 @@ int main() {
             terminate = keyb();
             // ОБРАБОТКА:
             // Обрабатываем события в конце каждой итерации
-            if (processEvents(input, &input_size, &cursor_pos,
-                              &log_window_start, rows, logSize)) {
+            if (processEvents(&outputBuffer, input, &input_size, &cursor_pos,
+                              &log_window_start, rows)) {
                 /* Тут не требуется дополнительных действий, т.к. в начале */
                 /* следующего цикла все будет перерисовано */
             }
             // ОТОБРАЖЕНИЕ:
-            reDraw(rows, cols, input, &cursor_pos, &followTail, &log_window_start);
+            reDraw(&outputBuffer, rows, cols, input,
+                   &cursor_pos, &followTail, &log_window_start);
          }
     }
-    freeLog();
+    gap_buffer_free(&outputBuffer);
     pthread_mutex_destroy(&eventQueue_mutex);
     return 0;
 }
