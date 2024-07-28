@@ -9,6 +9,7 @@
 #include <wchar.h>
 #include <locale.h>
 #include <ctype.h>
+#include <pthread.h>
 
 #include "key_map.h"
 
@@ -146,16 +147,18 @@ typedef struct InputEvent {
 } InputEvent;
 
 InputEvent* eventQueue = NULL;
+pthread_mutex_t eventQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void enqueueEvent(EventType type, char* seq, int seq_size) {
+    pthread_mutex_lock(&eventQueue_mutex);
     InputEvent* newEvent = malloc(sizeof(InputEvent));
     newEvent->type = type;
     if (seq) {
-        newEvent->seq = malloc(strlen(seq));
+        newEvent->seq = malloc(strlen(seq) + 1);
         strcpy(newEvent->seq, seq);
         newEvent->seq_size = seq_size;
     } else {
-        newEvent->seq = malloc(strlen("_"));
+        newEvent->seq = malloc(strlen("_") + 1);
         strcpy(newEvent->seq, "_");
         newEvent->seq_size = seq_size;
     }
@@ -170,7 +173,9 @@ void enqueueEvent(EventType type, char* seq, int seq_size) {
         }
         temp->next = newEvent;
     }
+    pthread_mutex_unlock(&eventQueue_mutex);
 }
+
 
 // Создание enum с помощью макроса
 #define GENERATE_ENUM(val, len, str) val,
@@ -216,6 +221,7 @@ Key identify_key(const char* seq, int seq_size) {
 bool processEvents(char* input, int* input_size, int* cursor_pos,
                    int* log_window_start, int rows, int logSize)
 {
+    pthread_mutex_lock(&eventQueue_mutex);
     bool updated = false;
     while (eventQueue) {
         InputEvent* event = eventQueue;
@@ -316,6 +322,7 @@ bool processEvents(char* input, int* input_size, int* cursor_pos,
         }
         free(event);
     }
+    pthread_mutex_unlock(&eventQueue_mutex);
     return updated;
 }
 
@@ -684,5 +691,6 @@ int main() {
          }
     }
     freeLog();
+    pthread_mutex_destroy(&eventQueue_mutex);
     return 0;
 }
