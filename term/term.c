@@ -136,7 +136,8 @@ typedef enum {
     BACKSPACE,
     CTRL,
     SPECIAL,
-    DBG
+    DBG,
+    CMD
 } EventType;
 
 typedef struct InputEvent {
@@ -214,6 +215,58 @@ Key identify_key(const char* seq, int seq_size) {
     return KEY_UNKNOWN; // Возвращает KEY_UNKNOWN если последовательность не найдена
 }
 
+typedef void (*CommandFunction)(char* buffer, const char* param);
+
+typedef struct {
+    Key key;
+    char* commandName;
+    CommandFunction commandFunc;
+    const char* param;
+} KeyMap;
+
+void cmd_forward_word(char* buffer, const char* param) {
+    /* // Логика для перемещения вперёд на одно слово */
+    /* // Пример простой реализации, предполагая, что input - это строка символов */
+    /* while (*cursor_pos < input_size && input[*cursor_pos] != ' ') { */
+    /*     (*cursor_pos)++; */
+    /* } */
+    /* while (*cursor_pos < input_size && input[*cursor_pos] == ' ') { */
+    /*     (*cursor_pos)++; */
+    /* } */
+    /* printf("Cursor moved forward to position: %d\n", *cursor_pos); */
+}
+
+void cmd_backward_word(char* buffer, const char* param) {
+    /* // Логика для перемещения назад на одно слово */
+    /* if (*cursor_pos > 0) (*cursor_pos)--; */
+    /* while (*cursor_pos > 0 && input[*cursor_pos] == ' ') { */
+    /*     (*cursor_pos)--; */
+    /* } */
+    /* while (*cursor_pos > 0 && input[*cursor_pos] != ' ') { */
+    /*     (*cursor_pos)--; */
+    /* } */
+    /* printf("Cursor moved backward to position: %d\n", *cursor_pos); */
+}
+
+void cmd_insert(char* buffer, const char* param) {
+    // Вставка символа или строки из param в buffer
+}
+
+KeyMap keyCommands[] = {
+    {KEY_ALT_F, "CMD_FORWARD_WORD", cmd_forward_word, NULL},
+    {KEY_ALT_B, "CMD_BACKWARD_WORD", cmd_backward_word, NULL},
+    {KEY_A, "CMD_INSERT", cmd_insert, "a"},
+};
+
+const KeyMap* findCommandByKey(Key key) {
+    int n_commands = sizeof(keyCommands) / sizeof(keyCommands[0]);
+    for (int i = 0; i < n_commands; i++) {
+        if (keyCommands[i].key == key) {
+            return &keyCommands[i];
+        }
+    }
+    return NULL;
+}
 
 #define ASCII_CODES_BUF_SIZE 127
 #define DBG_LOG_MSG_SIZE 255
@@ -314,6 +367,15 @@ bool processEvents(char* input, int* input_size, int* cursor_pos,
                 snprintf(logMsg, sizeof(logMsg), "[DBG]: %s, [%s] (%d)",
                          key_to_str(key), asciiCodes, event->seq_size);
                 addLogLine(logMsg);
+                updated = true;
+            }
+            break;
+        case CMD:
+            if (event->seq != NULL) {
+                char logMsg[DBG_LOG_MSG_SIZE] = {0};
+                snprintf(logMsg, sizeof(logMsg), "[CMD]: %s", event->seq);
+                addLogLine(logMsg);
+                updated = true;
             }
             break;
         }
@@ -553,7 +615,15 @@ bool keyb () {
     char input_buffer[MAX_INPUT_BUFFER];
     int len = read_utf8_char_or_esc_seq(
         STDIN_FILENO, input_buffer, sizeof(input_buffer));
-    enqueueEvent(DBG, input_buffer, len);
+
+    Key key = identify_key(input_buffer, len);
+    const KeyMap* command = findCommandByKey(key);
+    if (command) {
+        enqueueEvent(CMD, strdup(command->commandName), 1 /* command->param */);
+    } else {
+        enqueueEvent(DBG, input_buffer, len);
+    }
+
     if (len == 1) {
         // SingleByte
         if (input_buffer[0] == '\x04') {
