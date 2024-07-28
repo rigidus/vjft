@@ -98,20 +98,24 @@ void gap_buffer_display(const GapBuffer* gb, size_t rows, size_t cols, size_t sc
             // Перенос строки или достижение конца колонки
             if (num_lines >= scroll_pos) {
                 putchar('\n');
+                fflush(stdout);
             }
             line_len = 0;
             num_lines++;
             if (content[i] == '\n') {
                 // Если это был символ новой строки, пропускаем следующий символ
+                fflush(stdout);
                 continue;
             }
+            fflush(stdout);
         }
 
         if (num_lines >= scroll_pos) {
             putchar(content[i]);
+            fflush(stdout);
         }
         line_len++;
     }
-    /* fflush(stdout); */
+    fflush(stdout);
     free(content);
 }

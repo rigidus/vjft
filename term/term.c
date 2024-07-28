@@ -78,19 +78,13 @@ void enableRawMode() {
 
 void clearScreen() {
     printf("\033[H\033[J");
+    fflush(stdout);
 }
 
 void moveCursor(int x, int y) {
     printf("\033[%d;%dH", y, x);
+    fflush(stdout);
 }
-
-/* /\* MiniBuffer *\/ */
-
-/* char miniBuffer[MAX_BUFFER] = {0}; */
-
-/* void updateMiniBuffer(const char* command) { */
-/*     snprintf(miniBuffer, sizeof(miniBuffer), "Command: %s", command); */
-/* } */
 
 
 /* CtrlStack */
@@ -313,36 +307,91 @@ bool processEvents(GapBuffer* outputBuffer, char* input, int* input_size,
 
 /* Iface */
 
-void drawHorizontalLine(int cols, int y, char sym) {
-    moveCursor(1, y);
-    for (int i = 0; i < cols; i++) {
-        putchar(sym);
+void calc_display_size(const char* input, int max_width, int* cols, int* rows) {
+    *cols = 0;  // Максимальная длина строки в рамках max_width
+    *rows = 1;  // Количество строк
+    int current_line_length = 0;  // Длина текущей строки
+
+    for (const char* p = input; *p; p++) {
+        if (*p == '\n') {
+            // Перенос строки по символу новой строки
+            if (current_line_length > *cols) {
+                *cols = current_line_length;  // Обновление максимальной ширины
+            }
+            current_line_length = 0;  // Сброс длины строки для новой строки
+            (*rows)++;  // Увеличение счетчика строк
+        } else {
+            current_line_length++;  // Увеличение длины текущей строки
+            if (current_line_length == max_width) {
+                // Перенос строки по достижению максимальной ширины
+                if (current_line_length > *cols) {
+                    *cols = current_line_length;  // Обновление максимальной ширины
+                }
+                current_line_length = 0;  // Сброс длины строки
+                (*rows)++;  // Увеличение счетчика строк
+            }
+        }
+    }
+
+    // Обновление cols для последней строки, если она была самой длинной
+    if (current_line_length > *cols) {
+        *cols = current_line_length;
     }
 }
 
 
-int showMiniBuffer(const char* content, int cols, int bottom) {
-    int lines = 0;
-    int length = strlen(content);
-    int line_width = 0;
-    drawHorizontalLine(cols, bottom - 1, '=');  // Разделительная линия
-    /* printf("\033[%d;1H", bottom-1);  // Перемещение курсора в предпоследнюю строку окна */
-    /* printf("\033[2K");  // Очистить строку перед отображением минибуфера */
-    /* printf("nmini"); */
-    /* for (int i = 0; i < length; ++i) { */
-    /*     if (content[i] == '\n' || line_width == window_rows - 1) { */
-    /*         if (content[i] == '\n') { */
-    /*             putchar(content[i]); */
-    /*         } else { */
-    /*             printf("\n"); */
-    /*         } */
-    /*         line_width = 0; */
-    /*         lines++; */
-    /*         continue; */
-    /*     } */
-    /*     putchar(content[i]); */
-    /*     line_width++; */
-    /* } */
+// Вывод текста на экран с автоматическим переносом строк и ограничением высоты
+int display_wrapped(const char* text, int x, int y, int max_width, int max_height)
+{
+    int current_line_length = 0;  // Текущая длина строки
+    int current_x = x;            // Текущая позиция курсора X
+    int current_y = y;            // Текущая позиция курсора Y
+    int line_count = 0;           // Счетчик строк
+    moveCursor(current_x, current_y);  // Перемещаем курсор на начальную позицию
+    for (const char* p = text; *p; p++) {
+        if (*p == '\n' || current_line_length == max_width) {
+            // Переход на новую строку по достижении максимальной ширины или
+            // по символу новой строки
+            line_count++;
+            if (line_count == max_height) {
+                break;  // Прекращаем вывод, если достигнута максимальная высота
+            }
+            current_y++;           // Перемещаемся на одну строку вниз
+            current_x = x;         // Возвращаем курсор в начальную позицию X
+            moveCursor(current_x, current_y);
+            current_line_length = 0;
+        }
+
+        if (*p != '\n' && line_count < max_height) {
+            putchar(*p);  // Вывод текущего символа
+            current_x++;
+            current_line_length++;
+        }
+    }
+    return line_count;
+}
+
+
+void drawHorizontalLine(int cols, int y, char sym) {
+    moveCursor(1, y);
+    for (int i = 0; i < cols; i++) {
+        putchar(sym);
+        fflush(stdout);
+    }
+}
+
+#define MAX_MINIBUFFER_ROWS 10
+
+int showMiniBuffer(const char* content, int display_width, int display_height) {
+    int need_cols, need_rows;
+    calc_display_size(content, display_width, &need_cols, &need_rows);
+    if (need_rows > MAX_MINIBUFFER_ROWS)  {
+        need_rows = MAX_MINIBUFFER_ROWS;
+    }
+    int minibuf_len = display_wrapped(content, 0, ((display_height + 1) - need_rows),
+                                      display_width, MAX_MINIBUFFER_ROWS);
+    int bottom = display_height - minibuf_len;
+    drawHorizontalLine(display_width, bottom, '=');  // Разделительная линия
     return bottom - 2;
 }
 
@@ -372,13 +421,16 @@ int showInputBuffer(char* input, int cursor_pos, int cols, int bottom) {
     for (int i = 0; i < strlen(input); ++i) {
         if (input[i] == '\n') {
             putchar('\n');
+            fflush(stdout);
             moveCursor(1, i);
         } else {
             putchar(input[i]);
+            fflush(stdout);
         }
     }
     // Сохраняем текущую позицию курсора
     printf("\033[s");
+    fflush(stdout);
     // Возвращаем новый bottom
     return bottom - lines - 1;
 }
@@ -410,11 +462,13 @@ void showOutputBuffer(GapBuffer* gb, int log_window_start, int log_window_end,
             // Если строка или остаток строки короче ширины окна, выводим целиком
             if (line_len < cols) {
                 printf("%.*s\n", line_len, line_start);
+                fflush(stdout);
             } else {
                 // Иначе выводим столько символов, сколько помещается в окно,
                 // и делаем перенос
                 fwrite(line_start, 1, cols, stdout);
                 putchar('\n');
+                fflush(stdout);
             }
             line_start = current_pos + 1;  // Перемещаем начало следующей строки
             line_len = 0;
@@ -424,7 +478,7 @@ void showOutputBuffer(GapBuffer* gb, int log_window_start, int log_window_end,
         line_len++;
         current_pos++;
     }
-    /* fflush(stdout); */
+    fflush(stdout);
     free(content);
 }
 
@@ -561,26 +615,30 @@ bool keyb () {
 
 
 void reDraw(GapBuffer* outputBuffer,
-            int rows, int cols, char* input, int* cursor_pos,
+            int rows, int max_width, char* input, int* cursor_pos,
             bool* followTail, int* log_window_start)
 {
     // Очищаем экран
     clearScreen();
     // Отображаем минибуфер и получаем номер строки над ним
-    int bottom = showMiniBuffer(miniBuffer, cols, rows);
+
+    const char* test_string = "MiniBuffer! This line is definitely longer than twenty-five characters.\nThis is a test of the display size function with a specific max width and height constraint.\nThere is a lot data for small minibuffer";
+
+    int bottom = showMiniBuffer(test_string, max_width, rows);
     /* Отображаем InputBuffer и получаем номер строки над ним */
     /* NB!: Функция сохраняет позицию курсора с помощью */
     /* escape-последовательности */
-    bottom = showInputBuffer(input, *cursor_pos, cols, bottom);
+    bottom = showInputBuffer(input, *cursor_pos, max_width, bottom);
     int outputBufferAvailableLines = bottom - 1;
     // Показываем OutputBuffer в оставшемся пространстве
-    /* showOutputBuffer(outputBuffer, *log_window_start, logSize, cols, */
+    /* showOutputBuffer(outputBuffer, *log_window_start, logSize, max_width, */
     /*                  outputBufferAvailableLines); */
-    showOutputBuffer(outputBuffer, 0, rows, cols, rows);
+    showOutputBuffer(outputBuffer, 0, rows, max_width, rows);
     // Flush
-    /* fflush(stdout); */
+    fflush(stdout);
     // Восстанавливаем сохраненную в функции showInputBuffer позицию курсора
     printf("\033[u");
+    fflush(stdout);
 }
 
 
