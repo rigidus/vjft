@@ -28,8 +28,8 @@ void gap_buffer_insert(GapBuffer* gb, char c) {
         char* new_buffer = (char*)malloc(new_capacity * sizeof(char));
         memcpy(new_buffer, gb->buffer, gb->gap_start);
         memset(new_buffer + gb->gap_start, 0, new_capacity - gb->capacity);
-        memcpy(new_buffer + gb->gap_start + (new_capacity - gb->capacity), gb->buffer + gb->gap_end + 1, gb->capacity - gb->gap_end - 1);
-
+        memcpy(new_buffer + gb->gap_start + (new_capacity - gb->capacity),
+               gb->buffer + gb->gap_end + 1, gb->capacity - gb->gap_end - 1);
         free(gb->buffer);
         gb->buffer = new_buffer;
         gb->gap_end = gb->gap_start + (new_capacity - gb->capacity);
@@ -72,32 +72,39 @@ void gap_buffer_move_gap(GapBuffer* gb, size_t position) {
 }
 
 char* gap_buffer_get_content(const GapBuffer* gb) {
-    char* content = (char*)malloc(gb->capacity * sizeof(char) + 1);  // +1 для нуль-терминатора
+    // +1 для нуль-терминатора
+    char* content = (char*)malloc(gb->capacity * sizeof(char) + 1);
     if (!content) return NULL;
 
     size_t content_length = gb->gap_start + (gb->capacity - gb->gap_end - 1);
     memcpy(content, gb->buffer, gb->gap_start);
-    memcpy(content + gb->gap_start, gb->buffer + gb->gap_end + 1, gb->capacity - gb->gap_end - 1);
+    memcpy(content + gb->gap_start, gb->buffer + gb->gap_end + 1,
+           gb->capacity - gb->gap_end - 1);
     content[content_length] = '\0';  // Добавляем нуль-терминатор
 
     return content;
 }
 
-void gap_buffer_display(const GapBuffer* gb, size_t window_rows, size_t window_cols, size_t scroll_pos) {
+void gap_buffer_display(const GapBuffer* gb, size_t rows, size_t cols, size_t scroll_pos)
+{
     char* content = gap_buffer_get_content(gb);
     if (!content) return;
 
     size_t line_len = 0;
     size_t num_lines = 0;
 
-    for (size_t i = 0; content[i] != '\0' && num_lines < window_rows + scroll_pos; ++i) {
-        if (content[i] == '\n' || line_len == window_cols) {  // Перенос строки или достижение конца колонки
+    for (size_t i = 0; content[i] != '\0' && num_lines < rows + scroll_pos; ++i) {
+        if (content[i] == '\n' || line_len == cols) {
+            // Перенос строки или достижение конца колонки
             if (num_lines >= scroll_pos) {
                 putchar('\n');
             }
             line_len = 0;
             num_lines++;
-            if (content[i] == '\n') continue;  // Если это был символ новой строки, пропускаем следующий символ
+            if (content[i] == '\n') {
+                // Если это был символ новой строки, пропускаем следующий символ
+                continue;
+            }
         }
 
         if (num_lines >= scroll_pos) {
@@ -105,6 +112,6 @@ void gap_buffer_display(const GapBuffer* gb, size_t window_rows, size_t window_c
         }
         line_len++;
     }
-
+    /* fflush(stdout); */
     free(content);
 }

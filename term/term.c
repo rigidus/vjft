@@ -72,6 +72,8 @@ void enableRawMode() {
     /* raw.c_cc[VTIME] = 0; */
     // Устанавливаем raw mode
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+    // Установка небуферизованного вывода для stdout
+    /* setvbuf(stdout, NULL, _IONBF, 0); */
 }
 
 void clearScreen() {
@@ -422,7 +424,7 @@ void showOutputBuffer(GapBuffer* gb, int log_window_start, int log_window_end,
         line_len++;
         current_pos++;
     }
-
+    /* fflush(stdout); */
     free(content);
 }
 
@@ -575,6 +577,8 @@ void reDraw(GapBuffer* outputBuffer,
     /* showOutputBuffer(outputBuffer, *log_window_start, logSize, cols, */
     /*                  outputBufferAvailableLines); */
     showOutputBuffer(outputBuffer, 0, rows, cols, rows);
+    // Flush
+    /* fflush(stdout); */
     // Восстанавливаем сохраненную в функции showInputBuffer позицию курсора
     printf("\033[u");
 }
