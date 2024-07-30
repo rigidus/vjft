@@ -349,6 +349,7 @@ int display_wrapped(const char* text, int x, int y, int max_width, int max_heigh
     int line_count = 0;           // Счетчик строк
     moveCursor(current_x, current_y);  // Перемещаем курсор на начальную позицию
     for (const char* p = text; *p; p++) {
+        // Если встретили перенос строки или подошли к правой границе
         if (*p == '\n' || current_line_length == max_width) {
             // Заполняем оставшееся пространство пробелами
             while (current_line_length < max_width) {
@@ -356,41 +357,31 @@ int display_wrapped(const char* text, int x, int y, int max_width, int max_heigh
                 current_x++;
                 current_line_length++;
             }
-            // Переход на новую строку по достижении максимальной ширины или
-            // по символу новой строки
+            // Увеличиваем счетчик строк
             line_count++;
+            // Если максимальное количество строк достигнуто
             if (line_count == max_height) {
-                break;  // Прекращаем вывод, если достигнута максимальная высота
+                break;  // Прекращаем вывод
             }
             current_y++;           // Перемещаемся на одну строку вниз
             current_x = x;         // Возвращаем курсор в начальную позицию X
-            moveCursor(current_x, current_y);
-            current_line_length = 0;
-            if (*p == '\n') {
-                // Если это перенос строки, переходим к следующему символу
-                continue;
-            }
-        }
-        if (*p != '\n' && line_count < max_height) {
+            moveCursor(current_x, current_y); // Перемещаем физический курсор
+            current_line_length = 0; // Обнуляем счетчик длины строки
+        } else if (*p != '\n' && line_count < max_height) {
+            // Мы здесь, если встреченный символ - это не перенос строки
+            // и если до правой границы еще далеко.
             putchar(*p);  // Вывод текущего символа
-            current_x++;
-            current_line_length++;
+            current_x++;  // Увеличиваем позицию
+            current_line_length++; // Увеличиваем счетчик длины строки
         }
-        // Заполняем оставшиеся строки пробелами,
-        // если вывод завершился раньше достижения max_height
-        /* while (line_count < max_height) { */
-        /*     current_line_length = 0; // Обнуляем длину строки для новой строки */
-        /*     while (current_line_length < max_width) { */
-        /*         putchar('*'); */
-        /*         current_x++; */
-        /*         current_line_length++; */
-        /*     } */
-        /*     line_count++; */
-        /*     if (line_count == max_height) break; // Если достигнута максимальная высота, прерываем цикл */
-        /*     current_y++; */
-        /*     current_x = x; */
-        /*     moveCursor(current_x, current_y); */
-        /* } */
+    }
+    // Мы вывели все что хотели, но даже после этого мы должны заполнить
+    // остаток физической строки до конца
+    // Заполняем оставшееся пространство пробелами
+    while (current_line_length < max_width) {
+        putchar(':');
+        current_x++;
+        current_line_length++;
     }
     return line_count;
 }
