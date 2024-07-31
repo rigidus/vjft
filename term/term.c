@@ -20,32 +20,6 @@ char miniBuffer[MAX_BUFFER] = {0};
 
 void drawHorizontalLine(int cols, int y, char sym);
 
-void convertToAsciiCodes(const char *input, char *output, size_t outputSize) {
-    size_t inputLen = strlen(input);
-    size_t offset = 0;
-
-    for (size_t i = 0; i < inputLen; i++) {
-        int written = snprintf(output + offset, outputSize - offset, "%x", (unsigned char)input[i]);
-        if (written < 0 || written >= outputSize - offset) {
-            // Output buffer is full or an error occurred
-            break;
-        }
-        offset += written;
-        if (i < inputLen - 1) {
-            // Add a space between numbers, but not after the last number
-            if (offset < outputSize - 1) {
-                output[offset] = ' ';
-                offset++;
-            } else {
-                // Output buffer is full
-                break;
-            }
-        }
-    }
-    output[offset] = '\0'; // Null-terminate the output string
-}
-
-
 /* Term */
 
 struct termios orig_termios;
@@ -260,6 +234,31 @@ const KeyMap* findCommandByKey(Key key) {
     return NULL;
 }
 
+void convertToAsciiCodes(const char *input, char *output, size_t outputSize) {
+    size_t inputLen = strlen(input);
+    size_t offset = 0;
+
+    for (size_t i = 0; i < inputLen; i++) {
+        int written = snprintf(output + offset, outputSize - offset, "%x", (unsigned char)input[i]);
+        if (written < 0 || written >= outputSize - offset) {
+            // Output buffer is full or an error occurred
+            break;
+        }
+        offset += written;
+        if (i < inputLen - 1) {
+            // Add a space between numbers, but not after the last number
+            if (offset < outputSize - 1) {
+                output[offset] = ' ';
+                offset++;
+            } else {
+                // Output buffer is full
+                break;
+            }
+        }
+    }
+    output[offset] = '\0'; // Null-terminate the output string
+}
+
 #define ASCII_CODES_BUF_SIZE 127
 #define DBG_LOG_MSG_SIZE 255
 
@@ -405,7 +404,7 @@ int showMiniBuffer(const char* content, int width, int height) {
     }
     int up = height + 1 - need_rows;
     int minibuf_len = display_wrapped(content, 0, up, width, need_rows);
-    drawHorizontalLine(width, up-1, '=');  // Разделительная линия
+    drawHorizontalLine(width, up-1, '=');
     return up - 2;
 }
 
@@ -417,23 +416,13 @@ int showInputBuffer(char* content, int cursor_pos, int width, int height) {
     if (need_rows > max_inputbuffer_rows)  {
         need_rows = max_inputbuffer_rows;
     }
-    int bottom = height - need_rows;
-    // Очищаем на всякий случай всю область вывода
-    /* for (int i = bottom; i < bottom - lines; --i) { */
-    /*     printf("\033[%d;1H", i);  // Перемещение курсора в строку */
-    /*     printf("\033[2K");        // Очистить строку */
-    /*     fflush(stdout); */
-    /* } */
-    /* int inputbuf_len = display_wrapped(content, 0, ((display_height + 1) - need_rows), */
-    /*                                    display_width, MAX_MINIBUFFER_ROWS); */
-
-    /* // Выводим разделитель */
-    /* drawHorizontalLine(display_width, bottom, '-'); */
+    int up = height +1 - need_rows;
+    int inputbuf_len = display_wrapped(content, 0, up, width, need_rows);
+    drawHorizontalLine(width, up-1, '-');
     /* // Сохраняем текущую позицию курсора */
     /* printf("\033[s"); */
     /* fflush(stdout); */
-    /* // Возвращаем новый bottom */
-    return bottom - 2;
+    return up - 2;
 }
 
 void showOutputBuffer(GapBuffer* gb, int log_window_start, int log_window_end,
@@ -627,6 +616,8 @@ void reDraw(GapBuffer* outputBuffer,
     /* Отображаем InputBuffer и получаем номер строки над ним */
     /* NB!: Функция сохраняет позицию курсора с помощью */
     /* escape-последовательности */
+    /* На самом деле мне нужно не сохранять позицию курсора на экране, */
+    /* а вместо этого сохранять позицию курсора в строке ввода (TODO) */
     bottom = showInputBuffer(test_string, *cursor_pos, max_width, bottom);
     int outputBufferAvailableLines = bottom - 1;
     // Показываем OutputBuffer в оставшемся пространстве
@@ -635,9 +626,9 @@ void reDraw(GapBuffer* outputBuffer,
     showOutputBuffer(outputBuffer, 0, rows, max_width, rows);
     // Flush
     fflush(stdout);
-    // Восстанавливаем сохраненную в функции showInputBuffer позицию курсора
-    printf("\033[u");
-    fflush(stdout);
+    /* // Восстанавливаем сохраненную в функции showInputBuffer позицию курсора */
+    /* printf("\033[u"); */
+    /* fflush(stdout); */
 }
 
 
@@ -651,7 +642,6 @@ int main() {
     setvbuf(stdout, NULL, _IONBF, 0);
     // Включаем сырой режим
     enableRawMode(STDIN_FILENO);
-    // Устанавливаем неблокирующий режим
 
     char nc;
     char input[MAX_BUFFER]={0};
