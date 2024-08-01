@@ -306,83 +306,108 @@ bool processEvents(GapBuffer* outputBuffer, char* input, int* input_size,
 
 /* Iface */
 
-void calc_display_size(const char* input, int max_width, int* cols, int* rows) {
-    *cols = 0;  // Максимальная длина строки в рамках max_width
-    *rows = 1;  // Количество строк
-    int current_line_length = 0;  // Длина текущей строки
+/**
+   Подсчитывает сколько строк и столбцов необходимо для вывода текста
+   в текстовое окно максималальной ширины max_width и в какой из этих
+   строк будет расположен курсор
+*/
+void calc_display_size(const char* text, int max_width, int cursor_pos,
+                       int* need_cols, int* need_rows,
+                       int* cursor_row, int* cursor_col)
+{
+    int cur_text_pos = 0; // Текущий индекс выводимого символа строки
+    int cur_row = 1; // Текущая строка, она же счетчик строк
+    int cur_col = 0; // Длина текущей строки
+    int max_col = 0; // Максимальная найденная длина строки
 
-    for (const char* p = input; *p; p++) {
-        if (*p == '\n') {
-            // Перенос строки по символу новой строки
-            if (current_line_length > *cols) {
-                *cols = current_line_length;  // Обновление максимальной ширины
-            }
-            current_line_length = 0;  // Сброс длины строки для новой строки
-            (*rows)++;  // Увеличение счетчика строк
-        } else {
-            current_line_length++;  // Увеличение длины текущей строки
-            if (current_line_length == max_width) {
-                // Перенос строки по достижению максимальной ширины
-                if (current_line_length > *cols) {
-                    *cols = current_line_length;  // Обновление максимальной ширины
-                }
-                current_line_length = 0;  // Сброс длины строки
-                (*rows)++;  // Увеличение счетчика строк
-            }
+    for (const char* p = text; *p; p++) {
+        cur_text_pos++; // Увеличение текущей позиции в тексте
+        if (cur_text_pos == cursor_pos) { // Дошли до позиции курсора?
+            *cursor_row = cur_row;        // Вернуть текущую строку
+            *cursor_col = cur_col;        // Вернуть текущий столбец
+        }
+
+        cur_col++; // Увеличение позиции в текущей строке
+        // Если эта строка длиннее чем все ранее встреченные
+        if (cur_col > max_col) {
+            max_col = cur_col; // Обновить
+        }
+
+        // Символ переноса строки или правая граница?
+        if ((*p == '\n') || (cur_col >= max_width)) {
+            cur_col = 0;  // Сброс длины строки для новой строки
+            cur_row++;    // Увеличение счетчика строк
         }
     }
 
-    // Обновление cols для последней строки, если она была самой длинной
-    if (current_line_length > *cols) {
-        *cols = current_line_length;
+    // Если последняя строка оказалась самой длинной
+    if (cur_col > max_col) {
+        max_col = cur_col;
     }
+
+    *need_rows = cur_row;
+    *need_cols = max_col;
 }
 
 
-// Вывод текста на экран с автоматическим переносом строк и ограничением высоты
-int display_wrapped(const char* text, int x, int y, int max_width, int max_height)
+/**
+   Вывод текста в текстовое окно экрана с переносом строк
+
+   Пропустит первые skip_rows строк
+*/
+
+#define FILLER ':'
+void display_wrapped(const char* text, int x, int y,
+                     int max_width, int max_rows,
+                     int from_row)
 {
-    int current_line_length = 0;  // Текущая длина строки
-    int current_x = x;            // Текущая позиция курсора X
-    int current_y = y;            // Текущая позиция курсора Y
-    int line_count = 0;           // Счетчик строк
-    moveCursor(current_x, current_y);  // Перемещаем курсор на начальную позицию
+    int cursor_x = x; // Текущая позиция курсора X
+    int cursor_y = y; // Текущая позиция курсора Y
+    int cur_row = 0;  // Текущая строка, она же счетчик строк
+    int cur_col = 0;  // Текущий столбец
+
+    moveCursor(cursor_x, cursor_y); // Курсор на начальную позицию
+
     for (const char* p = text; *p; p++) {
-        // Если встретили перенос строки или подошли к правой границе
-        if (*p == '\n' || current_line_length == max_width) {
-            // Заполняем оставшееся пространство пробелами
-            while (current_line_length < max_width) {
-                putchar(':');
-                current_x++;
-                current_line_length++;
+        if (cur_col >= max_width) { // Если правая граница
+            cur_col = 0; // Сброс длины строки для новой строки
+            cur_row++;   // Увеличение счетчика строк
+            moveCursor(cursor_x, cursor_y + cur_row); // Курсор
+        }
+        // Если максимальное количество строк достигнуто
+        if (cur_row >= max_rows) {
+            break;  // Прекращаем вывод
+        }
+        if (*p == '\n') { // Если текущий символ - перевод строки
+            if (cur_row > from_row) { // Если мы не пропускаем
+                // Заполняем оставшееся пространство филером
+                while (cur_col < max_width) {
+                    putchar(FILLER);
+                    cur_col++;
+                }
             }
-            // Увеличиваем счетчик строк
-            line_count++;
-            // Если максимальное количество строк достигнуто
-            if (line_count == max_height) {
-                break;  // Прекращаем вывод
+            cur_col = 0; // Сброс длины строки для новой строки
+            cur_row++;   // Увеличение счетчика строк
+            if (cur_row > from_row) { // Если мы не пропускаем
+                moveCursor(cursor_x, cursor_y + cur_row); // Курсор
             }
-            current_y++;           // Перемещаемся на одну строку вниз
-            current_x = x;         // Возвращаем курсор в начальную позицию X
-            moveCursor(current_x, current_y); // Перемещаем физический курсор
-            current_line_length = 0; // Обнуляем счетчик длины строки
-        } else if (*p != '\n' && line_count < max_height) {
-            // Мы здесь, если встреченный символ - это не перенос строки
-            // и если до правой границы еще далеко.
-            putchar(*p);  // Вывод текущего символа
-            current_x++;  // Увеличиваем позицию
-            current_line_length++; // Увеличиваем счетчик длины строки
+        } else {
+            // Обычный печатаемый символ
+            if (cur_row > from_row) { // Если мы не пропускаем
+                putchar(*p); // то выводим текущий символ
+            }
+            cur_col++; // Увеличиваем счетчик длины строки
         }
     }
+
     // Мы вывели все что хотели, но даже после этого мы должны заполнить
-    // остаток физической строки до конца
-    // Заполняем оставшееся пространство пробелами
-    while (current_line_length < max_width) {
-        putchar(':');
-        current_x++;
-        current_line_length++;
+    // остаток строки до конца, если мы не находимся в начале строки
+    if (cur_col != 0) {
+        while (cur_col < max_width) {
+            putchar(FILLER);
+            cur_col++; // Увеличиваем счетчик длины строки
+        }
     }
-    return line_count;
 }
 
 
@@ -395,29 +420,41 @@ void drawHorizontalLine(int cols, int y, char sym) {
 }
 
 
-int showMiniBuffer(const char* content, int width, int height) {
-    int max_minibuffer_rows = 10;
-    int need_cols, need_rows;
-    calc_display_size(content, width, &need_cols, &need_rows);
-    if (need_rows > max_minibuffer_rows)  {
-        need_rows = max_minibuffer_rows;
-    }
+int showMiniBuffer(const char* text, int width, int height) {
+    int need_cols, need_rows, cursor_row, cursor_col;
+    calc_display_size(text, width-2, 0,
+                      &need_cols, &need_rows,
+                      &cursor_row, &cursor_col);
+    // Когда я вывожу что-то в минибуфер я хочу чтобы при большом
+    // выводе он показывал только первые 10 строк
     int up = height + 1 - need_rows;
-    int minibuf_len = display_wrapped(content, 0, up, width, need_rows);
+    display_wrapped(text, 2, up, width-2, 10, -1);
     drawHorizontalLine(width, up-1, '=');
     return up - 2;
 }
 
 
-int showInputBuffer(char* content, int cursor_pos, int width, int height) {
+int showInputBuffer(char* text, int cursor_pos,
+                    int width, int height)
+{
+    // Получаем размеры виртуальной области вывода, т.е. сколько нужно
+    // места, чтобы вывести весь text при заданной ширине строки и в
+    // какой из этих строк будет расположен курсор
+    int need_cols, need_rows, cursor_row, cursor_col;
+    calc_display_size(text, width-2, cursor_pos,
+                      &need_cols, &need_rows,
+                      &cursor_row, &cursor_col);
+    // Если содержимое не помещается в область вывода, которая может
+    // быть максимум половиной от оставшейся высоты
     int max_inputbuffer_rows = height / 2;
-    int need_cols, need_rows;
-    calc_display_size(content, width, &need_cols, &need_rows);
     if (need_rows > max_inputbuffer_rows)  {
+        // Тогда...(TODO: надо вывести область где курсор)
         need_rows = max_inputbuffer_rows;
     }
-    int up = height +1 - need_rows;
-    int inputbuf_len = display_wrapped(content, 0, up, width, need_rows);
+    // Определяем координаты верхней строки
+    int up = height + 1 - need_rows;
+    // Выводим
+    display_wrapped(text, 2, up, width-2, need_rows, -1);
     drawHorizontalLine(width, up-1, '-');
     /* // Сохраняем текущую позицию курсора */
     /* printf("\033[s"); */
@@ -565,19 +602,19 @@ bool keyb () {
             // Обрабатываем Ctrl-D для выхода
             printf("\n");
             return true;
-        /* } else if (input_buffer[0] == 127 || input_buffer[0] == 8) { */
-        /*     // Обрабатываем BackSpace */
-        /*     enqueueEvent(BACKSPACE, NULL); */
-        /* } else if (input_buffer[0] >= 1 && input_buffer[0] <= 26 ) { */
-        /*     // Обрабатываем Ctrl-key для команд */
-        /*     input_buffer[0] = 'A' + input_buffer[0] - 1; */
-        /*     enqueueEvent(CTRL, input_buffer); */
-        /* } else if (input_buffer[0] == '\033') { */
-        /*     // Escape-последовательность */
-        /*     enqueueEvent(SPECIAL, input_buffer); */
-        /* } else { */
-        /*     // Обычный однобайтовый символ - выводим */
-        /*     enqueueEvent(TEXT_INPUT, input_buffer); */
+            /* } else if (input_buffer[0] == 127 || input_buffer[0] == 8) { */
+            /*     // Обрабатываем BackSpace */
+            /*     enqueueEvent(BACKSPACE, NULL); */
+            /* } else if (input_buffer[0] >= 1 && input_buffer[0] <= 26 ) { */
+            /*     // Обрабатываем Ctrl-key для команд */
+            /*     input_buffer[0] = 'A' + input_buffer[0] - 1; */
+            /*     enqueueEvent(CTRL, input_buffer); */
+            /* } else if (input_buffer[0] == '\033') { */
+            /*     // Escape-последовательность */
+            /*     enqueueEvent(SPECIAL, input_buffer); */
+            /* } else { */
+            /*     // Обычный однобайтовый символ - выводим */
+            /*     enqueueEvent(TEXT_INPUT, input_buffer); */
         }
     } else {
         /* // Multibyte */
@@ -618,12 +655,13 @@ void reDraw(GapBuffer* outputBuffer,
     /* escape-последовательности */
     /* На самом деле мне нужно не сохранять позицию курсора на экране, */
     /* а вместо этого сохранять позицию курсора в строке ввода (TODO) */
-    bottom = showInputBuffer(test_string, *cursor_pos, max_width, bottom);
-    int outputBufferAvailableLines = bottom - 1;
-    // Показываем OutputBuffer в оставшемся пространстве
-    /* showOutputBuffer(outputBuffer, *log_window_start, logSize, max_width, */
-    /*                  outputBufferAvailableLines); */
-    showOutputBuffer(outputBuffer, 0, rows, max_width, rows);
+    char* input_string = "What is an input buffer?\nAn input buffer is a temporary storage area used in computing to hold data being received from an input device, such as a keyboard or a mouse. It allows the system to receive and process input at its own pace, rather than being dependent on the speed at which the input is provided.\nHow does an input buffer work?\nWhen you type on a keyboard, for example, the keystrokes are stored in an input buffer until the computer is ready to process them. The buffer holds the keystrokes in the order they were received, allowing them to be processed sequentially. Once the computer is ready, it retrieves the data from the buffer and performs the necessary actions based on the input.\nWhat is the purpose of an input buffer?\nThe main purpose of an input buffer is to decouple the input device from the processing unit of a computer system. By temporarily storing the input data in a buffer, it allows the user to input data at their own pace while the computer processes it independently. This helps to prevent data loss and ensures smooth interaction between the user and the system.\nCan an input buffer be used in programming?\nYes, input buffers are commonly used in programming to handle user input. When writing code, you can create an input buffer to store user input until it is needed for further processing. This allows you to handle user interactions more efficiently and provides a seamless user experience.";
+    bottom = showInputBuffer(input_string, *cursor_pos, max_width, bottom);
+    /* int outputBufferAvailableLines = bottom - 1; */
+    /* // Показываем OutputBuffer в оставшемся пространстве */
+    /* /\* showOutputBuffer(outputBuffer, *log_window_start, logSize, max_width, *\/ */
+    /* /\*                  outputBufferAvailableLines); *\/ */
+    /* showOutputBuffer(outputBuffer, 0, rows, max_width, rows); */
     // Flush
     fflush(stdout);
     /* // Восстанавливаем сохраненную в функции showInputBuffer позицию курсора */
@@ -705,7 +743,7 @@ int main() {
             // ОТОБРАЖЕНИЕ:
             reDraw(&outputBuffer, rows, cols, input,
                    &cursor_pos, &followTail, &log_window_start);
-         }
+        }
     }
     gap_buffer_free(&outputBuffer);
     pthread_mutex_destroy(&eventQueue_mutex);
