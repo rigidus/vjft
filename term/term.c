@@ -352,8 +352,7 @@ void calc_display_size(const char* text, int max_width, int cursor_pos,
 
 /**
    Вывод текста в текстовое окно экрана с переносом строк
-
-   Пропустит первые skip_rows строк
+   Вывод начинается с from_row строки и выводится max_width строк
 */
 
 #define FILLER ':'
@@ -366,34 +365,41 @@ void display_wrapped(const char* text, int x, int y,
     int cur_row = 0;  // Текущая строка, она же счетчик строк
     int cur_col = 0;  // Текущий столбец
 
-    moveCursor(cursor_x, cursor_y); // Курсор на начальную позицию
+    bool is_not_skipped_row() {
+        return (cur_row > (from_row + 0));
+    }
+    void fullfiller () {
+        if (is_not_skipped_row()) { // Если мы не пропускаем
+            while (cur_col < max_width) { // Пока не правая граница
+                putchar(FILLER); // Заполняем
+                cur_col++; // Увеличиваем счетчик длины строки
+            }
+        }
+    }
+    void inc_cur_row() {
+        cur_col = 0; // Сброс длины строки для новой строки
+        cur_row++;   // Увеличение счетчика строк
+        if (is_not_skipped_row()) { // Если мы не пропускаем
+            moveCursor(cursor_x, cursor_y + cur_row - from_row - 1);
+        }
+    }
+
+    inc_cur_row(); // Курсор на начальную позицию
 
     for (const char* p = text; *p; p++) {
         if (cur_col >= max_width) { // Если правая граница
-            cur_col = 0; // Сброс длины строки для новой строки
-            cur_row++;   // Увеличение счетчика строк
-            moveCursor(cursor_x, cursor_y + cur_row); // Курсор
+            inc_cur_row();
         }
         // Если максимальное количество строк достигнуто
-        if (cur_row >= max_rows) {
+        if (cur_row > (max_rows + from_row)) {
             break;  // Прекращаем вывод
         }
-        if (*p == '\n') { // Если текущий символ - перевод строки
-            if (cur_row > from_row) { // Если мы не пропускаем
-                // Заполняем оставшееся пространство филером
-                while (cur_col < max_width) {
-                    putchar(FILLER);
-                    cur_col++;
-                }
-            }
-            cur_col = 0; // Сброс длины строки для новой строки
-            cur_row++;   // Увеличение счетчика строк
-            if (cur_row > from_row) { // Если мы не пропускаем
-                moveCursor(cursor_x, cursor_y + cur_row); // Курсор
-            }
+        if (*p == '\n') {  // Если текущий символ - перевод строки
+            fullfiller();  // Заполняем оставшееся филером
+            inc_cur_row(); // Переходим на следующую строку
         } else {
             // Обычный печатаемый символ
-            if (cur_row > from_row) { // Если мы не пропускаем
+            if (is_not_skipped_row()) { // Если мы не пропускаем
                 putchar(*p); // то выводим текущий символ
             }
             cur_col++; // Увеличиваем счетчик длины строки
@@ -403,10 +409,7 @@ void display_wrapped(const char* text, int x, int y,
     // Мы вывели все что хотели, но даже после этого мы должны заполнить
     // остаток строки до конца, если мы не находимся в начале строки
     if (cur_col != 0) {
-        while (cur_col < max_width) {
-            putchar(FILLER);
-            cur_col++; // Увеличиваем счетчик длины строки
-        }
+        fullfiller();
     }
 }
 
@@ -427,8 +430,13 @@ int showMiniBuffer(const char* text, int width, int height) {
                       &cursor_row, &cursor_col);
     // Когда я вывожу что-то в минибуфер я хочу чтобы при большом
     // выводе он показывал только первые 10 строк
-    int up = height + 1 - need_rows;
-    display_wrapped(text, 2, up, width-2, 10, -1);
+    int max_minibuffer_rows = 10;
+    if (need_rows > max_minibuffer_rows)  {
+        need_rows = max_minibuffer_rows;
+    }
+    int from_row = 0;
+    int up = height + 1 - need_rows + from_row;
+    display_wrapped(text, 2, up, width-2, need_rows, from_row);
     drawHorizontalLine(width, up-1, '=');
     return up - 2;
 }
@@ -454,7 +462,7 @@ int showInputBuffer(char* text, int cursor_pos,
     // Определяем координаты верхней строки
     int up = height + 1 - need_rows;
     // Выводим
-    display_wrapped(text, 2, up, width-2, need_rows, -1);
+    display_wrapped(text, 2, up, width-2, need_rows, 0);
     drawHorizontalLine(width, up-1, '-');
     /* // Сохраняем текущую позицию курсора */
     /* printf("\033[s"); */
