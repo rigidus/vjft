@@ -456,17 +456,21 @@ int showInputBuffer(char* text, int cursor_pos,
     // быть максимум половиной от оставшейся высоты
     int max_inputbuffer_rows = height / 2;
     if (need_rows > max_inputbuffer_rows)  {
-        // Тогда...(TODO: надо вывести область где курсор)
+        // Тогда надо вывести область где курсор
         need_rows = max_inputbuffer_rows;
     }
+    // С какой строки выводим
+    int from_row = 0;
     // Определяем координаты верхней строки
     int up = height + 1 - need_rows;
     // Выводим
-    display_wrapped(text, 2, up, width-2, need_rows, 0);
+    display_wrapped(text, 2, up, width-2, need_rows, from_row);
     drawHorizontalLine(width, up-1, '-');
-    /* // Сохраняем текущую позицию курсора */
-    /* printf("\033[s"); */
-    /* fflush(stdout); */
+    // Устанавливаем позицию курсора
+    moveCursor(up + cursor_row + 5, cursor_col);
+    // Сохраняем текущую позицию курсора
+    printf("\033[s");
+    fflush(stdout);
     return up - 2;
 }
 
@@ -650,31 +654,30 @@ bool keyb () {
 
 
 void reDraw(GapBuffer* outputBuffer,
+            char* minibuffer_text, char* inputbuffer_text,
             int rows, int max_width, char* input, int* cursor_pos,
             bool* followTail, int* log_window_start)
 {
     // Очищаем экран
     clearScreen();
     // Отображаем минибуфер и получаем номер строки над ним
-    char* test_string = "MiniBuffer! This line is definitely longer than twenty-five characters.\nThis is a test of the display size function with a specific max width and height constraint.\nThere is a lot data for small minibuffer";
-    int bottom = showMiniBuffer(test_string, max_width, rows);
+    int bottom = showMiniBuffer(minibuffer_text, max_width, rows);
     /* Отображаем InputBuffer и получаем номер строки над ним */
     /* NB!: Функция сохраняет позицию курсора с помощью */
     /* escape-последовательности */
     /* На самом деле мне нужно не сохранять позицию курсора на экране, */
     /* а вместо этого сохранять позицию курсора в строке ввода (TODO) */
-    char* input_string = "What is an input buffer?\nAn input buffer is a temporary storage area used in computing to hold data being received from an input device, such as a keyboard or a mouse. It allows the system to receive and process input at its own pace, rather than being dependent on the speed at which the input is provided.\nHow does an input buffer work?\nWhen you type on a keyboard, for example, the keystrokes are stored in an input buffer until the computer is ready to process them. The buffer holds the keystrokes in the order they were received, allowing them to be processed sequentially. Once the computer is ready, it retrieves the data from the buffer and performs the necessary actions based on the input.\nWhat is the purpose of an input buffer?\nThe main purpose of an input buffer is to decouple the input device from the processing unit of a computer system. By temporarily storing the input data in a buffer, it allows the user to input data at their own pace while the computer processes it independently. This helps to prevent data loss and ensures smooth interaction between the user and the system.\nCan an input buffer be used in programming?\nYes, input buffers are commonly used in programming to handle user input. When writing code, you can create an input buffer to store user input until it is needed for further processing. This allows you to handle user interactions more efficiently and provides a seamless user experience.";
-    bottom = showInputBuffer(input_string, *cursor_pos, max_width, bottom);
-    /* int outputBufferAvailableLines = bottom - 1; */
-    /* // Показываем OutputBuffer в оставшемся пространстве */
-    /* /\* showOutputBuffer(outputBuffer, *log_window_start, logSize, max_width, *\/ */
-    /* /\*                  outputBufferAvailableLines); *\/ */
-    /* showOutputBuffer(outputBuffer, 0, rows, max_width, rows); */
+    bottom = showInputBuffer(inputbuffer_text, *cursor_pos, max_width, bottom);
+    int outputBufferAvailableLines = bottom - 1;
+    // Показываем OutputBuffer в оставшемся пространстве
+    /* showOutputBuffer(outputBuffer, *log_window_start, logSize, max_width, */
+    /*                  outputBufferAvailableLines); */
+    showOutputBuffer(outputBuffer, 0, rows, max_width, rows);
     // Flush
     fflush(stdout);
-    /* // Восстанавливаем сохраненную в функции showInputBuffer позицию курсора */
-    /* printf("\033[u"); */
-    /* fflush(stdout); */
+    // Восстанавливаем сохраненную в функции showInputBuffer позицию курсора
+    printf("\033[u");
+    fflush(stdout);
 }
 
 
@@ -721,7 +724,20 @@ int main() {
 
     bool terminate = false;
 
-    reDraw(&outputBuffer, rows, cols, input, &cursor_pos,
+    char* inputbuffer_text = "What is an input buffer?\nAn input buffer is a temporary storage area used in computing to hold data being received from an input device, such as a keyboard or a mouse. It allows the system to receive and process input at its own pace, rather than being dependent on the speed at which the input is provided.\nHow does an input buffer work?\nWhen you type on a keyboard, for example, the keystrokes are stored in an input buffer until the computer is ready to process them. The buffer holds the keystrokes in the order they were received, allowing them to be processed sequentially. Once the computer is ready, it retrieves the data from the buffer and performs the necessary actions based on the input.\nWhat is the purpose of an input buffer?\nThe main purpose of an input buffer is to decouple the input device from the processing unit of a computer system. By temporarily storing the input data in a buffer, it allows the user to input data at their own pace while the computer processes it independently. This helps to prevent data loss and ensures smooth interaction between the user and the system.\nCan an input buffer be used in programming?\nYes, input buffers are commonly used in programming to handle user input. When writing code, you can create an input buffer to store user input until it is needed for further processing. This allows you to handle user interactions more efficiently and provides a seamless user experience.";
+
+    int need_cols, need_rows, cursor_row, cursor_col;
+    calc_display_size(inputbuffer_text, cols-2, cursor_pos,
+                      &need_cols, &need_rows,
+                      &cursor_row, &cursor_col);
+
+    char minibuffer_text[1024] = {0};
+    snprintf(minibuffer_text, 1024, "cursor_pos=%d cursor_row=%d cursor_col=%d",
+             cursor_pos, cursor_row, cursor_col);
+
+    reDraw(&outputBuffer,
+           minibuffer_text, inputbuffer_text,
+           rows, cols, input, &cursor_pos,
            &followTail, &log_window_start);
     while (!terminate) {
         // Переинициализация структур для select
@@ -749,7 +765,9 @@ int main() {
                 /* следующего цикла все будет перерисовано */
             }
             // ОТОБРАЖЕНИЕ:
-            reDraw(&outputBuffer, rows, cols, input,
+            reDraw(&outputBuffer,
+                   minibuffer_text, inputbuffer_text,
+                   rows, cols, input,
                    &cursor_pos, &followTail, &log_window_start);
         }
     }
