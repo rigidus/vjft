@@ -674,11 +674,7 @@ void reDraw(GapBuffer* outputBuffer,
     clearScreen();
     // Отображаем минибуфер и получаем номер строки над ним
     int bottom = showMiniBuffer(minibuffer_text, max_width, rows);
-    /* Отображаем InputBuffer и получаем номер строки над ним */
-    /* NB!: Функция сохраняет позицию курсора с помощью */
-    /* escape-последовательности */
-    /* На самом деле мне нужно не сохранять позицию курсора на экране, */
-    /* а вместо этого сохранять позицию курсора в строке ввода (TODO) */
+    // Отображаем InputBuffer и получаем номер строки над ним
     bottom = showInputBuffer(inputbuffer_text, *cursor_pos, max_width, bottom);
     int outputBufferAvailableLines = bottom - 1;
     // Показываем OutputBuffer в оставшемся пространстве
