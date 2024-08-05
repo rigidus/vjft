@@ -315,7 +315,7 @@ void calc_display_size(const char* text, int max_width, int cursor_pos,
                        int* need_cols, int* need_rows,
                        int* cursor_row, int* cursor_col)
 {
-    int cur_text_pos = 0; // Текущий индекс выводимого символа строки
+    int cur_text_pos = -1; // Текущий индекс выводимого символа строки
     int cur_row = 1; // Текущая строка, она же счетчик строк
     int cur_col = 0; // Длина текущей строки
     int max_col = 0; // Максимальная найденная длина строки
@@ -466,11 +466,7 @@ int showInputBuffer(char* text, int cursor_pos,
     // Выводим
     display_wrapped(text, 2, up, width-2, need_rows, from_row);
     drawHorizontalLine(width, up-1, '-');
-    // Устанавливаем позицию курсора
-    moveCursor(up + cursor_row + 5, cursor_col);
-    // Сохраняем текущую позицию курсора
-    printf("\033[s");
-    fflush(stdout);
+    // Возвращаем номер строки выше отображения inputbuffer
     return up - 2;
 }
 
@@ -654,10 +650,26 @@ bool keyb () {
 
 
 void reDraw(GapBuffer* outputBuffer,
-            char* minibuffer_text, char* inputbuffer_text,
+            char* inputbuffer_text,
             int rows, int max_width, char* input, int* cursor_pos,
             bool* followTail, int* log_window_start)
 {
+    int need_cols, need_rows;
+
+    // Вычисляемая на основании cursor_pos (позиции курсора в строке)
+    // реальная позиция курсора на экране
+    int cursor_row = 0;
+    int cursor_col = 0;
+
+    // Вычисляем необходимый размер inputbuffer и позицию курсора на экране
+    calc_display_size(inputbuffer_text, max_width-2, *cursor_pos,
+                      &need_cols, &need_rows, &cursor_row, &cursor_col);
+
+    // Формируем текст для минибуфера
+    char minibuffer_text[1024] = {0};
+    snprintf(minibuffer_text, 1024, "cursor_pos=%d cursor_row=%d cursor_col=%d",
+             *cursor_pos, cursor_row, cursor_col);
+
     // Очищаем экран
     clearScreen();
     // Отображаем минибуфер и получаем номер строки над ним
@@ -675,13 +687,18 @@ void reDraw(GapBuffer* outputBuffer,
     showOutputBuffer(outputBuffer, 0, rows, max_width, rows);
     // Flush
     fflush(stdout);
-    // Восстанавливаем сохраненную в функции showInputBuffer позицию курсора
-    printf("\033[u");
-    fflush(stdout);
+
+    // Перемещаем курсор в нужную позицию с поправкой на расположение inputbuffer
+    moveCursor(cursor_col + 1, bottom + 1 + cursor_row);
 }
 
 
 /* Main */
+
+char* inputbuffer_text = "What is an input buffer?\nAn input buffer is a temporary storage area used in computing to hold data being received from an input device, such as a keyboard or a mouse. It allows the system to receive and process input at its own pace, rather than being dependent on the speed at which the input is provided.\nHow does an input buffer work?\nWhen you type on a keyboard, for example, the keystrokes are stored in an input buffer until the computer is ready to process them. The buffer holds the keystrokes in the order they were received, allowing them to be processed sequentially. Once the computer is ready, it retrieves the data from the buffer and performs the necessary actions based on the input.\nWhat is the purpose of an input buffer?\nThe main purpose of an input buffer is to decouple the input device from the processing unit of a computer system. By temporarily storing the input data in a buffer, it allows the user to input data at their own pace while the computer processes it independently. This helps to prevent data loss and ensures smooth interaction between the user and the system.\nCan an input buffer be used in programming?\nYes, input buffers are commonly used in programming to handle user input. When writing code, you can create an input buffer to store user input until it is needed for further processing. This allows you to handle user interactions more efficiently and provides a seamless user experience.";
+
+int cursor_pos = 4;  // Позиция курсора в строке ввода
+
 
 #define READ_TIMEOUT 50000 // 50000 микросекунд (50 миллисекунд)
 #define SLEEP_TIMEOUT 100000 // 100 микросекунд
@@ -712,7 +729,6 @@ int main() {
     int  rows, cols;
     bool need_redraw = true;
     bool followTail = true; // Флаг (показывать ли последние команды)
-    int  cursor_pos = 0;  // Позиция курсора в строке ввода
 
     // Получаем размер терминала
     printf("\033[18t");
@@ -724,19 +740,8 @@ int main() {
 
     bool terminate = false;
 
-    char* inputbuffer_text = "What is an input buffer?\nAn input buffer is a temporary storage area used in computing to hold data being received from an input device, such as a keyboard or a mouse. It allows the system to receive and process input at its own pace, rather than being dependent on the speed at which the input is provided.\nHow does an input buffer work?\nWhen you type on a keyboard, for example, the keystrokes are stored in an input buffer until the computer is ready to process them. The buffer holds the keystrokes in the order they were received, allowing them to be processed sequentially. Once the computer is ready, it retrieves the data from the buffer and performs the necessary actions based on the input.\nWhat is the purpose of an input buffer?\nThe main purpose of an input buffer is to decouple the input device from the processing unit of a computer system. By temporarily storing the input data in a buffer, it allows the user to input data at their own pace while the computer processes it independently. This helps to prevent data loss and ensures smooth interaction between the user and the system.\nCan an input buffer be used in programming?\nYes, input buffers are commonly used in programming to handle user input. When writing code, you can create an input buffer to store user input until it is needed for further processing. This allows you to handle user interactions more efficiently and provides a seamless user experience.";
-
-    int need_cols, need_rows, cursor_row, cursor_col;
-    calc_display_size(inputbuffer_text, cols-2, cursor_pos,
-                      &need_cols, &need_rows,
-                      &cursor_row, &cursor_col);
-
-    char minibuffer_text[1024] = {0};
-    snprintf(minibuffer_text, 1024, "cursor_pos=%d cursor_row=%d cursor_col=%d",
-             cursor_pos, cursor_row, cursor_col);
-
     reDraw(&outputBuffer,
-           minibuffer_text, inputbuffer_text,
+           inputbuffer_text,
            rows, cols, input, &cursor_pos,
            &followTail, &log_window_start);
     while (!terminate) {
@@ -766,7 +771,7 @@ int main() {
             }
             // ОТОБРАЖЕНИЕ:
             reDraw(&outputBuffer,
-                   minibuffer_text, inputbuffer_text,
+                   inputbuffer_text,
                    rows, cols, input,
                    &cursor_pos, &followTail, &log_window_start);
         }
