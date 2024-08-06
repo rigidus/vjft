@@ -218,7 +218,17 @@ void cmd_insert(char* buffer, const char* param) {
     // Вставка символа или строки из param в buffer
 }
 
+
+char* inputbuffer_text = "What is an input buffer?\nAn input buffer is a temporary storage area used in computing to hold data being received from an input device, such as a keyboard or a mouse. It allows the system to receive and process input at its own pace, rather than being dependent on the speed at which the input is provided.\nHow does an input buffer work?\nWhen you type on a keyboard, for example, the keystrokes are stored in an input buffer until the computer is ready to process them. The buffer holds the keystrokes in the order they were received, allowing them to be processed sequentially. Once the computer is ready, it retrieves the data from the buffer and performs the necessary actions based on the input.\nWhat is the purpose of an input buffer?\nThe main purpose of an input buffer is to decouple the input device from the processing unit of a computer system. By temporarily storing the input data in a buffer, it allows the user to input data at their own pace while the computer processes it independently. This helps to prevent data loss and ensures smooth interaction between the user and the system.\nCan an input buffer be used in programming?\nYes, input buffers are commonly used in programming to handle user input. When writing code, you can create an input buffer to store user input until it is needed for further processing. This allows you to handle user interactions more efficiently and provides a seamless user experience.";
+
+int cursor_pos = 4;  // Позиция курсора в строке ввода
+
+void cmd_forward_char() {
+    cursor_pos++;
+}
+
 KeyMap keyCommands[] = {
+    {KEY_CTRL_F, "CMD_FORWARD_CHAR", cmd_forward_char, NULL},
     {KEY_ALT_F, "CMD_FORWARD_WORD", cmd_forward_word, NULL},
     {KEY_ALT_B, "CMD_BACKWARD_WORD", cmd_backward_word, NULL},
     {KEY_A, "CMD_INSERT", cmd_insert, "a"},
@@ -233,6 +243,7 @@ const KeyMap* findCommandByKey(Key key) {
     }
     return NULL;
 }
+
 
 void convertToAsciiCodes(const char *input, char *output, size_t outputSize) {
     size_t inputLen = strlen(input);
@@ -263,7 +274,7 @@ void convertToAsciiCodes(const char *input, char *output, size_t outputSize) {
 #define DBG_LOG_MSG_SIZE 255
 
 bool processEvents(GapBuffer* outputBuffer, char* input, int* input_size,
-                   int* cursor_pos, int* log_window_start, int rows)
+                   const int* cursor_pos, int* log_window_start, int rows)
 {
     pthread_mutex_lock(&eventQueue_mutex);
     bool updated = false;
@@ -290,6 +301,25 @@ bool processEvents(GapBuffer* outputBuffer, char* input, int* input_size,
                 char logMsg[DBG_LOG_MSG_SIZE] = {0};
                 snprintf(logMsg, sizeof(logMsg), "[CMD]: %s\n", event->seq);
                 gap_buffer_insert_string(outputBuffer, logMsg);
+
+                const KeyMap* command = NULL;
+                int n_commands = sizeof(keyCommands) / sizeof(keyCommands[0]);
+                for (int i = 0; i < n_commands; i++) {
+                    if (strcmp(keyCommands[i].commandName, event->seq) == 0) {
+                        command = &keyCommands[i];
+                        break;
+                    }
+                }
+                if (command) {
+                    command->commandFunc(inputbuffer_text, command->param);
+                    snprintf(logMsg, sizeof(logMsg),
+                             "Executing command: %s\n", command->commandName);
+                    gap_buffer_insert_string(outputBuffer, logMsg);
+                } else {
+                    snprintf(logMsg, sizeof(logMsg),
+                             "No command found for: %s\n", event->seq);
+                    gap_buffer_insert_string(outputBuffer, logMsg);
+                }
                 updated = true;
             }
             break;
@@ -651,7 +681,7 @@ bool keyb () {
 
 void reDraw(GapBuffer* outputBuffer,
             char* inputbuffer_text,
-            int rows, int max_width, char* input, int* cursor_pos,
+            int rows, int max_width, char* input, const int* cursor_pos,
             bool* followTail, int* log_window_start)
 {
     int need_cols, need_rows;
@@ -690,11 +720,6 @@ void reDraw(GapBuffer* outputBuffer,
 
 
 /* Main */
-
-char* inputbuffer_text = "What is an input buffer?\nAn input buffer is a temporary storage area used in computing to hold data being received from an input device, such as a keyboard or a mouse. It allows the system to receive and process input at its own pace, rather than being dependent on the speed at which the input is provided.\nHow does an input buffer work?\nWhen you type on a keyboard, for example, the keystrokes are stored in an input buffer until the computer is ready to process them. The buffer holds the keystrokes in the order they were received, allowing them to be processed sequentially. Once the computer is ready, it retrieves the data from the buffer and performs the necessary actions based on the input.\nWhat is the purpose of an input buffer?\nThe main purpose of an input buffer is to decouple the input device from the processing unit of a computer system. By temporarily storing the input data in a buffer, it allows the user to input data at their own pace while the computer processes it independently. This helps to prevent data loss and ensures smooth interaction between the user and the system.\nCan an input buffer be used in programming?\nYes, input buffers are commonly used in programming to handle user input. When writing code, you can create an input buffer to store user input until it is needed for further processing. This allows you to handle user interactions more efficiently and provides a seamless user experience.";
-
-int cursor_pos = 4;  // Позиция курсора в строке ввода
-
 
 #define READ_TIMEOUT 50000 // 50000 микросекунд (50 миллисекунд)
 #define SLEEP_TIMEOUT 100000 // 100 микросекунд
