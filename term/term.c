@@ -190,7 +190,7 @@ typedef struct {
     const char* param;
 } KeyMap;
 
-void cmd_forward_word(char* buffer, const char* param) {
+/* void cmd_forward_word(char* buffer, const char* param) { */
     /* // Логика для перемещения вперёд на одно слово */
     /* // Пример простой реализации, предполагая, что input - это строка символов */
     /* while (*cursor_pos < input_size && input[*cursor_pos] != ' ') { */
@@ -200,9 +200,9 @@ void cmd_forward_word(char* buffer, const char* param) {
     /*     (*cursor_pos)++; */
     /* } */
     /* printf("Cursor moved forward to position: %d\n", *cursor_pos); */
-}
+/* } */
 
-void cmd_backward_word(char* buffer, const char* param) {
+/* void cmd_backward_word(char* buffer, const char* param) { */
     /* // Логика для перемещения назад на одно слово */
     /* if (*cursor_pos > 0) (*cursor_pos)--; */
     /* while (*cursor_pos > 0 && input[*cursor_pos] == ' ') { */
@@ -212,25 +212,55 @@ void cmd_backward_word(char* buffer, const char* param) {
     /*     (*cursor_pos)--; */
     /* } */
     /* printf("Cursor moved backward to position: %d\n", *cursor_pos); */
+/* } */
+
+char* inputbuffer_text = "What is an input buffer?\nAn input buffer is a temporary storage area used in computing to hold data being received from an input device, such as a keyboard or a mouse. It allows the system to receive and process input at its own pace, rather than being dependent on the speed at which the input is provided.\nHow does an input buffer work?\nWhen you type on a keyboard, for example, the keystrokes are stored in an input buffer until the computer is ready to process them. The buffer holds the keystrokes in the order they were received, allowing them to be processed sequentially. Once the computer is ready, it retrieves the data from the buffer and performs the necessary actions based on the input.\nWhat is the purpose of an input buffer?\nThe main purpose of an input buffer is to decouple the input device from the processing unit of a computer system. By temporarily storing the input data in a buffer, it allows the user to input data at their own pace while the computer processes it independently. This helps to prevent data loss and ensures smooth interaction between the user and the system.\nCan an input buffer be used in programming?\nYes, input buffers are commonly used in programming to handle user input. When writing code, you can create an input buffer to store user input until it is needed for further processing. This allows you to handle user interactions more efficiently and provides a seamless user experience.";
+
+int cursor_pos = 4;  // Позиция курсора в строке ввода
+
+size_t utf8_strlen(const char *str) {
+    size_t length = 0;
+    unsigned char c;
+    while ((c = *str++)) {
+        if ((c & 0x80) == 0) {
+            // ASCII символ (1 байт) - ничего не пропускаем
+        } else if ((c & 0xE0) == 0xC0) {
+            str += 1; // 2х байтовый UTF-символ, пропускаем еще 1 байт
+        } else if ((c & 0xF0) == 0xE0) {
+            str += 2; // 3х байтовый UTF-символ, пропускаем еще 2 байта
+        } else if ((c & 0xF8) == 0xF0) {
+            str += 3; // 3х байтовый UTF-символ, пропускаем еще 3 байта
+        } else {
+            // Недопустимый байт - ошибка
+            return -1;
+        }
+        length++;
+    }
+    return length;
+}
+
+void cmd_backward_char() {
+    if (cursor_pos-- <= 0) {
+        cursor_pos = 0;
+    }
+}
+
+void cmd_forward_char() {
+    int len = utf8_strlen(inputbuffer_text);
+    if (cursor_pos++ >= len) {
+        cursor_pos = len;
+    }
 }
 
 void cmd_insert(char* buffer, const char* param) {
     // Вставка символа или строки из param в buffer
 }
 
-
-char* inputbuffer_text = "What is an input buffer?\nAn input buffer is a temporary storage area used in computing to hold data being received from an input device, such as a keyboard or a mouse. It allows the system to receive and process input at its own pace, rather than being dependent on the speed at which the input is provided.\nHow does an input buffer work?\nWhen you type on a keyboard, for example, the keystrokes are stored in an input buffer until the computer is ready to process them. The buffer holds the keystrokes in the order they were received, allowing them to be processed sequentially. Once the computer is ready, it retrieves the data from the buffer and performs the necessary actions based on the input.\nWhat is the purpose of an input buffer?\nThe main purpose of an input buffer is to decouple the input device from the processing unit of a computer system. By temporarily storing the input data in a buffer, it allows the user to input data at their own pace while the computer processes it independently. This helps to prevent data loss and ensures smooth interaction between the user and the system.\nCan an input buffer be used in programming?\nYes, input buffers are commonly used in programming to handle user input. When writing code, you can create an input buffer to store user input until it is needed for further processing. This allows you to handle user interactions more efficiently and provides a seamless user experience.";
-
-int cursor_pos = 4;  // Позиция курсора в строке ввода
-
-void cmd_forward_char() {
-    cursor_pos++;
-}
-
 KeyMap keyCommands[] = {
+    {KEY_CTRL_B, "CMD_BACKWARD_CHAR", cmd_backward_char, NULL},
     {KEY_CTRL_F, "CMD_FORWARD_CHAR", cmd_forward_char, NULL},
-    {KEY_ALT_F, "CMD_FORWARD_WORD", cmd_forward_word, NULL},
-    {KEY_ALT_B, "CMD_BACKWARD_WORD", cmd_backward_word, NULL},
+    /* {KEY_ALT_F, "CMD_FORWARD_WORD", cmd_forward_word, NULL}, */
+    /* {KEY_ALT_B, "CMD_BACKWARD_WORD", cmd_backward_word, NULL}, */
     {KEY_A, "CMD_INSERT", cmd_insert, "a"},
 };
 
@@ -299,8 +329,8 @@ bool processEvents(GapBuffer* outputBuffer, char* input, int* input_size,
         case CMD:
             if (event->seq != NULL) {
                 char logMsg[DBG_LOG_MSG_SIZE] = {0};
-                snprintf(logMsg, sizeof(logMsg), "[CMD]: %s\n", event->seq);
-                gap_buffer_insert_string(outputBuffer, logMsg);
+                /* snprintf(logMsg, sizeof(logMsg), "[CMD]: %s\n", event->seq); */
+                /* gap_buffer_insert_string(outputBuffer, logMsg); */
 
                 const KeyMap* command = NULL;
                 int n_commands = sizeof(keyCommands) / sizeof(keyCommands[0]);
@@ -312,15 +342,15 @@ bool processEvents(GapBuffer* outputBuffer, char* input, int* input_size,
                 }
                 if (command) {
                     command->commandFunc(inputbuffer_text, command->param);
-                    snprintf(logMsg, sizeof(logMsg),
-                             "Executing command: %s\n", command->commandName);
-                    gap_buffer_insert_string(outputBuffer, logMsg);
+                    /* snprintf(logMsg, sizeof(logMsg), */
+                             /* "Executing command: %s\n", command->commandName); */
+                    /* gap_buffer_insert_string(outputBuffer, logMsg); */
                 } else {
                     snprintf(logMsg, sizeof(logMsg),
                              "No command found for: %s\n", event->seq);
                     gap_buffer_insert_string(outputBuffer, logMsg);
                 }
-                updated = true;
+               /* updated = true; */
             }
             break;
         }
