@@ -411,64 +411,67 @@ void calc_display_size(const char* text, int max_width, int cursor_pos,
 
 
 /**
-   Вывод текста в текстовое окно экрана с переносом строк
-   Вывод начинается с from_row строки и выводится max_width строк
+   Вывод текста в текстовое окно
+
+   abs_x, abs_y - левый верхний угол окна
+   rel_max_width, rel_max_rows - размер окна
+   from_row - строка внутри text с которой начинается вывод
+     (он окончится когда закончится текст или окно, а окно
+     закончится, когда будет выведено max_width строк)
 */
 
 #define FILLER ':'
-void display_wrapped(const char* text, int x, int y,
-                     int max_width, int max_rows,
+void display_wrapped(const char* text, int abs_x, int abs_y,
+                     int rel_max_width, int rel_max_rows,
                      int from_row)
 {
-    int cursor_x = x; // Текущая позиция курсора X
-    int cursor_y = y; // Текущая позиция курсора Y
-    int cur_row = 0;  // Текущая строка, она же счетчик строк
-    int cur_col = 0;  // Текущий столбец
+    int rel_row = 0;  // Текущая строка, она же счетчик строк
+    int rel_col = 0;  // Текущий столбец
 
     bool is_not_skipped_row() {
-        return (cur_row > (from_row + 0));
+        return (rel_row > (from_row + 0));
     }
     void fullfiller () {
         if (is_not_skipped_row()) { // Если мы не пропускаем
-            while (cur_col < max_width) { // Пока не правая граница
+            while (rel_col < rel_max_width) { // Пока не правая граница
                 putchar(FILLER); // Заполняем
-                cur_col++; // Увеличиваем счетчик длины строки
+                rel_col++; // Увеличиваем счетчик длины строки
             }
         }
     }
-    void inc_cur_row() {
-        cur_col = 0; // Сброс длины строки для новой строки
-        cur_row++;   // Увеличение счетчика строк
+    void inc_rel_row() {
+        rel_col = 0; // Сброс длины строки для новой строки
+        rel_row++;   // Увеличение счетчика строк
         if (is_not_skipped_row()) { // Если мы не пропускаем
-            moveCursor(cursor_x, cursor_y + cur_row - from_row - 1);
+            moveCursor(abs_x, abs_y + rel_row - from_row - 1);
         }
     }
 
-    inc_cur_row(); // Курсор на начальную позицию
+    inc_rel_row(); // Курсор на начальную позицию
 
     for (const char* p = text; *p; p++) {
-        if (cur_col >= max_width) { // Если правая граница
-            inc_cur_row();
+        if (rel_col >= rel_max_width) { // Если правая граница
+            inc_rel_row();
         }
         // Если максимальное количество строк достигнуто
-        if (cur_row > (max_rows + from_row)) {
+        if (rel_row > (rel_max_rows + from_row)) {
             break;  // Прекращаем вывод
         }
         if (*p == '\n') {  // Если текущий символ - перевод строки
             fullfiller();  // Заполняем оставшееся филером
-            inc_cur_row(); // Переходим на следующую строку
+            inc_rel_row(); // Переходим на следующую строку
         } else {
             // Обычный печатаемый символ
             if (is_not_skipped_row()) { // Если мы не пропускаем
                 putchar(*p); // то выводим текущий символ
             }
-            cur_col++; // Увеличиваем счетчик длины строки
+            rel_col++; // Увеличиваем счетчик длины строки
         }
     }
 
     // Мы вывели все что хотели, но даже после этого мы должны заполнить
     // остаток строки до конца, если мы не находимся в начале строки
-    if (cur_col != 0) {
+    if (rel_col != 0) {
         fullfiller();
     }
 }
