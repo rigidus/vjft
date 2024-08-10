@@ -216,7 +216,7 @@ typedef struct {
 
 char* inputbuffer_text = "What is an input buffer?\nAn input buffer is a temporary storage area used in computing to hold data being received from an input device, such as a keyboard or a mouse. It allows the system to receive and process input at its own pace, rather than being dependent on the speed at which the input is provided.\nHow does an input buffer work?\nWhen you type on a keyboard, for example, the keystrokes are stored in an input buffer until the computer is ready to process them. The buffer holds the keystrokes in the order they were received, allowing them to be processed sequentially. Once the computer is ready, it retrieves the data from the buffer and performs the necessary actions based on the input.\nWhat is the purpose of an input buffer?\nThe main purpose of an input buffer is to decouple the input device from the processing unit of a computer system. By temporarily storing the input data in a buffer, it allows the user to input data at their own pace while the computer processes it independently. This helps to prevent data loss and ensures smooth interaction between the user and the system.\nCan an input buffer be used in programming?\nYes, input buffers are commonly used in programming to handle user input. When writing code, you can create an input buffer to store user input until it is needed for further processing. This allows you to handle user interactions more efficiently and provides a seamless user experience.";
 
-int cursor_pos = 4;  // Позиция курсора в строке ввода
+int cursor_pos = 0;  // Позиция курсора в строке ввода
 
 size_t utf8_strlen(const char *str) {
     size_t length = 0;
@@ -485,54 +485,6 @@ void drawHorizontalLine(int cols, int y, char sym) {
     }
 }
 
-
-int showMiniBuffer(const char* text, int width, int height) {
-    int need_cols, need_rows, cursor_row, cursor_col;
-    calc_display_size(text, width-2, 0,
-                      &need_cols, &need_rows,
-                      &cursor_row, &cursor_col);
-    // Когда я вывожу что-то в минибуфер я хочу чтобы при большом
-    // выводе он показывал только первые 10 строк
-    int max_minibuffer_rows = 10;
-    if (need_rows > max_minibuffer_rows)  {
-        need_rows = max_minibuffer_rows;
-    }
-    int from_row = 0;
-    int up = height + 1 - need_rows + from_row;
-    display_wrapped(text, 2, up, width-2, need_rows, from_row);
-    drawHorizontalLine(width, up-1, '=');
-    return up - 2;
-}
-
-
-int showInputBuffer(char* text, int cursor_pos,
-                    int width, int height)
-{
-    // Получаем размеры виртуальной области вывода, т.е. сколько нужно
-    // места, чтобы вывести весь text при заданной ширине строки и в
-    // какой из этих строк будет расположен курсор
-    int need_cols, need_rows, cursor_row, cursor_col;
-    calc_display_size(text, width-2, cursor_pos,
-                      &need_cols, &need_rows,
-                      &cursor_row, &cursor_col);
-    // Если содержимое не помещается в область вывода, которая может
-    // быть максимум половиной от оставшейся высоты
-    int max_inputbuffer_rows = height / 2;
-    if (need_rows > max_inputbuffer_rows)  {
-        // Тогда надо вывести область где курсор
-        need_rows = max_inputbuffer_rows;
-    }
-    // С какой строки выводим
-    int from_row = 0;
-    // Определяем координаты верхней строки
-    int up = height + 1 - need_rows;
-    // Выводим
-    display_wrapped(text, 2, up, width-2, need_rows, from_row);
-    drawHorizontalLine(width, up-1, '-');
-    // Возвращаем номер строки выше отображения inputbuffer
-    return up - 2;
-}
-
 void showOutputBuffer(GapBuffer* gb, int log_window_start, int log_window_end,
                       int cols, int max_lines)
 {
@@ -711,34 +663,72 @@ bool keyb () {
     }
 }
 
+int margin = 8;
 
 void reDraw(GapBuffer* outputBuffer,
-            char* inputbuffer_text,
+            char* ib_text,
             int rows, int max_width, char* input, const int* cursor_pos,
             bool* followTail, int* log_window_start)
 {
-    int need_cols, need_rows;
+    int ib_need_cols, ib_need_rows;
+    int cursor_row, cursor_col;
 
-    // Вычисляемая на основании cursor_pos (позиции курсора в строке)
-    // реальная позиция курсора на экране
-    int cursor_row = 0;
-    int cursor_col = 0;
-
-    // Вычисляем необходимый размер inputbuffer и позицию курсора на экране
-    calc_display_size(inputbuffer_text, max_width-2, *cursor_pos,
-                      &need_cols, &need_rows, &cursor_row, &cursor_col);
-
-    // Формируем текст для минибуфера
-    char minibuffer_text[1024] = {0};
-    snprintf(minibuffer_text, 1024, "cursor_pos=%d cursor_row=%d cursor_col=%d",
-             *cursor_pos, cursor_row, cursor_col);
+    // Вычисляем относительную позицию курсора в inputbuffer-е
+    int rel_max_width = max_width - margin*2;
+    calc_display_size(ib_text, rel_max_width, *cursor_pos,
+                      &ib_need_cols, &ib_need_rows,
+                      &cursor_row, &cursor_col);
 
     // Очищаем экран
     clearScreen();
-    // Отображаем минибуфер и получаем номер строки над ним
-    int bottom = showMiniBuffer(minibuffer_text, max_width, rows);
-    // Отображаем InputBuffer и получаем номер строки над ним
-    bottom = showInputBuffer(inputbuffer_text, *cursor_pos, max_width, bottom);
+
+    // МИНИБУФЕР ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+    // Формируем текст для минибуфера с позицией курсора в строке inputBuffer-a
+    // относительной позицией в строке и столбце минибуфера
+    char mb_text[1024] = {0};
+    snprintf(mb_text, 1024, "cursor_pos=%d cursor_row=%d cursor_col=%d",
+             *cursor_pos, cursor_row, cursor_col);
+
+    int mb_need_cols, mb_need_rows, mb_cursor_row, mb_cursor_col;
+    int mb_width = max_width-2;
+    calc_display_size(mb_text, mb_width, 0, &mb_need_cols, &mb_need_rows,
+                      &mb_cursor_row, &mb_cursor_col);
+    // Когда я вывожу что-то в минибуфер я хочу чтобы при большом
+    // выводе он показывал только первые 10 строк
+    int max_minibuffer_rows = 10;
+    if (mb_need_rows > max_minibuffer_rows)  {
+        mb_need_rows = max_minibuffer_rows;
+    }
+    int mb_from_row = 0;
+    int mb_up = rows + 1 - mb_need_rows + mb_from_row;
+    display_wrapped(mb_text, 2, mb_up, mb_width, mb_need_rows, mb_from_row);
+    drawHorizontalLine(max_width, mb_up-1, '=');
+    int bottom = mb_up-2;
+
+    // INPUTBUFFER :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+    // По-умолчанию будем выводить от начала содержимого
+    int ib_from_row = -1;
+    // Область вывода может быть максимум половиной от оставшейся высоты
+    int max_ib_rows = rows / 2;
+    // Если содержимое больше чем область вывода
+    if (ib_need_rows > max_ib_rows)  {
+        // Тогда надо вывести область где курсор
+        ib_from_row = cursor_row-1;
+        // И выводить сколько сможем
+        ib_need_rows = max_ib_rows;
+    }
+    // Определяем абсолютные координаты верхней строки
+    int up = bottom + 1 - ib_need_rows;
+    // Выводим
+    display_wrapped(ib_text, margin, up, rel_max_width, ib_need_rows, ib_from_row);
+    drawHorizontalLine(max_width, up-1, '-');
+    // Возвращаем номер строки выше отображения inputbuffer
+    bottom =  up - 2;
+
+    // OUTPUT BUFFER
+
     int outputBufferAvailableLines = bottom - 1;
     // Показываем OutputBuffer в оставшемся пространстве
     /* showOutputBuffer(outputBuffer, *log_window_start, logSize, max_width, */
@@ -748,7 +738,7 @@ void reDraw(GapBuffer* outputBuffer,
     fflush(stdout);
 
     // Перемещаем курсор в нужную позицию с поправкой на расположение inputbuffer
-    moveCursor(cursor_col + 1, bottom + 1 + cursor_row);
+    moveCursor(cursor_col + margin, bottom + 1 + cursor_row - ib_from_row);
 }
 
 
