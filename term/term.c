@@ -670,14 +670,13 @@ void reDraw(GapBuffer* outputBuffer,
             int rows, int max_width, char* input, const int* cursor_pos,
             bool* followTail, int* log_window_start)
 {
-    int ib_need_cols, ib_need_rows;
-    int cursor_row, cursor_col;
+    int ib_need_cols, ib_need_rows, ib_cursor_row, ib_cursor_col, ib_from_row;
 
     // Вычисляем относительную позицию курсора в inputbuffer-е
     int rel_max_width = max_width - margin*2;
     calc_display_size(ib_text, rel_max_width, *cursor_pos,
                       &ib_need_cols, &ib_need_rows,
-                      &cursor_row, &cursor_col);
+                      &ib_cursor_row, &ib_cursor_col);
 
     // Очищаем экран
     clearScreen();
@@ -687,13 +686,14 @@ void reDraw(GapBuffer* outputBuffer,
     // Формируем текст для минибуфера с позицией курсора в строке inputBuffer-a
     // относительной позицией в строке и столбце минибуфера
     char mb_text[1024] = {0};
-    snprintf(mb_text, 1024, "cursor_pos=%d cursor_row=%d cursor_col=%d",
-             *cursor_pos, cursor_row, cursor_col);
+    snprintf(mb_text, 1024,
+             "cur_pos=%d\ncur_row=%d\ncur_col=%d\nib_need_rows=%d\nib_from_row=%d",
+             *cursor_pos, ib_cursor_row, ib_cursor_col, ib_need_rows, ib_from_row);
 
-    int mb_need_cols, mb_need_rows, mb_cursor_row, mb_cursor_col;
+    int mb_need_cols, mb_need_rows, mb_ib_cursor_row, mb_ib_cursor_col;
     int mb_width = max_width-2;
     calc_display_size(mb_text, mb_width, 0, &mb_need_cols, &mb_need_rows,
-                      &mb_cursor_row, &mb_cursor_col);
+                      &mb_ib_cursor_row, &mb_ib_cursor_col);
     // Когда я вывожу что-то в минибуфер я хочу чтобы при большом
     // выводе он показывал только первые 10 строк
     int max_minibuffer_rows = 10;
@@ -708,16 +708,28 @@ void reDraw(GapBuffer* outputBuffer,
 
     // INPUTBUFFER :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-    // По-умолчанию будем выводить от начала содержимого
-    int ib_from_row = -1;
     // Область вывода может быть максимум половиной от оставшейся высоты
-    int max_ib_rows = rows / 2;
+    int max_ib_rows = bottom / 2;
+
     // Если содержимое больше чем область вывода
     if (ib_need_rows > max_ib_rows)  {
-        // Тогда надо вывести область где курсор
-        ib_from_row = cursor_row-1;
-        // И выводить сколько сможем
-        ib_need_rows = max_ib_rows;
+        // Тогда надо вывести область где курсор, при этом:
+        // Если порядковый номер строки, на которой находится курсор,
+        // меньше, чем размер области вывода
+        if (ib_cursor_row <= max_ib_rows) {
+            // ..то надо выводить с первой строки
+            ib_from_row = 0;
+            // И выводить сколько сможем
+            ib_need_rows = max_ib_rows;
+        } else {
+            // иначе надо, чтобы курсор был на нижней строке
+            ib_from_row = ib_cursor_row - max_ib_rows;
+            // И выводить сколько сможем
+            ib_need_rows = max_ib_rows;
+        }
+    } else {
+        // По-умолчанию будем выводить от начала содержимого
+        ib_from_row = 0;
     }
     // Определяем абсолютные координаты верхней строки
     int up = bottom + 1 - ib_need_rows;
@@ -738,7 +750,7 @@ void reDraw(GapBuffer* outputBuffer,
     fflush(stdout);
 
     // Перемещаем курсор в нужную позицию с поправкой на расположение inputbuffer
-    moveCursor(cursor_col + margin, bottom + 1 + cursor_row - ib_from_row);
+    moveCursor(ib_cursor_col + margin, bottom + 1 + ib_cursor_row - ib_from_row);
 }
 
 
