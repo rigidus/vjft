@@ -262,6 +262,91 @@ void cmd_forward_char() {
     }
 }
 
+// Функция для перемещения курсора на следующий UTF-8 символ
+int utf8_next_char(const char* str, int pos) {
+    if (str[pos] == '\0') return pos;
+    int char_len = utf8_char_length(&str[pos]);
+    return pos + char_len;
+}
+
+// Функция для перемещения курсора на предыдущий UTF-8 символ
+int utf8_prev_char(const char* str, int pos) {
+    if (pos == 0) return 0;
+    do {
+        pos--;
+    } while (pos > 0 && ((str[pos] & 0xC0) == 0x80)); // Пропуск байтов продолжения
+    return pos;
+}
+
+// Функция для определения смещения в байтах
+// для указанной позиции курсора (в символах)
+int utf8_byte_offset(const char* str, int cursor_pos) {
+    int byte_offset = 0;
+    int char_count = 0;
+
+    while (str[byte_offset] != '\0') {
+        if (char_count == cursor_pos) {
+            break;
+        }
+
+        int char_len = utf8_char_length(&str[byte_offset]);
+        byte_offset += char_len;
+        char_count++;
+    }
+
+    return byte_offset;
+}
+
+// Перемещение курсора вперед на одно слово
+void cmd_forward_word() {
+    int len = utf8_strlen(inputbuffer_text);  // Длина строки в байтах
+
+    // Смещение в байтах от начала строки до курсора
+    int byte_offset = utf8_byte_offset(inputbuffer_text, cursor_pos);
+
+    // Пропуск пробелов (если курсор находится на пробеле)
+    while (byte_offset < len && isspace((unsigned char)inputbuffer_text[byte_offset]))
+    {
+        byte_offset = utf8_next_char(inputbuffer_text, byte_offset);
+        cursor_pos++;
+    }
+
+    // Перемещение вперед до конца слова
+    while (byte_offset < len && !isspace((unsigned char)inputbuffer_text[byte_offset]))
+    {
+        byte_offset = utf8_next_char(inputbuffer_text, byte_offset);
+        cursor_pos++;
+    }
+}
+
+// Перемещение курсора назад на одно слово
+void cmd_backward_word() {
+    if (cursor_pos == 0) return;  // Если курсор уже в начале, ничего не делаем
+
+    // Смещение в байтах от начала строки до курсора
+    int byte_offset = utf8_byte_offset(inputbuffer_text, cursor_pos);
+
+    // Пропуск пробелов, если курсор находится на пробеле
+    while (byte_offset > 0) {
+        int prev_offset = utf8_prev_char(inputbuffer_text, byte_offset);
+        if (!isspace((unsigned char)inputbuffer_text[prev_offset])) {
+            break;
+        }
+        byte_offset = prev_offset;
+        cursor_pos--;
+    }
+
+    // Перемещение назад до начала предыдущего слова
+    while (byte_offset > 0) {
+        int prev_offset = utf8_prev_char(inputbuffer_text, byte_offset);
+        if (isspace((unsigned char)inputbuffer_text[prev_offset])) {
+            break;
+        }
+        byte_offset = prev_offset;
+        cursor_pos--;
+    }
+}
+
 void cmd_insert(char* buffer, const char* param) {
     // Вставка символа или строки из param в buffer
 }
@@ -269,8 +354,8 @@ void cmd_insert(char* buffer, const char* param) {
 KeyMap keyCommands[] = {
     {KEY_CTRL_B, "CMD_BACKWARD_CHAR", cmd_backward_char, NULL},
     {KEY_CTRL_F, "CMD_FORWARD_CHAR", cmd_forward_char, NULL},
-    /* {KEY_ALT_F, "CMD_FORWARD_WORD", cmd_forward_word, NULL}, */
-    /* {KEY_ALT_B, "CMD_BACKWARD_WORD", cmd_backward_word, NULL}, */
+    {KEY_ALT_F, "CMD_FORWARD_WORD", cmd_forward_word, NULL},
+    {KEY_ALT_B, "CMD_BACKWARD_WORD", cmd_backward_word, NULL},
     {KEY_A, "CMD_INSERT", cmd_insert, "a"},
 };
 
