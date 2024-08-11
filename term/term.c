@@ -214,9 +214,19 @@ typedef struct {
     /* printf("Cursor moved backward to position: %d\n", *cursor_pos); */
 /* } */
 
-char* inputbuffer_text = "What is an input buffer?\nAn input buffer is a temporary storage area used in computing to hold data being received from an input device, such as a keyboard or a mouse. It allows the system to receive and process input at its own pace, rather than being dependent on the speed at which the input is provided.\nHow does an input buffer work?\nWhen you type on a keyboard, for example, the keystrokes are stored in an input buffer until the computer is ready to process them. The buffer holds the keystrokes in the order they were received, allowing them to be processed sequentially. Once the computer is ready, it retrieves the data from the buffer and performs the necessary actions based on the input.\nWhat is the purpose of an input buffer?\nThe main purpose of an input buffer is to decouple the input device from the processing unit of a computer system. By temporarily storing the input data in a buffer, it allows the user to input data at their own pace while the computer processes it independently. This helps to prevent data loss and ensures smooth interaction between the user and the system.\nCan an input buffer be used in programming?\nYes, input buffers are commonly used in programming to handle user input. When writing code, you can create an input buffer to store user input until it is needed for further processing. This allows you to handle user interactions more efficiently and provides a seamless user experience.";
+char* inputbuffer_text = "Что такое буфер ввода?\nБуфер ввода - это временная область хранения, используемая в вычислительной технике для хранения данных, получаемых от устройства ввода, такого как клавиатура или мышь. Он позволяет системе получать и обрабатывать данные в своем собственном темпе, а не зависеть от скорости их поступления.\nКак работает буфер ввода.\nКак вы набираете текст на клавиатуре, например, нажатия клавиш сохраняются в буфере ввода до тех пор, пока компьютер не будет готов их обработать. Буфер хранит нажатия в том порядке, в котором они были получены, что позволяет обрабатывать их последовательно. Когда компьютер готов, он извлекает данные из буфера и выполняет необходимые действия.\nЧто такое буфер ввода?\nОсновное назначение буфера ввода - отделить устройство ввода от вычислительного блока компьютерной системы. Временное хранение входных данных в буфере позволяет пользователю вводить данные в своем собственном темпе, в то время как компьютер обрабатывает их независимо. Это помогает предотвратить потерю данных и обеспечивает плавное взаимодействие между пользователем и системой.\nМожно ли использовать буфер ввода в программировании?\nДа, буферы ввода обычно используются в программировании для обработки пользовательского ввода. При написании кода вы можете создать буфер ввода для хранения пользовательского ввода до тех пор, пока он не понадобится для дальнейшей обработки. Это позволяет более эффективно обрабатывать пользовательское взаимодействие и обеспечивает бесперебойную работу пользователя.";
 
 int cursor_pos = 0;  // Позиция курсора в строке ввода
+
+// Функция для вычисления длины UTF-8 символа
+size_t utf8_char_length(const char* c) {
+    unsigned char byte = (unsigned char)*c;
+    if (byte <= 0x7F) return 1;        // ASCII
+    else if ((byte & 0xE0) == 0xC0) return 2; // 2-byte sequence
+    else if ((byte & 0xF0) == 0xE0) return 3; // 3-byte sequence
+    else if ((byte & 0xF8) == 0xF0) return 4; // 4-byte sequence
+    return 1; // Ошибочные символы обрабатываем как 1 байт
+}
 
 size_t utf8_strlen(const char *str) {
     size_t length = 0;
@@ -380,7 +390,9 @@ void calc_display_size(const char* text, int max_width, int cursor_pos,
     int cur_col = 0; // Длина текущей строки
     int max_col = 0; // Максимальная найденная длина строки
 
-    for (const char* p = text; *p; p++) {
+    for (const char* p = text; *p; ) {
+        size_t char_len = utf8_char_length(p);
+
         cur_text_pos++; // Увеличение текущей позиции в тексте
         if (cur_text_pos == cursor_pos) { // Дошли до позиции курсора?
             *cursor_row = cur_row;        // Вернуть текущую строку
@@ -398,6 +410,8 @@ void calc_display_size(const char* text, int max_width, int cursor_pos,
             cur_col = 0;  // Сброс длины строки для новой строки
             cur_row++;    // Увеличение счетчика строк
         }
+
+        p += char_len; // Переходим к следующему символу
     }
 
     // Если последняя строка оказалась самой длинной
@@ -421,27 +435,31 @@ void calc_display_size(const char* text, int max_width, int cursor_pos,
 */
 
 #define FILLER ':'
+
+// Основная функция для вывода текста с учётом переноса строк
 void display_wrapped(const char* text, int abs_x, int abs_y,
                      int rel_max_width, int rel_max_rows,
                      int from_row)
 {
-    int rel_row = 0;  // Текущая строка, она же счетчик строк
+    int rel_row = 0;  // Текущая строка, она же счётчик строк
     int rel_col = 0;  // Текущий столбец
 
     bool is_not_skipped_row() {
-        return (rel_row > (from_row + 0));
+        return (rel_row > from_row);
     }
+
     void fullfiller () {
         if (is_not_skipped_row()) { // Если мы не пропускаем
             while (rel_col < rel_max_width) { // Пока не правая граница
                 putchar(FILLER); // Заполняем
-                rel_col++; // Увеличиваем счетчик длины строки
+                rel_col++; // Увеличиваем счётчик длины строки
             }
         }
     }
+
     void inc_rel_row() {
         rel_col = 0; // Сброс длины строки для новой строки
-        rel_row++;   // Увеличение счетчика строк
+        rel_row++;   // Увеличение счётчика строк
         if (is_not_skipped_row()) { // Если мы не пропускаем
             moveCursor(abs_x, abs_y + rel_row - from_row - 1);
         }
@@ -449,28 +467,34 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
 
     inc_rel_row(); // Курсор на начальную позицию
 
-    for (const char* p = text; *p; p++) {
-        if (rel_col >= rel_max_width) { // Если правая граница
+    for (const char* p = text; *p; ) {
+        size_t char_len = utf8_char_length(p);
+
+        // Если текущая строка достигает максимальной ширины
+        if (rel_col >= rel_max_width) {
             inc_rel_row();
         }
+
         // Если максимальное количество строк достигнуто
         if (rel_row > (rel_max_rows + from_row)) {
             break;  // Прекращаем вывод
         }
+
         if (*p == '\n') {  // Если текущий символ - перевод строки
-            fullfiller();  // Заполняем оставшееся филером
+            fullfiller();  // Заполняем оставшееся филлером
             inc_rel_row(); // Переходим на следующую строку
+            p += char_len; // Переходим к следующему символу
         } else {
             // Обычный печатаемый символ
             if (is_not_skipped_row()) { // Если мы не пропускаем
-                putchar(*p); // то выводим текущий символ
+                fwrite(p, 1, char_len, stdout); // Выводим символ (UTF-8)
             }
-            rel_col++; // Увеличиваем счетчик длины строки
+            rel_col++; // Увеличиваем счётчик длины строки
+            p += char_len; // Переходим к следующему символу
         }
     }
 
-    // Мы вывели все что хотели, но даже после этого мы должны заполнить
-    // остаток строки до конца, если мы не находимся в начале строки
+    // Заполнение оставшейся части строки до конца, если необходимо
     if (rel_col != 0) {
         fullfiller();
     }
@@ -690,10 +714,10 @@ void reDraw(GapBuffer* outputBuffer,
              "cur_pos=%d\ncur_row=%d\ncur_col=%d\nib_need_rows=%d\nib_from_row=%d",
              *cursor_pos, ib_cursor_row, ib_cursor_col, ib_need_rows, ib_from_row);
 
-    int mb_need_cols, mb_need_rows, mb_ib_cursor_row, mb_ib_cursor_col;
+    int mb_need_cols, mb_need_rows, mb_cursor_row, mb_cursor_col;
     int mb_width = max_width-2;
     calc_display_size(mb_text, mb_width, 0, &mb_need_cols, &mb_need_rows,
-                      &mb_ib_cursor_row, &mb_ib_cursor_col);
+                      &mb_cursor_row, &mb_cursor_col);
     // Когда я вывожу что-то в минибуфер я хочу чтобы при большом
     // выводе он показывал только первые 10 строк
     int max_minibuffer_rows = 10;
