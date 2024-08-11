@@ -29,11 +29,29 @@ void disableRawMode() {
 }
 
 void enableRawMode() {
+    // Сохраняем текущие настройки терминала
     tcgetattr(STDIN_FILENO, &orig_termios);
+    // Гарантируем возврат к нормальным настройкам при выходе
     atexit(disableRawMode);
+
     struct termios raw = orig_termios;
     // Отключаем эхо и канонический режим
     raw.c_lflag &= ~(ECHO | ICANON);
+
+    // Отключаем эхо, канонический режим и сигналы
+    raw.c_lflag &= ~(ECHO | ICANON | ISIG);
+
+    // Отключаем специальные управляющие символы
+    /* raw.c_cc[VINTR] = 0;  // Ctrl-C */
+    /* raw.c_cc[VQUIT] = 0;  // Ctrl-\ ; */
+    /* raw.c_cc[VSTART] = 0; // Ctrl-Q */
+    /* raw.c_cc[VSTOP] = 0;  // Ctrl-S */
+    /* raw.c_cc[VEOF] = 0;   // Ctrl-D */
+    /* raw.c_cc[VSUSP] = 0;  // Ctrl-Z */
+    /* raw.c_cc[VREPRINT] = 0; // Ctrl-R */
+    /* raw.c_cc[VLNEXT] = 0; // Ctrl-V */
+    /* raw.c_cc[VDISCARD] = 0; // Ctrl-U */
+
     /* // Отключаем управление потоком */
     /* raw.c_iflag &= ~IXON; */
     /* /\* raw.c_lflag &= ~(ICANON | ECHO | ISIG | IEXTEN); *\/ */
@@ -44,8 +62,10 @@ void enableRawMode() {
     /* raw.c_cc[VMIN] = 0; */
     /* // Timeout in deciseconds for noncanonical read (0.1 seconds) */
     /* raw.c_cc[VTIME] = 0; */
+
     // Устанавливаем raw mode
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+
     // Установка небуферизованного вывода для stdout
     /* setvbuf(stdout, NULL, _IONBF, 0); */
 }
@@ -190,29 +210,6 @@ typedef struct {
     const char* param;
 } KeyMap;
 
-/* void cmd_forward_word(char* buffer, const char* param) { */
-    /* // Логика для перемещения вперёд на одно слово */
-    /* // Пример простой реализации, предполагая, что input - это строка символов */
-    /* while (*cursor_pos < input_size && input[*cursor_pos] != ' ') { */
-    /*     (*cursor_pos)++; */
-    /* } */
-    /* while (*cursor_pos < input_size && input[*cursor_pos] == ' ') { */
-    /*     (*cursor_pos)++; */
-    /* } */
-    /* printf("Cursor moved forward to position: %d\n", *cursor_pos); */
-/* } */
-
-/* void cmd_backward_word(char* buffer, const char* param) { */
-    /* // Логика для перемещения назад на одно слово */
-    /* if (*cursor_pos > 0) (*cursor_pos)--; */
-    /* while (*cursor_pos > 0 && input[*cursor_pos] == ' ') { */
-    /*     (*cursor_pos)--; */
-    /* } */
-    /* while (*cursor_pos > 0 && input[*cursor_pos] != ' ') { */
-    /*     (*cursor_pos)--; */
-    /* } */
-    /* printf("Cursor moved backward to position: %d\n", *cursor_pos); */
-/* } */
 
 char* inputbuffer_text = "Что такое буфер ввода?\nБуфер ввода - это временная область хранения, используемая в вычислительной технике для хранения данных, получаемых от устройства ввода, такого как клавиатура или мышь. Он позволяет системе получать и обрабатывать данные в своем собственном темпе, а не зависеть от скорости их поступления.\nКак работает буфер ввода.\nКак вы набираете текст на клавиатуре, например, нажатия клавиш сохраняются в буфере ввода до тех пор, пока компьютер не будет готов их обработать. Буфер хранит нажатия в том порядке, в котором они были получены, что позволяет обрабатывать их последовательно. Когда компьютер готов, он извлекает данные из буфера и выполняет необходимые действия.\nЧто такое буфер ввода?\nОсновное назначение буфера ввода - отделить устройство ввода от вычислительного блока компьютерной системы. Временное хранение входных данных в буфере позволяет пользователю вводить данные в своем собственном темпе, в то время как компьютер обрабатывает их независимо. Это помогает предотвратить потерю данных и обеспечивает плавное взаимодействие между пользователем и системой.\nМожно ли использовать буфер ввода в программировании?\nДа, буферы ввода обычно используются в программировании для обработки пользовательского ввода. При написании кода вы можете создать буфер ввода для хранения пользовательского ввода до тех пор, пока он не понадобится для дальнейшей обработки. Это позволяет более эффективно обрабатывать пользовательское взаимодействие и обеспечивает бесперебойную работу пользователя.";
 
@@ -228,6 +225,7 @@ size_t utf8_char_length(const char* c) {
     return 1; // Ошибочные символы обрабатываем как 1 байт
 }
 
+// Возвращает длину строки в utf-8 символах
 size_t utf8_strlen(const char *str) {
     size_t length = 0;
     unsigned char c;
@@ -297,6 +295,20 @@ int utf8_byte_offset(const char* str, int cursor_pos) {
     return byte_offset;
 }
 
+// Функция для конвертации byte_offset в индекс символа (UTF-8)
+int utf8_char_index(const char* str, int byte_offset) {
+    int char_index = 0;
+    int current_offset = 0;
+
+    while (current_offset < byte_offset && str[current_offset] != '\0') {
+        int char_len = utf8_char_length(&str[current_offset]);
+        current_offset += char_len;
+        char_index++;
+    }
+
+    return char_index;
+}
+
 // Перемещение курсора вперед на одно слово
 void cmd_forward_word() {
     int len = utf8_strlen(inputbuffer_text);  // Длина строки в байтах
@@ -347,6 +359,52 @@ void cmd_backward_word() {
     }
 }
 
+void cmd_move_to_beginning_of_line() {
+    // Если курсор уже в начале текста, ничего не делаем
+    if (cursor_pos == 0) return;
+
+    // Смещение в байтах от начала строки до курсора
+    int byte_offset = utf8_byte_offset(inputbuffer_text, cursor_pos);
+
+    // Движемся назад, пока не найдем начало строки или начало текста
+    while (byte_offset > 0) {
+        int prev_offset = utf8_prev_char(inputbuffer_text, byte_offset);
+        if (inputbuffer_text[prev_offset] == '\n') {
+            // Переходим на следующий символ после \n
+            byte_offset = utf8_next_char(inputbuffer_text, prev_offset);
+            cursor_pos = utf8_strlen(inputbuffer_text);
+            return;
+        }
+        byte_offset = prev_offset;
+        cursor_pos--;
+    }
+    // Если достигли начала текста, устанавливаем курсор на позицию 0
+    cursor_pos = 0;
+}
+
+void cmd_move_to_end_of_line() {
+    // Длина строки в байтах
+    int len = strlen(inputbuffer_text);
+
+    // Смещение в байтах от начала строки до курсора
+    int byte_offset = utf8_byte_offset(inputbuffer_text, cursor_pos);
+
+    // Движемся вперед, пока не найдем конец строки или конец текста
+    while (byte_offset < len) {
+        if (inputbuffer_text[byte_offset] == '\n') {
+            cursor_pos = utf8_char_index(inputbuffer_text, byte_offset);
+            return;
+        }
+        byte_offset = utf8_next_char(inputbuffer_text, byte_offset);
+        cursor_pos++;
+    }
+
+    // Если достигли конца текста
+    cursor_pos = utf8_char_index(inputbuffer_text, len);
+}
+
+
+
 void cmd_insert(char* buffer, const char* param) {
     // Вставка символа или строки из param в buffer
 }
@@ -356,7 +414,10 @@ KeyMap keyCommands[] = {
     {KEY_CTRL_F, "CMD_FORWARD_CHAR", cmd_forward_char, NULL},
     {KEY_ALT_F, "CMD_FORWARD_WORD", cmd_forward_word, NULL},
     {KEY_ALT_B, "CMD_BACKWARD_WORD", cmd_backward_word, NULL},
-    {KEY_A, "CMD_INSERT", cmd_insert, "a"},
+    /* {KEY_CTRL_A, "CMD_MOVE_TO_BEGINNING_OF_LINE",
+       cmd_move_to_beginning_of_line, NULL}, */
+    {KEY_CTRL_E, "CMD_MOVE_TO_END_OF_LINE", cmd_move_to_end_of_line, NULL},
+    /* {KEY_A, "CMD_INSERT", cmd_insert, "a"}, */
 };
 
 const KeyMap* findCommandByKey(Key key) {
@@ -729,46 +790,11 @@ bool keyb () {
     }
 
     if (len == 1) {
-        // SingleByte
         if (input_buffer[0] == '\x04') {
             // Обрабатываем Ctrl-D для выхода
             printf("\n");
             return true;
-            /* } else if (input_buffer[0] == 127 || input_buffer[0] == 8) { */
-            /*     // Обрабатываем BackSpace */
-            /*     enqueueEvent(BACKSPACE, NULL); */
-            /* } else if (input_buffer[0] >= 1 && input_buffer[0] <= 26 ) { */
-            /*     // Обрабатываем Ctrl-key для команд */
-            /*     input_buffer[0] = 'A' + input_buffer[0] - 1; */
-            /*     enqueueEvent(CTRL, input_buffer); */
-            /* } else if (input_buffer[0] == '\033') { */
-            /*     // Escape-последовательность */
-            /*     enqueueEvent(SPECIAL, input_buffer); */
-            /* } else { */
-            /*     // Обычный однобайтовый символ - выводим */
-            /*     enqueueEvent(TEXT_INPUT, input_buffer); */
         }
-    } else {
-        /* // Multibyte */
-        /* if (input_buffer[0] == '\033') { */
-        /*     // Escape-последовательность */
-        /*     char buffer[100]; */
-        /*     snprintf(buffer, sizeof(buffer), "ESC:%d <%s>", len, */
-        /*              input_buffer+1); */
-        /*     // Отладочный вывод */
-        /*     enqueueEvent(DBG, buffer); */
-        /*     // Escape-последовательность - выводим */
-        /*     enqueueEvent(SPECIAL, input_buffer+1); */
-        /* } else { */
-        /*     // Многобайтовый символ */
-        /*     char buffer[100]; */
-        /*     snprintf(buffer, sizeof(buffer), "MulitByteSym: %d [%s]", len, */
-        /*              input_buffer); */
-        /*     // Отладочный вывод */
-        /*     enqueueEvent(DBG, buffer); */
-        /*     // Обычный многобайтовый символ */
-        /*     enqueueEvent(TEXT_INPUT, input_buffer); */
-        /* } */
     }
 }
 
