@@ -211,7 +211,8 @@ typedef struct {
 } KeyMap;
 
 
-char* inputbuffer_text = "Что такое буфер ввода?\nБуфер ввода - это временная область хранения, используемая в вычислительной технике для хранения данных, получаемых от устройства ввода, такого как клавиатура или мышь. Он позволяет системе получать и обрабатывать данные в своем собственном темпе, а не зависеть от скорости их поступления.\nКак работает буфер ввода.\nКак вы набираете текст на клавиатуре, например, нажатия клавиш сохраняются в буфере ввода до тех пор, пока компьютер не будет готов их обработать. Буфер хранит нажатия в том порядке, в котором они были получены, что позволяет обрабатывать их последовательно. Когда компьютер готов, он извлекает данные из буфера и выполняет необходимые действия.\nЧто такое буфер ввода?\nОсновное назначение буфера ввода - отделить устройство ввода от вычислительного блока компьютерной системы. Временное хранение входных данных в буфере позволяет пользователю вводить данные в своем собственном темпе, в то время как компьютер обрабатывает их независимо. Это помогает предотвратить потерю данных и обеспечивает плавное взаимодействие между пользователем и системой.\nМожно ли использовать буфер ввода в программировании?\nДа, буферы ввода обычно используются в программировании для обработки пользовательского ввода. При написании кода вы можете создать буфер ввода для хранения пользовательского ввода до тех пор, пока он не понадобится для дальнейшей обработки. Это позволяет более эффективно обрабатывать пользовательское взаимодействие и обеспечивает бесперебойную работу пользователя.";
+char* inputbuffer_text = NULL;
+
 
 int cursor_pos = 0;  // Позиция курсора в строке ввода
 
@@ -359,28 +360,28 @@ void cmd_backward_word() {
     }
 }
 
-void cmd_move_to_beginning_of_line() {
-    // Если курсор уже в начале текста, ничего не делаем
-    if (cursor_pos == 0) return;
+/* void cmd_move_to_beginning_of_line() { */
+/*     // Если курсор уже в начале текста, ничего не делаем */
+/*     if (cursor_pos == 0) return; */
 
-    // Смещение в байтах от начала строки до курсора
-    int byte_offset = utf8_byte_offset(inputbuffer_text, cursor_pos);
+/*     // Смещение в байтах от начала строки до курсора */
+/*     int byte_offset = utf8_byte_offset(inputbuffer_text, cursor_pos); */
 
-    // Движемся назад, пока не найдем начало строки или начало текста
-    while (byte_offset > 0) {
-        int prev_offset = utf8_prev_char(inputbuffer_text, byte_offset);
-        if (inputbuffer_text[prev_offset] == '\n') {
-            // Переходим на следующий символ после \n
-            byte_offset = utf8_next_char(inputbuffer_text, prev_offset);
-            cursor_pos = utf8_strlen(inputbuffer_text);
-            return;
-        }
-        byte_offset = prev_offset;
-        cursor_pos--;
-    }
-    // Если достигли начала текста, устанавливаем курсор на позицию 0
-    cursor_pos = 0;
-}
+/*     // Движемся назад, пока не найдем начало строки или начало текста */
+/*     while (byte_offset > 0) { */
+/*         int prev_offset = utf8_prev_char(inputbuffer_text, byte_offset); */
+/*         if (inputbuffer_text[prev_offset] == '\n') { */
+/*             // Переходим на следующий символ после \n */
+/*             byte_offset = utf8_next_char(inputbuffer_text, prev_offset); */
+/*             cursor_pos = utf8_strlen(inputbuffer_text); */
+/*             return; */
+/*         } */
+/*         byte_offset = prev_offset; */
+/*         cursor_pos--; */
+/*     } */
+/*     // Если достигли начала текста, устанавливаем курсор на позицию 0 */
+/*     cursor_pos = 0; */
+/* } */
 
 void cmd_move_to_end_of_line() {
     // Длина строки в байтах
@@ -403,11 +404,57 @@ void cmd_move_to_end_of_line() {
     cursor_pos = utf8_char_index(inputbuffer_text, len);
 }
 
+// Функция для вставки текста в позицию курсора
+void cmd_insert(char* buffer, const char* insert_text) {
+    // Смещение в байтах от начала строки до курсора
+    int byte_offset = utf8_byte_offset(inputbuffer_text, cursor_pos);
+    int insert_len = strlen(insert_text);  // Длина вставляемого текста в байтах
 
+    // Вычисляем новую длину буфера после вставки
+    int new_len = strlen(inputbuffer_text) + insert_len + 1;  // +1 для нуль-терминатора
+    char* new_buffer = (char*)malloc(new_len);
 
-void cmd_insert(char* buffer, const char* param) {
-    // Вставка символа или строки из param в buffer
+    // Копируем часть текста перед курсором
+    strncpy(new_buffer, inputbuffer_text, byte_offset);
+    // Копируем вставляемый текст
+    strcpy(new_buffer + byte_offset, insert_text);
+    // Копируем остаток текста после курсора
+    strcpy(new_buffer + byte_offset + insert_len, inputbuffer_text + byte_offset);
+
+    /* // Обновляем основной текстовый буфер */
+    strcpy(inputbuffer_text, new_buffer);
+    free(new_buffer);
+
+    // Обновляем позицию курсора
+    // Увеличиваем позицию курсора на количество вставленных символов
+    cursor_pos += utf8_strlen(insert_text);
 }
+
+/* void cmd_insert(char* buffer, const char* insert_text) { */
+/*     buffer = inputbuffer_text; */
+/*     int byte_offset = utf8_byte_offset(buffer, cursor_pos);  // Смещение в байтах от начала строки до курсора */
+/*     int insert_len = strlen(insert_text);  // Длина вставляемого текста в байтах */
+
+/*     // Вычисляем новую длину буфера после вставки */
+/*     int new_len = strlen(buffer) + insert_len + 1;  // +1 для нуль-терминатора */
+/*     char* new_buffer = (char*)malloc(new_len); */
+
+/*     // Копируем часть текста перед курсором */
+/*     strncpy(new_buffer, buffer, byte_offset); */
+/*     // Копируем вставляемый текст */
+/*     strcpy(new_buffer + byte_offset, insert_text); */
+/*     // Копируем остаток текста после курсора */
+/*     strcpy(new_buffer + byte_offset + insert_len, buffer + byte_offset); */
+
+/*     // Обновляем основной текстовый буфер */
+/*     strcpy(buffer, new_buffer); */
+/*     free(new_buffer); */
+
+/*     // Обновляем позицию курсора */
+/*     cursor_pos += utf8_strlen(insert_text);  // Увеличиваем позицию курсора на количество вставленных символов */
+/* } */
+
+
 
 KeyMap keyCommands[] = {
     {KEY_CTRL_B, "CMD_BACKWARD_CHAR", cmd_backward_char, NULL},
@@ -418,6 +465,7 @@ KeyMap keyCommands[] = {
        cmd_move_to_beginning_of_line, NULL}, */
     {KEY_CTRL_E, "CMD_MOVE_TO_END_OF_LINE", cmd_move_to_end_of_line, NULL},
     /* {KEY_A, "CMD_INSERT", cmd_insert, "a"}, */
+    {KEY_A, "CMD_INSERT", cmd_insert, "a"},
 };
 
 const KeyMap* findCommandByKey(Key key) {
@@ -895,6 +943,16 @@ void reDraw(GapBuffer* outputBuffer,
 #define SLEEP_TIMEOUT 100000 // 100 микросекунд
 
 int main() {
+    const char* initial_text = "Что такое буфер ввода?\nБуфер ввода - это временная область хранения, используемая в вычислительной технике для хранения данных, получаемых от устройства ввода, такого как клавиатура или мышь. Он позволяет системе получать и обрабатывать данные в своем собственном темпе, а не зависеть от скорости их поступления.\nКак работает буфер ввода.\nКак вы набираете текст на клавиатуре, например, нажатия клавиш сохраняются в буфере ввода до тех пор, пока компьютер не будет готов их обработать. Буфер хранит нажатия в том порядке, в котором они были получены, что позволяет обрабатывать их последовательно. Когда компьютер готов, он извлекает данные из буфера и выполняет необходимые действия.\nЧто такое буфер ввода?\nОсновное назначение буфера ввода - отделить устройство ввода от вычислительного блока компьютерной системы. Временное хранение входных данных в буфере позволяет пользователю вводить данные в своем собственном темпе, в то время как компьютер обрабатывает их независимо. Это помогает предотвратить потерю данных и обеспечивает плавное взаимодействие между пользователем и системой.\nМожно ли использовать буфер ввода в программировании?\nДа, буферы ввода обычно используются в программировании для обработки пользовательского ввода. При написании кода вы можете создать буфер ввода для хранения пользовательского ввода до тех пор, пока он не понадобится для дальнейшей обработки. Это позволяет более эффективно обрабатывать пользовательское взаимодействие и обеспечивает бесперебойную работу пользователя.";
+
+    // Выделение памяти под строку и копирование начального текста
+    inputbuffer_text = (char*)malloc(strlen(initial_text) + 1); // +1 terminator
+    if (inputbuffer_text == NULL) {
+        fprintf(stderr, "Ошибка: не удалось выделить память для inputbuffer_text.\n");
+        return 1;
+    }
+    strcpy(inputbuffer_text, initial_text);
+
     // Отключение буферизации для stdout
     setvbuf(stdout, NULL, _IONBF, 0);
     // Включаем сырой режим
@@ -969,5 +1027,9 @@ int main() {
     }
     gap_buffer_free(&outputBuffer);
     pthread_mutex_destroy(&eventQueue_mutex);
+
+    // Очищаем память перед завершением программы
+    free(inputbuffer_text);
+
     return 0;
 }
