@@ -12,7 +12,6 @@
 #include <pthread.h>
 
 #include "key_map.h"
-#include "gap-buffer.c"
 
 #define MAX_BUFFER 1024
 
@@ -39,7 +38,7 @@ void enableRawMode() {
     raw.c_lflag &= ~(ECHO | ICANON);
 
     // Отключаем эхо, канонический режим и сигналы
-    raw.c_lflag &= ~(ECHO | ICANON | ISIG);
+    /* raw.c_lflag &= ~(ECHO | ICANON | ISIG); */
 
     // Отключаем специальные управляющие символы
     /* raw.c_cc[VINTR] = 0;  // Ctrl-C */
@@ -79,6 +78,76 @@ void moveCursor(int x, int y) {
     printf("\033[%d;%dH", y, x);
     fflush(stdout);
 }
+
+/* List of Messages */
+
+typedef struct MessageNode {
+    char* message;
+    struct MessageNode* prev;
+    struct MessageNode* next;
+} MessageNode;
+
+typedef struct {
+    MessageNode* head;
+    MessageNode* tail;
+    MessageNode* current;
+    int size;
+} MessageList;
+
+void initMessageList(MessageList* list) {
+    list->head = NULL;
+    list->tail = NULL;
+    list->current = NULL;
+    list->size = 0;
+}
+
+void addMessage(MessageList* list, const char* text) {
+    MessageNode* newNode = (MessageNode*)malloc(sizeof(MessageNode));
+    newNode->message = strdup(text);
+    newNode->prev = list->tail;
+    newNode->next = NULL;
+
+    if (list->tail) {
+        list->tail->next = newNode;
+    } else {
+        list->head = newNode;
+    }
+
+    list->tail = newNode;
+
+    if (list->current == NULL) {
+        list->current = newNode;
+    }
+
+    list->size++;
+}
+
+void moveToNextMessage(MessageList* list) {
+    if (list->current && list->current->next) {
+        list->current = list->current->next;
+    }
+}
+
+void moveToPreviousMessage(MessageList* list) {
+    if (list->current && list->current->prev) {
+        list->current = list->current->prev;
+    }
+}
+
+MessageList messageList;
+
+
+void displayAllMessages(int margin, int max_width) {
+    MessageNode* current = messageList.head;
+    int y = 1;  // Начальная строка для вывода
+    while (current != NULL) {
+        moveCursor(margin, y);
+        printf("%.*s\n", max_width - margin, current->message);
+        current = current->next;
+        y++;
+    }
+}
+
 
 
 /* CtrlStack */
@@ -430,6 +499,14 @@ void cmd_insert(char* buffer, const char* insert_text) {
     cursor_pos += utf8_strlen(insert_text);
 }
 
+void cmd_next_msg() {
+    moveToNextMessage(&messageList);
+}
+
+void cmd_prev_msg() {
+    moveToPreviousMessage(&messageList);
+}
+
 /* void cmd_insert(char* buffer, const char* insert_text) { */
 /*     buffer = inputbuffer_text; */
 /*     int byte_offset = utf8_byte_offset(buffer, cursor_pos);  // Смещение в байтах от начала строки до курсора */
@@ -457,6 +534,8 @@ void cmd_insert(char* buffer, const char* insert_text) {
 
 
 KeyMap keyCommands[] = {
+    {KEY_CTRL_P, "CMD_PREV_MSG", cmd_prev_msg, NULL},
+    {KEY_CTRL_N, "CMD_NEXT_MSG", cmd_next_msg, NULL},
     {KEY_CTRL_B, "CMD_BACKWARD_CHAR", cmd_backward_char, NULL},
     {KEY_CTRL_F, "CMD_FORWARD_CHAR", cmd_forward_char, NULL},
     {KEY_ALT_F, "CMD_FORWARD_WORD", cmd_forward_word, NULL},
@@ -507,7 +586,7 @@ void convertToAsciiCodes(const char *input, char *output, size_t outputSize) {
 #define ASCII_CODES_BUF_SIZE 127
 #define DBG_LOG_MSG_SIZE 255
 
-bool processEvents(GapBuffer* outputBuffer, char* input, int* input_size,
+bool processEvents(char* input, int* input_size,
                    const int* cursor_pos, int* log_window_start, int rows)
 {
     pthread_mutex_lock(&eventQueue_mutex);
@@ -526,7 +605,7 @@ bool processEvents(GapBuffer* outputBuffer, char* input, int* input_size,
                 char logMsg[DBG_LOG_MSG_SIZE] = {0};
                 snprintf(logMsg, sizeof(logMsg), "[DBG]: %s, [%s] (%d)\n",
                          key_to_str(key), asciiCodes, event->seq_size);
-                gap_buffer_insert_string(outputBuffer, logMsg);
+                addMessage(&messageList, logMsg);
                 updated = true;
             }
             break;
@@ -534,7 +613,7 @@ bool processEvents(GapBuffer* outputBuffer, char* input, int* input_size,
             if (event->seq != NULL) {
                 char logMsg[DBG_LOG_MSG_SIZE] = {0};
                 /* snprintf(logMsg, sizeof(logMsg), "[CMD]: %s\n", event->seq); */
-                /* gap_buffer_insert_string(outputBuffer, logMsg); */
+                /* addMessage(&messageList, logMsg); */
 
                 const KeyMap* command = NULL;
                 int n_commands = sizeof(keyCommands) / sizeof(keyCommands[0]);
@@ -548,11 +627,11 @@ bool processEvents(GapBuffer* outputBuffer, char* input, int* input_size,
                     command->commandFunc(inputbuffer_text, command->param);
                     /* snprintf(logMsg, sizeof(logMsg), */
                              /* "Executing command: %s\n", command->commandName); */
-                    /* gap_buffer_insert_string(outputBuffer, logMsg); */
+                    /* addMessage(&messageList, logMsg); */
                 } else {
                     snprintf(logMsg, sizeof(logMsg),
                              "No command found for: %s\n", event->seq);
-                    gap_buffer_insert_string(outputBuffer, logMsg);
+                    addMessage(&messageList, logMsg);
                 }
                /* updated = true; */
             }
@@ -703,54 +782,6 @@ void drawHorizontalLine(int cols, int y, char sym) {
     }
 }
 
-void showOutputBuffer(GapBuffer* gb, int log_window_start, int log_window_end,
-                      int cols, int max_lines)
-{
-    // Получаем содержимое GAP-буфера как единую строку
-    char* content = gap_buffer_get_content(gb);
-    if (!content) return;
-
-    int lineIndex = 0;  // Индекс текущей строки
-    int displayed_lines = 0;  // Количество уже отображенных строк
-
-    // Перемещение к началу нужного диапазона
-    char* current_pos = content;
-    while (*current_pos && lineIndex < log_window_start) {
-        if (*current_pos == '\n') lineIndex++;
-        current_pos++;
-    }
-
-    // Вывод с начала окна
-    moveCursor(1, 1);
-
-    int line_len = 0;
-    char* line_start = current_pos;
-    while (*current_pos && lineIndex < log_window_end && displayed_lines < max_lines) {
-        if (*current_pos == '\n' || line_len >= cols) {
-            // Если строка или остаток строки короче ширины окна, выводим целиком
-            if (line_len < cols) {
-                printf("%.*s\n", line_len, line_start);
-                fflush(stdout);
-            } else {
-                // Иначе выводим столько символов, сколько помещается в окно,
-                // и делаем перенос
-                fwrite(line_start, 1, cols, stdout);
-                putchar('\n');
-                fflush(stdout);
-            }
-            line_start = current_pos + 1;  // Перемещаем начало следующей строки
-            line_len = 0;
-            lineIndex++;
-            displayed_lines++;
-        }
-        line_len++;
-        current_pos++;
-    }
-    fflush(stdout);
-    free(content);
-}
-
-
 /* UTF-8 */
 
 // Проверка, что UTF-8 символ полностью считан
@@ -848,8 +879,7 @@ bool keyb () {
 
 int margin = 8;
 
-void reDraw(GapBuffer* outputBuffer,
-            char* ib_text,
+void reDraw(char* ib_text,
             int rows, int max_width, char* input, const int* cursor_pos,
             bool* followTail, int* log_window_start)
 {
@@ -917,7 +947,9 @@ void reDraw(GapBuffer* outputBuffer,
     // Определяем абсолютные координаты верхней строки
     int up = bottom + 1 - ib_need_rows;
     // Выводим
-    display_wrapped(ib_text, margin, up, rel_max_width, ib_need_rows, ib_from_row);
+    if (messageList.current) {
+        display_wrapped(messageList.current->message, margin, up, rel_max_width, ib_need_rows, ib_from_row);
+    }
     drawHorizontalLine(max_width, up-1, '-');
     // Возвращаем номер строки выше отображения inputbuffer
     bottom =  up - 2;
@@ -928,7 +960,8 @@ void reDraw(GapBuffer* outputBuffer,
     // Показываем OutputBuffer в оставшемся пространстве
     /* showOutputBuffer(outputBuffer, *log_window_start, logSize, max_width, */
     /*                  outputBufferAvailableLines); */
-    showOutputBuffer(outputBuffer, 0, rows, max_width, rows);
+    /* showOutputBuffer(outputBuffer, 0, rows, max_width, rows); */
+    displayAllMessages(bottom, max_width);
     // Flush
     fflush(stdout);
 
@@ -953,6 +986,13 @@ int main() {
     }
     strcpy(inputbuffer_text, initial_text);
 
+
+    initMessageList(&messageList);
+    addMessage(&messageList, "Привет! Как дела?");
+    addMessage(&messageList, "Все хорошо, спасибо!");
+    addMessage(&messageList, "Как у тебя дела?");
+
+
     // Отключение буферизации для stdout
     setvbuf(stdout, NULL, _IONBF, 0);
     // Включаем сырой режим
@@ -962,19 +1002,6 @@ int main() {
     char input[MAX_BUFFER]={0};
     int  input_size = 0;
     int  log_window_start = 0;
-    GapBuffer outputBuffer;
-    size_t initialCapacity = 1024;
-    gap_buffer_init(&outputBuffer, initialCapacity);
-
-    // Вставка тестовых строк в GAP-буфер
-    const char* testStrings[] = {
-        "Hello, World!\n",
-        "This is a test of the GAP buffer system.\n",
-    };
-    for (int i = 0; i < 2; i++) {
-        gap_buffer_insert_string(&outputBuffer, testStrings[i]);
-    }
-
     int  rows, cols;
     bool need_redraw = true;
     bool followTail = true; // Флаг (показывать ли последние команды)
@@ -989,8 +1016,7 @@ int main() {
 
     bool terminate = false;
 
-    reDraw(&outputBuffer,
-           inputbuffer_text,
+    reDraw(inputbuffer_text,
            rows, cols, input, &cursor_pos,
            &followTail, &log_window_start);
     while (!terminate) {
@@ -1002,7 +1028,7 @@ int main() {
         timeout.tv_usec = READ_TIMEOUT;
         // Вызываем Select
         int select_result = select(STDIN_FILENO + 1, &read_fds, NULL, NULL, &timeout);
-        if (select_result = 0) {
+        if (select_result == 0) {
             // Обработка таймаута
             usleep(SLEEP_TIMEOUT);
         } else if (select_result < 0) {
@@ -1013,19 +1039,17 @@ int main() {
             terminate = keyb();
             // ОБРАБОТКА:
             // Обрабатываем события в конце каждой итерации
-            if (processEvents(&outputBuffer, input, &input_size, &cursor_pos,
+            if (processEvents(input, &input_size, &cursor_pos,
                               &log_window_start, rows)) {
                 /* Тут не требуется дополнительных действий, т.к. в начале */
                 /* следующего цикла все будет перерисовано */
             }
             // ОТОБРАЖЕНИЕ:
-            reDraw(&outputBuffer,
-                   inputbuffer_text,
+            reDraw(inputbuffer_text,
                    rows, cols, input,
                    &cursor_pos, &followTail, &log_window_start);
         }
     }
-    gap_buffer_free(&outputBuffer);
     pthread_mutex_destroy(&eventQueue_mutex);
 
     // Очищаем память перед завершением программы
