@@ -96,19 +96,19 @@ void initMessageList(MessageList* list) {
     *list = (MessageList){0};
 }
 
-void addMessage(MessageList* list, const char* text) {
+void pushMessage(MessageList* list, const char* text) {
     MessageNode* newNode = (MessageNode*)malloc(sizeof(MessageNode));
     newNode->message = strdup(text);
-    newNode->prev = list->tail;
-    newNode->next = NULL;
+    newNode->prev = NULL;
+    newNode->next = list->head;
 
-    if (list->tail) {
-        list->tail->next = newNode;
+    if (list->head) {
+        list->head->prev = newNode;
     } else {
-        list->head = newNode;
+        list->tail = newNode;
     }
 
-    list->tail = newNode;
+    list->head = newNode;
 
     if (list->current == NULL) {
         list->current = newNode;
@@ -131,15 +131,18 @@ void moveToPreviousMessage(MessageList* list) {
 
 MessageList messageList = {0};
 
+/* void displayAllMessages(int margin, int max_width) { */
+/*     MessageNode* current = messageList.head; */
+/*     int y = 1;  // Начальная строка для вывода */
+/*     while (current != NULL) { */
+/*         moveCursor(margin, y); */
+/*         printf("%.*s\n", max_width - margin, current->message); */
+/*         current = current->next; */
+/*         y++; */
+/*     } */
+/* } */
+
 void displayAllMessages(int margin, int max_width) {
-    MessageNode* current = messageList.head;
-    int y = 1;  // Начальная строка для вывода
-    while (current != NULL) {
-        moveCursor(margin, y);
-        printf("%.*s\n", max_width - margin, current->message);
-        current = current->next;
-        y++;
-    }
 }
 
 
@@ -254,14 +257,10 @@ Key identify_key(const char* seq, int seq_size) {
     return KEY_UNKNOWN; // Возвращает KEY_UNKNOWN если последовательность не найдена
 }
 
-typedef void (*CommandFunction)(char* buffer, const char* param);
-
-
-
-char* inputbuffer_text = NULL;
-
-
-int cursor_pos = 0;  // Позиция курсора в строке ввода
+typedef void (*CommandFunction)(MessageNode*, const char* param);
+// Позиция курсора в строке ввода
+// (TODO: внести в структуру? Не уверен что необходимо)
+int cursor_pos = 0;
 
 // Функция для вычисления длины UTF-8 символа
 size_t utf8_char_length(const char* c) {
@@ -282,12 +281,12 @@ size_t utf8_strlen(const char *str) {
     return length;
 }
 
-void cmd_backward_char() {
+void cmd_backward_char(MessageNode* node, const char* stub) {
     if (cursor_pos > 0) cursor_pos--;
 }
 
-void cmd_forward_char() {
-    int len = utf8_strlen(inputbuffer_text);
+void cmd_forward_char(MessageNode* node, const char* stub) {
+    int len = utf8_strlen(node->message);
     if (++cursor_pos > len) { cursor_pos = len; }
 }
 
@@ -332,38 +331,38 @@ int utf8_char_index(const char* str, int byte_offset) {
 }
 
 // Перемещение курсора вперед на одно слово
-void cmd_forward_word() {
-    int len = utf8_strlen(inputbuffer_text);  // Длина строки в байтах
+void cmd_forward_word(MessageNode* node, const char* stub) {
+    int len = utf8_strlen(node->message);  // Длина строки в байтах
 
     // Смещение в байтах от начала строки до курсора
-    int byte_offset = utf8_byte_offset(inputbuffer_text, cursor_pos);
+    int byte_offset = utf8_byte_offset(node->message, cursor_pos);
 
     // Пропуск пробелов (если курсор находится на пробеле)
-    while (byte_offset < len && isspace((unsigned char)inputbuffer_text[byte_offset]))
+    while (byte_offset < len && isspace((unsigned char)node->message[byte_offset]))
     {
-        byte_offset = utf8_next_char(inputbuffer_text, byte_offset);
+        byte_offset = utf8_next_char(node->message, byte_offset);
         cursor_pos++;
     }
 
     // Перемещение вперед до конца слова
-    while (byte_offset < len && !isspace((unsigned char)inputbuffer_text[byte_offset]))
+    while (byte_offset < len && !isspace((unsigned char)node->message[byte_offset]))
     {
-        byte_offset = utf8_next_char(inputbuffer_text, byte_offset);
+        byte_offset = utf8_next_char(node->message, byte_offset);
         cursor_pos++;
     }
 }
 
 // Перемещение курсора назад на одно слово
-void cmd_backward_word() {
+void cmd_backward_word(MessageNode* node, const char* stub) {
     if (cursor_pos == 0) return;  // Если курсор уже в начале, ничего не делаем
 
     // Смещение в байтах от начала строки до курсора
-    int byte_offset = utf8_byte_offset(inputbuffer_text, cursor_pos);
+    int byte_offset = utf8_byte_offset(node->message, cursor_pos);
 
     // Пропуск пробелов, если курсор находится на пробеле
     while (byte_offset > 0) {
-        int prev_offset = utf8_prev_char(inputbuffer_text, byte_offset);
-        if (!isspace((unsigned char)inputbuffer_text[prev_offset])) {
+        int prev_offset = utf8_prev_char(node->message, byte_offset);
+        if (!isspace((unsigned char)node->message[prev_offset])) {
             break;
         }
         byte_offset = prev_offset;
@@ -372,8 +371,8 @@ void cmd_backward_word() {
 
     // Перемещение назад до начала предыдущего слова
     while (byte_offset > 0) {
-        int prev_offset = utf8_prev_char(inputbuffer_text, byte_offset);
-        if (isspace((unsigned char)inputbuffer_text[prev_offset])) {
+        int prev_offset = utf8_prev_char(node->message, byte_offset);
+        if (isspace((unsigned char)node->message[prev_offset])) {
             break;
         }
         byte_offset = prev_offset;
@@ -381,20 +380,20 @@ void cmd_backward_word() {
     }
 }
 
-/* void cmd_move_to_beginning_of_line() { */
+/* void cmd_move_to_beginning_of_line(MessageNode* node, const char* stub) { */
 /*     // Если курсор уже в начале текста, ничего не делаем */
 /*     if (cursor_pos == 0) return; */
 
 /*     // Смещение в байтах от начала строки до курсора */
-/*     int byte_offset = utf8_byte_offset(inputbuffer_text, cursor_pos); */
+/*     int byte_offset = utf8_byte_offset(node->message, cursor_pos); */
 
 /*     // Движемся назад, пока не найдем начало строки или начало текста */
 /*     while (byte_offset > 0) { */
-/*         int prev_offset = utf8_prev_char(inputbuffer_text, byte_offset); */
-/*         if (inputbuffer_text[prev_offset] == '\n') { */
+/*         int prev_offset = utf8_prev_char(node->message, byte_offset); */
+/*         if (node->message[prev_offset] == '\n') { */
 /*             // Переходим на следующий символ после \n */
-/*             byte_offset = utf8_next_char(inputbuffer_text, prev_offset); */
-/*             cursor_pos = utf8_strlen(inputbuffer_text); */
+/*             byte_offset = utf8_next_char(node->message, prev_offset); */
+/*             cursor_pos = utf8_strlen(node->message); */
 /*             return; */
 /*         } */
 /*         byte_offset = prev_offset; */
@@ -404,25 +403,25 @@ void cmd_backward_word() {
 /*     cursor_pos = 0; */
 /* } */
 
-void cmd_move_to_end_of_line() {
+void cmd_move_to_end_of_line(MessageNode* node, const char* stub) {
     // Длина строки в байтах
-    int len = strlen(inputbuffer_text);
+    int len = strlen(node->message);
 
     // Смещение в байтах от начала строки до курсора
-    int byte_offset = utf8_byte_offset(inputbuffer_text, cursor_pos);
+    int byte_offset = utf8_byte_offset(node->message, cursor_pos);
 
     // Движемся вперед, пока не найдем конец строки или конец текста
     while (byte_offset < len) {
-        if (inputbuffer_text[byte_offset] == '\n') {
-            cursor_pos = utf8_char_index(inputbuffer_text, byte_offset);
+        if (node->message[byte_offset] == '\n') {
+            cursor_pos = utf8_char_index(node->message, byte_offset);
             return;
         }
-        byte_offset = utf8_next_char(inputbuffer_text, byte_offset);
+        byte_offset = utf8_next_char(node->message, byte_offset);
         cursor_pos++;
     }
 
     // Если достигли конца текста
-    cursor_pos = utf8_char_index(inputbuffer_text, len);
+    cursor_pos = utf8_char_index(node->message, len);
 }
 
 void cmd_next_msg() {
@@ -433,17 +432,36 @@ void cmd_prev_msg() {
     moveToPreviousMessage(&messageList);
 }
 
+
+
+
 // Функция для вставки текста в позицию курсора
-void cmd_insert(char* buffer, const char* insert_text) {
-    int byte_offset = utf8_byte_offset(inputbuffer_text, cursor_pos);
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+void cmd_insert(MessageNode* node, const char* insert_text) {
+    pthread_mutex_lock(&lock);
+    if (!node || !node->message) return;
+
+    int byte_offset = utf8_byte_offset(node->message, cursor_pos);
     int insert_len = strlen(insert_text);
 
-    inputbuffer_text = realloc(inputbuffer_text, strlen(inputbuffer_text) + insert_len + 1);
-    memmove(inputbuffer_text + byte_offset + insert_len, inputbuffer_text + byte_offset, strlen(inputbuffer_text) - byte_offset + 1);
-    memcpy(inputbuffer_text + byte_offset, insert_text, insert_len);
+    char* new_message = realloc(node->message, strlen(node->message) + insert_len + 1);
+    if (new_message == NULL) {
+        perror("Failed to reallocate memory");
+        return; // Reallocation failed, handle error appropriately
+    }
+    node->message = new_message;
+
+    memmove(node->message + byte_offset + insert_len,
+            node->message + byte_offset,
+            strlen(node->message) - byte_offset + 1);
+    memcpy(node->message + byte_offset,
+           insert_text,
+           insert_len);
 
     cursor_pos += utf8_strlen(insert_text);
+    pthread_mutex_unlock(&lock);
 }
+
 
 
 /* Commands */
@@ -527,7 +545,7 @@ bool processEvents(char* input, int* input_size,
                 char logMsg[DBG_LOG_MSG_SIZE] = {0};
                 snprintf(logMsg, sizeof(logMsg), "[DBG]: %s, [%s] (%d)\n",
                          key_to_str(key), asciiCodes, event->seq_size);
-                addMessage(&messageList, logMsg);
+                pushMessage(&messageList, logMsg);
                 updated = true;
             }
             break;
@@ -546,14 +564,14 @@ bool processEvents(char* input, int* input_size,
                     }
                 }
                 if (command) {
-                    command->commandFunc(inputbuffer_text, command->param);
+                    command->commandFunc(messageList.current, command->param);
                     /* snprintf(logMsg, sizeof(logMsg), */
                              /* "Executing command: %s\n", command->commandName); */
                     /* addMessage(&messageList, logMsg); */
                 } else {
                     snprintf(logMsg, sizeof(logMsg),
                              "No command found for: %s\n", event->seq);
-                    addMessage(&messageList, logMsg);
+                    pushMessage(&messageList, logMsg);
                 }
                /* updated = true; */
             }
@@ -879,11 +897,28 @@ void reDraw(char* ib_text,
     // OUTPUT BUFFER
 
     int outputBufferAvailableLines = bottom - 1;
-    // Показываем OutputBuffer в оставшемся пространстве
-    /* showOutputBuffer(outputBuffer, *log_window_start, logSize, max_width, */
-    /*                  outputBufferAvailableLines); */
-    /* showOutputBuffer(outputBuffer, 0, rows, max_width, rows); */
-    displayAllMessages(bottom, max_width);
+
+    MessageNode* current = messageList.current;
+
+    // Подсчитаем количество строк, для отображения сообщений от current до конца
+    int needed_rows = 0;
+    MessageNode* temp = current;
+    while (temp != NULL) {
+        needed_rows++;
+        temp = temp->prev;
+    }
+
+    // Вычислим строку, с которой начать вывод так, чтобы current было внизу
+    int start_row = outputBufferAvailableLines - needed_rows;
+
+    // Теперь начинаем выводить, начиная с current и двигаясь вверх по списку
+    while (current != NULL && start_row >= 0) {
+        moveCursor(margin, start_row);
+        printf("%.*s\n", 80, current->message);
+        current = current->prev;
+        start_row--;
+    }
+
     // Flush
     fflush(stdout);
 
@@ -901,6 +936,7 @@ int main() {
     const char* initial_text = "Что такое буфер ввода?\nБуфер ввода - это временная область хранения, используемая в вычислительной технике для хранения данных, получаемых от устройства ввода, такого как клавиатура или мышь. Он позволяет системе получать и обрабатывать данные в своем собственном темпе, а не зависеть от скорости их поступления.\nКак работает буфер ввода.\nКак вы набираете текст на клавиатуре, например, нажатия клавиш сохраняются в буфере ввода до тех пор, пока компьютер не будет готов их обработать. Буфер хранит нажатия в том порядке, в котором они были получены, что позволяет обрабатывать их последовательно. Когда компьютер готов, он извлекает данные из буфера и выполняет необходимые действия.\nЧто такое буфер ввода?\nОсновное назначение буфера ввода - отделить устройство ввода от вычислительного блока компьютерной системы. Временное хранение входных данных в буфере позволяет пользователю вводить данные в своем собственном темпе, в то время как компьютер обрабатывает их независимо. Это помогает предотвратить потерю данных и обеспечивает плавное взаимодействие между пользователем и системой.\nМожно ли использовать буфер ввода в программировании?\nДа, буферы ввода обычно используются в программировании для обработки пользовательского ввода. При написании кода вы можете создать буфер ввода для хранения пользовательского ввода до тех пор, пока он не понадобится для дальнейшей обработки. Это позволяет более эффективно обрабатывать пользовательское взаимодействие и обеспечивает бесперебойную работу пользователя.";
 
     // Выделение памяти под строку и копирование начального текста
+    char* inputbuffer_text = NULL;
     inputbuffer_text = (char*)malloc(strlen(initial_text) + 1); // +1 terminator
     if (inputbuffer_text == NULL) {
         fprintf(stderr, "Ошибка: не удалось выделить память для inputbuffer_text.\n");
@@ -910,10 +946,10 @@ int main() {
 
 
     initMessageList(&messageList);
-    addMessage(&messageList, initial_text);
-    addMessage(&messageList, "Привет! Как дела?");
-    addMessage(&messageList, "Все хорошо, спасибо!");
-    addMessage(&messageList, "Как у тебя дела?");
+    pushMessage(&messageList, initial_text);
+    pushMessage(&messageList, "Привет! Как дела?");
+    pushMessage(&messageList, "Все хорошо, спасибо!");
+    pushMessage(&messageList, "Как у тебя дела?");
 
 
     // Отключение буферизации для stdout
