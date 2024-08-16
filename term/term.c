@@ -6,8 +6,6 @@
 #include <stdbool.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <wchar.h>
-#include <locale.h>
 #include <ctype.h>
 #include <pthread.h>
 
@@ -95,10 +93,7 @@ typedef struct {
 } MessageList;
 
 void initMessageList(MessageList* list) {
-    list->head = NULL;
-    list->tail = NULL;
-    list->current = NULL;
-    list->size = 0;
+    *list = (MessageList){0};
 }
 
 void addMessage(MessageList* list, const char* text) {
@@ -134,8 +129,7 @@ void moveToPreviousMessage(MessageList* list) {
     }
 }
 
-MessageList messageList;
-
+MessageList messageList = {0};
 
 void displayAllMessages(int margin, int max_width) {
     MessageNode* current = messageList.head;
@@ -147,7 +141,6 @@ void displayAllMessages(int margin, int max_width) {
         y++;
     }
 }
-
 
 
 /* CtrlStack */
@@ -164,12 +157,11 @@ void pushCtrlStack(char key) {
     newElement->key = key;
     newElement->next = ctrlStack;
     ctrlStack = newElement;
+    /* ctrlStack = &(CtrlStack){.key = key, .next = ctrlStack}; */
 }
 
 char popCtrlStack() {
-    if (ctrlStack == NULL) {
-        return '\0';
-    }
+    if (!ctrlStack) return '\0';
     char key = ctrlStack->key;
     CtrlStack* temp = ctrlStack;
     ctrlStack = ctrlStack->next;
@@ -182,9 +174,7 @@ bool isCtrlStackEmpty() {
 }
 
 void clearCtrlStack() {
-    while (!isCtrlStackEmpty()) {
-        popCtrlStack();
-    }
+    while (popCtrlStack());
 }
 
 
@@ -208,25 +198,19 @@ pthread_mutex_t eventQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
 void enqueueEvent(EventType type, char* seq, int seq_size) {
     pthread_mutex_lock(&eventQueue_mutex);
     InputEvent* newEvent = malloc(sizeof(InputEvent));
-    newEvent->type = type;
-    if (seq) {
-        newEvent->seq = malloc(strlen(seq) + 1);
-        strcpy(newEvent->seq, seq);
-        newEvent->seq_size = seq_size;
-    } else {
-        newEvent->seq = malloc(strlen("_") + 1);
-        strcpy(newEvent->seq, "_");
-        newEvent->seq_size = seq_size;
-    }
-    newEvent->next = NULL;
+
+    *newEvent = (InputEvent){
+        .type = type,
+        .seq = seq ? strdup(seq) : strdup("_"),
+        .seq_size = seq_size,
+        .next = NULL
+    };
 
     if (!eventQueue) {
         eventQueue = newEvent;
     } else {
         InputEvent* temp = eventQueue;
-        while (temp->next) {
-            temp = temp->next;
-        }
+        while (temp->next) { temp = temp->next; }
         temp->next = newEvent;
     }
     pthread_mutex_unlock(&eventQueue_mutex);
@@ -272,12 +256,6 @@ Key identify_key(const char* seq, int seq_size) {
 
 typedef void (*CommandFunction)(char* buffer, const char* param);
 
-typedef struct {
-    Key key;
-    char* commandName;
-    CommandFunction commandFunc;
-    const char* param;
-} KeyMap;
 
 
 char* inputbuffer_text = NULL;
@@ -298,43 +276,25 @@ size_t utf8_char_length(const char* c) {
 // Возвращает длину строки в utf-8 символах
 size_t utf8_strlen(const char *str) {
     size_t length = 0;
-    unsigned char c;
-    while ((c = *str++)) {
-        if ((c & 0x80) == 0) {
-            // ASCII символ (1 байт) - ничего не пропускаем
-        } else if ((c & 0xE0) == 0xC0) {
-            str += 1; // 2х байтовый UTF-символ, пропускаем еще 1 байт
-        } else if ((c & 0xF0) == 0xE0) {
-            str += 2; // 3х байтовый UTF-символ, пропускаем еще 2 байта
-        } else if ((c & 0xF8) == 0xF0) {
-            str += 3; // 3х байтовый UTF-символ, пропускаем еще 3 байта
-        } else {
-            // Недопустимый байт - ошибка
-            return -1;
-        }
-        length++;
+    for (; *str; length++) {
+        str += utf8_char_length(str);
     }
     return length;
 }
 
 void cmd_backward_char() {
-    if (cursor_pos-- <= 0) {
-        cursor_pos = 0;
-    }
+    if (cursor_pos > 0) cursor_pos--;
 }
 
 void cmd_forward_char() {
     int len = utf8_strlen(inputbuffer_text);
-    if (cursor_pos++ >= len) {
-        cursor_pos = len;
-    }
+    if (++cursor_pos > len) { cursor_pos = len; }
 }
 
 // Функция для перемещения курсора на следующий UTF-8 символ
 int utf8_next_char(const char* str, int pos) {
     if (str[pos] == '\0') return pos;
-    int char_len = utf8_char_length(&str[pos]);
-    return pos + char_len;
+    return pos + utf8_char_length(&str[pos]);
 }
 
 // Функция для перемещения курсора на предыдущий UTF-8 символ
@@ -349,19 +309,11 @@ int utf8_prev_char(const char* str, int pos) {
 // Функция для определения смещения в байтах
 // для указанной позиции курсора (в символах)
 int utf8_byte_offset(const char* str, int cursor_pos) {
-    int byte_offset = 0;
-    int char_count = 0;
-
-    while (str[byte_offset] != '\0') {
-        if (char_count == cursor_pos) {
-            break;
-        }
-
-        int char_len = utf8_char_length(&str[byte_offset]);
-        byte_offset += char_len;
+    int byte_offset = 0, char_count = 0;
+    while (str[byte_offset] && char_count < cursor_pos) {
+        byte_offset += utf8_char_length(&str[byte_offset]);
         char_count++;
     }
-
     return byte_offset;
 }
 
@@ -473,32 +425,6 @@ void cmd_move_to_end_of_line() {
     cursor_pos = utf8_char_index(inputbuffer_text, len);
 }
 
-// Функция для вставки текста в позицию курсора
-void cmd_insert(char* buffer, const char* insert_text) {
-    // Смещение в байтах от начала строки до курсора
-    int byte_offset = utf8_byte_offset(inputbuffer_text, cursor_pos);
-    int insert_len = strlen(insert_text);  // Длина вставляемого текста в байтах
-
-    // Вычисляем новую длину буфера после вставки
-    int new_len = strlen(inputbuffer_text) + insert_len + 1;  // +1 для нуль-терминатора
-    char* new_buffer = (char*)malloc(new_len);
-
-    // Копируем часть текста перед курсором
-    strncpy(new_buffer, inputbuffer_text, byte_offset);
-    // Копируем вставляемый текст
-    strcpy(new_buffer + byte_offset, insert_text);
-    // Копируем остаток текста после курсора
-    strcpy(new_buffer + byte_offset + insert_len, inputbuffer_text + byte_offset);
-
-    /* // Обновляем основной текстовый буфер */
-    strcpy(inputbuffer_text, new_buffer);
-    free(new_buffer);
-
-    // Обновляем позицию курсора
-    // Увеличиваем позицию курсора на количество вставленных символов
-    cursor_pos += utf8_strlen(insert_text);
-}
-
 void cmd_next_msg() {
     moveToNextMessage(&messageList);
 }
@@ -507,31 +433,27 @@ void cmd_prev_msg() {
     moveToPreviousMessage(&messageList);
 }
 
-/* void cmd_insert(char* buffer, const char* insert_text) { */
-/*     buffer = inputbuffer_text; */
-/*     int byte_offset = utf8_byte_offset(buffer, cursor_pos);  // Смещение в байтах от начала строки до курсора */
-/*     int insert_len = strlen(insert_text);  // Длина вставляемого текста в байтах */
+// Функция для вставки текста в позицию курсора
+void cmd_insert(char* buffer, const char* insert_text) {
+    int byte_offset = utf8_byte_offset(inputbuffer_text, cursor_pos);
+    int insert_len = strlen(insert_text);
 
-/*     // Вычисляем новую длину буфера после вставки */
-/*     int new_len = strlen(buffer) + insert_len + 1;  // +1 для нуль-терминатора */
-/*     char* new_buffer = (char*)malloc(new_len); */
+    inputbuffer_text = realloc(inputbuffer_text, strlen(inputbuffer_text) + insert_len + 1);
+    memmove(inputbuffer_text + byte_offset + insert_len, inputbuffer_text + byte_offset, strlen(inputbuffer_text) - byte_offset + 1);
+    memcpy(inputbuffer_text + byte_offset, insert_text, insert_len);
 
-/*     // Копируем часть текста перед курсором */
-/*     strncpy(new_buffer, buffer, byte_offset); */
-/*     // Копируем вставляемый текст */
-/*     strcpy(new_buffer + byte_offset, insert_text); */
-/*     // Копируем остаток текста после курсора */
-/*     strcpy(new_buffer + byte_offset + insert_len, buffer + byte_offset); */
-
-/*     // Обновляем основной текстовый буфер */
-/*     strcpy(buffer, new_buffer); */
-/*     free(new_buffer); */
-
-/*     // Обновляем позицию курсора */
-/*     cursor_pos += utf8_strlen(insert_text);  // Увеличиваем позицию курсора на количество вставленных символов */
-/* } */
+    cursor_pos += utf8_strlen(insert_text);
+}
 
 
+/* Commands */
+
+typedef struct {
+    Key key;
+    char* commandName;
+    CommandFunction commandFunc;
+    const char* param;
+} KeyMap;
 
 KeyMap keyCommands[] = {
     {KEY_CTRL_P, "CMD_PREV_MSG", cmd_prev_msg, NULL},
@@ -543,19 +465,18 @@ KeyMap keyCommands[] = {
     /* {KEY_CTRL_A, "CMD_MOVE_TO_BEGINNING_OF_LINE",
        cmd_move_to_beginning_of_line, NULL}, */
     {KEY_CTRL_E, "CMD_MOVE_TO_END_OF_LINE", cmd_move_to_end_of_line, NULL},
-    /* {KEY_A, "CMD_INSERT", cmd_insert, "a"}, */
     {KEY_A, "CMD_INSERT", cmd_insert, "a"},
 };
 
 const KeyMap* findCommandByKey(Key key) {
-    int n_commands = sizeof(keyCommands) / sizeof(keyCommands[0]);
-    for (int i = 0; i < n_commands; i++) {
+    for (int i = 0; i < sizeof(keyCommands) / sizeof(KeyMap); i++) {
         if (keyCommands[i].key == key) {
             return &keyCommands[i];
         }
     }
     return NULL;
 }
+
 
 
 void convertToAsciiCodes(const char *input, char *output, size_t outputSize) {
@@ -582,6 +503,7 @@ void convertToAsciiCodes(const char *input, char *output, size_t outputSize) {
     }
     output[offset] = '\0'; // Null-terminate the output string
 }
+
 
 #define ASCII_CODES_BUF_SIZE 127
 #define DBG_LOG_MSG_SIZE 255
@@ -988,6 +910,7 @@ int main() {
 
 
     initMessageList(&messageList);
+    addMessage(&messageList, initial_text);
     addMessage(&messageList, "Привет! Как дела?");
     addMessage(&messageList, "Все хорошо, спасибо!");
     addMessage(&messageList, "Как у тебя дела?");
