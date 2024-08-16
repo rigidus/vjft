@@ -83,6 +83,7 @@ typedef struct MessageNode {
     char* message;
     struct MessageNode* prev;
     struct MessageNode* next;
+    int cursor_pos;
 } MessageNode;
 
 typedef struct {
@@ -101,6 +102,7 @@ void pushMessage(MessageList* list, const char* text) {
     newNode->message = strdup(text);
     newNode->prev = NULL;
     newNode->next = list->head;
+    newNode->cursor_pos = 0;
 
     if (list->head) {
         list->head->prev = newNode;
@@ -258,9 +260,6 @@ Key identify_key(const char* seq, int seq_size) {
 }
 
 typedef void (*CommandFunction)(MessageNode*, const char* param);
-// Позиция курсора в строке ввода
-// (TODO: внести в структуру? Не уверен что необходимо)
-int cursor_pos = 0;
 
 // Функция для вычисления длины UTF-8 символа
 size_t utf8_char_length(const char* c) {
@@ -282,12 +281,12 @@ size_t utf8_strlen(const char *str) {
 }
 
 void cmd_backward_char(MessageNode* node, const char* stub) {
-    if (cursor_pos > 0) cursor_pos--;
+    if (node->cursor_pos > 0) { node->cursor_pos--; }
 }
 
 void cmd_forward_char(MessageNode* node, const char* stub) {
     int len = utf8_strlen(node->message);
-    if (++cursor_pos > len) { cursor_pos = len; }
+    if (++node->cursor_pos > len) { node->cursor_pos = len; }
 }
 
 // Функция для перемещения курсора на следующий UTF-8 символ
@@ -335,29 +334,29 @@ void cmd_forward_word(MessageNode* node, const char* stub) {
     int len = utf8_strlen(node->message);  // Длина строки в байтах
 
     // Смещение в байтах от начала строки до курсора
-    int byte_offset = utf8_byte_offset(node->message, cursor_pos);
+    int byte_offset = utf8_byte_offset(node->message, node->cursor_pos);
 
     // Пропуск пробелов (если курсор находится на пробеле)
     while (byte_offset < len && isspace((unsigned char)node->message[byte_offset]))
     {
         byte_offset = utf8_next_char(node->message, byte_offset);
-        cursor_pos++;
+        node->cursor_pos++;
     }
 
     // Перемещение вперед до конца слова
     while (byte_offset < len && !isspace((unsigned char)node->message[byte_offset]))
     {
         byte_offset = utf8_next_char(node->message, byte_offset);
-        cursor_pos++;
+        node->cursor_pos++;
     }
 }
 
 // Перемещение курсора назад на одно слово
 void cmd_backward_word(MessageNode* node, const char* stub) {
-    if (cursor_pos == 0) return;  // Если курсор уже в начале, ничего не делаем
+    if (node->cursor_pos == 0) return;  // Если курсор уже в начале, ничего не делаем
 
     // Смещение в байтах от начала строки до курсора
-    int byte_offset = utf8_byte_offset(node->message, cursor_pos);
+    int byte_offset = utf8_byte_offset(node->message, node->cursor_pos);
 
     // Пропуск пробелов, если курсор находится на пробеле
     while (byte_offset > 0) {
@@ -366,7 +365,7 @@ void cmd_backward_word(MessageNode* node, const char* stub) {
             break;
         }
         byte_offset = prev_offset;
-        cursor_pos--;
+        node->cursor_pos--;
     }
 
     // Перемещение назад до начала предыдущего слова
@@ -376,16 +375,16 @@ void cmd_backward_word(MessageNode* node, const char* stub) {
             break;
         }
         byte_offset = prev_offset;
-        cursor_pos--;
+        node->cursor_pos--;
     }
 }
 
 /* void cmd_move_to_beginning_of_line(MessageNode* node, const char* stub) { */
 /*     // Если курсор уже в начале текста, ничего не делаем */
-/*     if (cursor_pos == 0) return; */
+/*     if (node->cursor_pos == 0) return; */
 
 /*     // Смещение в байтах от начала строки до курсора */
-/*     int byte_offset = utf8_byte_offset(node->message, cursor_pos); */
+/*     int byte_offset = utf8_byte_offset(node->message, node->cursor_pos); */
 
 /*     // Движемся назад, пока не найдем начало строки или начало текста */
 /*     while (byte_offset > 0) { */
@@ -393,14 +392,14 @@ void cmd_backward_word(MessageNode* node, const char* stub) {
 /*         if (node->message[prev_offset] == '\n') { */
 /*             // Переходим на следующий символ после \n */
 /*             byte_offset = utf8_next_char(node->message, prev_offset); */
-/*             cursor_pos = utf8_strlen(node->message); */
+/*             node->cursor_pos = utf8_strlen(node->message); */
 /*             return; */
 /*         } */
 /*         byte_offset = prev_offset; */
-/*         cursor_pos--; */
+/*         node->cursor_pos--; */
 /*     } */
 /*     // Если достигли начала текста, устанавливаем курсор на позицию 0 */
-/*     cursor_pos = 0; */
+/*     node->cursor_pos = 0; */
 /* } */
 
 void cmd_move_to_end_of_line(MessageNode* node, const char* stub) {
@@ -408,20 +407,20 @@ void cmd_move_to_end_of_line(MessageNode* node, const char* stub) {
     int len = strlen(node->message);
 
     // Смещение в байтах от начала строки до курсора
-    int byte_offset = utf8_byte_offset(node->message, cursor_pos);
+    int byte_offset = utf8_byte_offset(node->message, node->cursor_pos);
 
     // Движемся вперед, пока не найдем конец строки или конец текста
     while (byte_offset < len) {
         if (node->message[byte_offset] == '\n') {
-            cursor_pos = utf8_char_index(node->message, byte_offset);
+            node->cursor_pos = utf8_char_index(node->message, byte_offset);
             return;
         }
         byte_offset = utf8_next_char(node->message, byte_offset);
-        cursor_pos++;
+        node->cursor_pos++;
     }
 
     // Если достигли конца текста
-    cursor_pos = utf8_char_index(node->message, len);
+    node->cursor_pos = utf8_char_index(node->message, len);
 }
 
 void cmd_next_msg() {
@@ -441,7 +440,7 @@ void cmd_insert(MessageNode* node, const char* insert_text) {
     pthread_mutex_lock(&lock);
     if (!node || !node->message) return;
 
-    int byte_offset = utf8_byte_offset(node->message, cursor_pos);
+    int byte_offset = utf8_byte_offset(node->message, node->cursor_pos);
     int insert_len = strlen(insert_text);
 
     char* new_message = realloc(node->message, strlen(node->message) + insert_len + 1);
@@ -458,7 +457,7 @@ void cmd_insert(MessageNode* node, const char* insert_text) {
            insert_text,
            insert_len);
 
-    cursor_pos += utf8_strlen(insert_text);
+    node->cursor_pos += utf8_strlen(insert_text);
     pthread_mutex_unlock(&lock);
 }
 
@@ -527,7 +526,7 @@ void convertToAsciiCodes(const char *input, char *output, size_t outputSize) {
 #define DBG_LOG_MSG_SIZE 255
 
 bool processEvents(char* input, int* input_size,
-                   const int* cursor_pos, int* log_window_start, int rows)
+                   int* log_window_start, int rows)
 {
     pthread_mutex_lock(&eventQueue_mutex);
     bool updated = false;
@@ -820,14 +819,15 @@ bool keyb () {
 int margin = 8;
 
 void reDraw(char* ib_text,
-            int rows, int max_width, char* input, const int* cursor_pos,
+            int rows, int max_width, char* input,
             bool* followTail, int* log_window_start)
 {
     int ib_need_cols, ib_need_rows, ib_cursor_row, ib_cursor_col, ib_from_row;
 
     // Вычисляем относительную позицию курсора в inputbuffer-е
     int rel_max_width = max_width - margin*2;
-    calc_display_size(ib_text, rel_max_width, *cursor_pos,
+    calc_display_size(ib_text, rel_max_width,
+                      messageList.current->cursor_pos,
                       &ib_need_cols, &ib_need_rows,
                       &ib_cursor_row, &ib_cursor_col);
 
@@ -841,7 +841,8 @@ void reDraw(char* ib_text,
     char mb_text[1024] = {0};
     snprintf(mb_text, 1024,
              "cur_pos=%d\ncur_row=%d\ncur_col=%d\nib_need_rows=%d\nib_from_row=%d",
-             *cursor_pos, ib_cursor_row, ib_cursor_col, ib_need_rows, ib_from_row);
+             messageList.current->cursor_pos,
+             ib_cursor_row, ib_cursor_col, ib_need_rows, ib_from_row);
 
     int mb_need_cols, mb_need_rows, mb_cursor_row, mb_cursor_col;
     int mb_width = max_width-2;
@@ -976,7 +977,7 @@ int main() {
     bool terminate = false;
 
     reDraw(inputbuffer_text,
-           rows, cols, input, &cursor_pos,
+           rows, cols, input,
            &followTail, &log_window_start);
     while (!terminate) {
         // Переинициализация структур для select
@@ -998,7 +999,7 @@ int main() {
             terminate = keyb();
             // ОБРАБОТКА:
             // Обрабатываем события в конце каждой итерации
-            if (processEvents(input, &input_size, &cursor_pos,
+            if (processEvents(input, &input_size,
                               &log_window_start, rows)) {
                 /* Тут не требуется дополнительных действий, т.к. в начале */
                 /* следующего цикла все будет перерисовано */
@@ -1006,7 +1007,7 @@ int main() {
             // ОТОБРАЖЕНИЕ:
             reDraw(inputbuffer_text,
                    rows, cols, input,
-                   &cursor_pos, &followTail, &log_window_start);
+                   &followTail, &log_window_start);
         }
     }
     pthread_mutex_destroy(&eventQueue_mutex);
