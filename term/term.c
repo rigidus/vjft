@@ -8,6 +8,8 @@
 #include <errno.h>
 #include <ctype.h>
 #include <pthread.h>
+#include <signal.h>
+#include <sys/ioctl.h>
 
 #include "key_map.h"
 
@@ -93,13 +95,31 @@ typedef struct {
     int size;
 } MessageList;
 
+pthread_mutex_t messageList_mutex = PTHREAD_MUTEX_INITIALIZER;
+MessageList messageList = {0};
+
 void initMessageList(MessageList* list) {
     *list = (MessageList){0};
 }
 
 void pushMessage(MessageList* list, const char* text) {
+    pthread_mutex_lock(&messageList_mutex);
+
     MessageNode* newNode = (MessageNode*)malloc(sizeof(MessageNode));
+    if (newNode == NULL) {
+        perror("Failed to allocate memory for new message node");
+        pthread_mutex_unlock(&messageList_mutex);  // Важно разблокировать перед выходом
+        exit(1);
+    }
+
     newNode->message = strdup(text);
+    if (newNode->message == NULL) {
+        free(newNode);
+        perror("Failed to duplicate message string");
+        pthread_mutex_unlock(&messageList_mutex);  // Важно разблокировать перед выходом
+        return;
+    }
+
     newNode->prev = NULL;
     newNode->next = list->head;
     newNode->cursor_pos = 0;
@@ -117,36 +137,39 @@ void pushMessage(MessageList* list, const char* text) {
     }
 
     list->size++;
+
+    pthread_mutex_unlock(&messageList_mutex);
+}
+
+void clearMessageList(MessageList* list) {
+    MessageNode* current = list->head;
+    while (current != NULL) {
+        MessageNode* temp = current;
+        current = current->next;
+        free(temp->message);  // Освобождение памяти выделенной под строку
+        free(temp);           // Освобождение памяти выделенной под узел
+    }
+    list->head = NULL;
+    list->tail = NULL;
+    list->current = NULL;
+    list->size = 0;
 }
 
 void moveToNextMessage(MessageList* list) {
+    /* pthread_mutex_lock(&messageList_mutex); */
     if (list->current && list->current->next) {
         list->current = list->current->next;
     }
+    /* pthread_mutex_unlock(&messageList_mutex); */
 }
 
 void moveToPreviousMessage(MessageList* list) {
+    /* pthread_mutex_lock(&messageList_mutex); */
     if (list->current && list->current->prev) {
         list->current = list->current->prev;
     }
+    /* pthread_mutex_unlock(&messageList_mutex); */
 }
-
-MessageList messageList = {0};
-
-/* void displayAllMessages(int margin, int max_width) { */
-/*     MessageNode* current = messageList.head; */
-/*     int y = 1;  // Начальная строка для вывода */
-/*     while (current != NULL) { */
-/*         moveCursor(margin, y); */
-/*         printf("%.*s\n", max_width - margin, current->message); */
-/*         current = current->next; */
-/*         y++; */
-/*     } */
-/* } */
-
-void displayAllMessages(int margin, int max_width) {
-}
-
 
 /* CtrlStack */
 
@@ -202,7 +225,13 @@ pthread_mutex_t eventQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void enqueueEvent(EventType type, char* seq, int seq_size) {
     pthread_mutex_lock(&eventQueue_mutex);
+
     InputEvent* newEvent = malloc(sizeof(InputEvent));
+    if (newEvent == NULL) {
+        perror("Failed to allocate memory for a new event");
+        pthread_mutex_unlock(&eventQueue_mutex);
+        exit(1); // Выход при ошибке выделения памяти
+    }
 
     *newEvent = (InputEvent){
         .type = type,
@@ -211,13 +240,14 @@ void enqueueEvent(EventType type, char* seq, int seq_size) {
         .next = NULL
     };
 
-    if (!eventQueue) {
+    if (eventQueue == NULL) {
         eventQueue = newEvent;
     } else {
-        InputEvent* temp = eventQueue;
-        while (temp->next) { temp = temp->next; }
-        temp->next = newEvent;
+        InputEvent* lastEvent = eventQueue;
+        while (lastEvent->next) { lastEvent = lastEvent->next; }
+        lastEvent->next = newEvent;
     }
+
     pthread_mutex_unlock(&eventQueue_mutex);
 }
 
@@ -432,8 +462,6 @@ void cmd_prev_msg() {
 }
 
 
-
-
 // Функция для вставки текста в позицию курсора
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 void cmd_insert(MessageNode* node, const char* insert_text) {
@@ -446,7 +474,7 @@ void cmd_insert(MessageNode* node, const char* insert_text) {
     char* new_message = realloc(node->message, strlen(node->message) + insert_len + 1);
     if (new_message == NULL) {
         perror("Failed to reallocate memory");
-        return; // Reallocation failed, handle error appropriately
+        exit(1);
     }
     node->message = new_message;
 
@@ -818,15 +846,25 @@ bool keyb () {
 
 int margin = 8;
 
-void reDraw(char* ib_text,
-            int rows, int max_width, char* input,
-            bool* followTail, int* log_window_start)
-{
+volatile sig_atomic_t win_cols = 0;
+volatile sig_atomic_t win_rows = 0;
+volatile bool need_redraw = true;
+
+void handle_winch(int sig) {
+    struct winsize size;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == 0) {
+        win_cols = size.ws_col;
+        win_rows = size.ws_row;
+    }
+    need_redraw = true;
+}
+
+void reDraw() {
     int ib_need_cols, ib_need_rows, ib_cursor_row, ib_cursor_col, ib_from_row;
 
     // Вычисляем относительную позицию курсора в inputbuffer-е
-    int rel_max_width = max_width - margin*2;
-    calc_display_size(ib_text, rel_max_width,
+    int rel_max_width = win_cols - margin*2;
+    calc_display_size(messageList.current->message, rel_max_width,
                       messageList.current->cursor_pos,
                       &ib_need_cols, &ib_need_rows,
                       &ib_cursor_row, &ib_cursor_col);
@@ -845,7 +883,7 @@ void reDraw(char* ib_text,
              ib_cursor_row, ib_cursor_col, ib_need_rows, ib_from_row);
 
     int mb_need_cols, mb_need_rows, mb_cursor_row, mb_cursor_col;
-    int mb_width = max_width-2;
+    int mb_width = win_cols-2;
     calc_display_size(mb_text, mb_width, 0, &mb_need_cols, &mb_need_rows,
                       &mb_cursor_row, &mb_cursor_col);
     // Когда я вывожу что-то в минибуфер я хочу чтобы при большом
@@ -855,9 +893,9 @@ void reDraw(char* ib_text,
         mb_need_rows = max_minibuffer_rows;
     }
     int mb_from_row = 0;
-    int mb_up = rows + 1 - mb_need_rows + mb_from_row;
+    int mb_up = win_rows + 1 - mb_need_rows + mb_from_row;
     display_wrapped(mb_text, 2, mb_up, mb_width, mb_need_rows, mb_from_row);
-    drawHorizontalLine(max_width, mb_up-1, '=');
+    drawHorizontalLine(win_cols, mb_up-1, '=');
     int bottom = mb_up-2;
 
     // INPUTBUFFER :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -891,7 +929,7 @@ void reDraw(char* ib_text,
     if (messageList.current) {
         display_wrapped(messageList.current->message, margin, up, rel_max_width, ib_need_rows, ib_from_row);
     }
-    drawHorizontalLine(max_width, up-1, '-');
+    drawHorizontalLine(win_cols, up-1, '-');
     // Возвращаем номер строки выше отображения inputbuffer
     bottom =  up - 2;
 
@@ -962,23 +1000,22 @@ int main() {
     char input[MAX_BUFFER]={0};
     int  input_size = 0;
     int  log_window_start = 0;
-    int  rows, cols;
-    bool need_redraw = true;
     bool followTail = true; // Флаг (показывать ли последние команды)
 
-    // Получаем размер терминала
-    printf("\033[18t");
-    fflush(stdout);
-    scanf("\033[8;%d;%dt", &rows, &cols);
+    // Получаем размер терминала в win_cols и win_rows
+    handle_winch(0);
+
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handle_winch;
+    sigaction(SIGWINCH, &sa, NULL);
 
     fd_set read_fds;
     struct timeval timeout;
 
     bool terminate = false;
 
-    reDraw(inputbuffer_text,
-           rows, cols, input,
-           &followTail, &log_window_start);
+    reDraw();
     while (!terminate) {
         // Переинициализация структур для select
         FD_ZERO(&read_fds);
@@ -987,29 +1024,47 @@ int main() {
         timeout.tv_sec = 0;
         timeout.tv_usec = READ_TIMEOUT;
         // Вызываем Select
-        int select_result = select(STDIN_FILENO + 1, &read_fds, NULL, NULL, &timeout);
-        if (select_result == 0) {
-            // Обработка таймаута
-            usleep(SLEEP_TIMEOUT);
-        } else if (select_result < 0) {
-            perror("select failed");
-            exit(EXIT_FAILURE);
-        } else { // select_result > 0
-            // ПОЛУЧЕНИЕ ВВОДА:
-            terminate = keyb();
-            // ОБРАБОТКА:
-            // Обрабатываем события в конце каждой итерации
-            if (processEvents(input, &input_size,
-                              &log_window_start, rows)) {
-                /* Тут не требуется дополнительных действий, т.к. в начале */
-                /* следующего цикла все будет перерисовано */
+        int select_result;
+        do {
+            select_result = select(STDIN_FILENO + 1, &read_fds, NULL, NULL, &timeout);
+            if (select_result < 0) {
+                if (errno == EINTR) {
+                    // Обработка прерывания вызова сигналом
+                    need_redraw = true;
+                    // Сейчас мы должны сразу перейти к отображению..
+                } else {
+                    // Ошибка, которая не является EINTR
+                    perror("select failed");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (select_result == 0) {
+                // Обработка таймаута
+                usleep(SLEEP_TIMEOUT);
+            } else { // select_result > 0
+                // ПОЛУЧЕНИЕ ВВОДА:
+                terminate = keyb();
+                // ОБРАБОТКА:
+                // Обрабатываем события в конце каждой итерации
+                if (processEvents(input, &input_size,
+                                  &log_window_start, win_rows)) {
+                    /* Тут не требуется дополнительных действий, т.к. */
+                    /* далее все будет перерисовано */
+                }
+                need_redraw = true;
             }
-            // ОТОБРАЖЕНИЕ:
-            reDraw(inputbuffer_text,
-                   rows, cols, input,
-                   &followTail, &log_window_start);
-        }
+            // ОТОБРАЖЕНИЕ (если оно небходимо):
+            if (need_redraw) {
+                reDraw();
+                need_redraw = false;
+            }
+        } while (select_result < 0 && errno == EINTR);
     }
+
+    clearScreen();
+
+    clearMessageList(&messageList);
+
+    pthread_mutex_destroy(&messageList_mutex);
     pthread_mutex_destroy(&eventQueue_mutex);
 
     // Очищаем память перед завершением программы
