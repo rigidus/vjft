@@ -108,7 +108,7 @@ void pushMessage(MessageList* list, const char* text) {
     MessageNode* newNode = (MessageNode*)malloc(sizeof(MessageNode));
     if (newNode == NULL) {
         perror("Failed to allocate memory for new message node");
-        pthread_mutex_unlock(&messageList_mutex);  // Важно разблокировать перед выходом
+        pthread_mutex_unlock(&messageList_mutex);
         exit(1);
     }
 
@@ -116,7 +116,7 @@ void pushMessage(MessageList* list, const char* text) {
     if (newNode->message == NULL) {
         free(newNode);
         perror("Failed to duplicate message string");
-        pthread_mutex_unlock(&messageList_mutex);  // Важно разблокировать перед выходом
+        pthread_mutex_unlock(&messageList_mutex);
         return;
     }
 
@@ -830,7 +830,7 @@ bool keyb () {
     Key key = identify_key(input_buffer, len);
     const KeyMap* command = findCommandByKey(key);
     if (command) {
-        enqueueEvent(CMD, strdup(command->commandName), 1 /* command->param */);
+        enqueueEvent(CMD, command->commandName, 1);
     } else {
         enqueueEvent(DBG, input_buffer, len);
     }
@@ -839,9 +839,10 @@ bool keyb () {
         if (input_buffer[0] == '\x04') {
             // Обрабатываем Ctrl-D для выхода
             printf("\n");
-            return true;
+            return true; // (terminate := true)
         }
     }
+    return false; // (terminate := false)
 }
 
 int margin = 8;
@@ -860,7 +861,8 @@ void handle_winch(int sig) {
 }
 
 void reDraw() {
-    int ib_need_cols, ib_need_rows, ib_cursor_row, ib_cursor_col, ib_from_row;
+    int ib_need_cols = 0, ib_need_rows = 0, ib_cursor_row = 0, ib_cursor_col = 0,
+        ib_from_row = 0;
 
     // Вычисляем относительную позицию курсора в inputbuffer-е
     int rel_max_width = win_cols - margin*2;
@@ -882,7 +884,7 @@ void reDraw() {
              messageList.current->cursor_pos,
              ib_cursor_row, ib_cursor_col, ib_need_rows, ib_from_row);
 
-    int mb_need_cols, mb_need_rows, mb_cursor_row, mb_cursor_col;
+    int mb_need_cols = 0, mb_need_rows = 0, mb_cursor_row = 0, mb_cursor_col = 0;
     int mb_width = win_cols-2;
     calc_display_size(mb_text, mb_width, 0, &mb_need_cols, &mb_need_rows,
                       &mb_cursor_row, &mb_cursor_col);
