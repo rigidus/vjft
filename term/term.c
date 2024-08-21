@@ -11,7 +11,7 @@
 #include <signal.h>
 #include <sys/ioctl.h>
 
-#include "key_map.h"
+#include "term.h"
 
 #define MAX_BUFFER 1024
 
@@ -253,19 +253,19 @@ void enqueueEvent(EventType type, char* seq, int seq_size) {
 
 
 // Создание enum с помощью макроса
-#define GENERATE_ENUM(val, len, str) val,
+#define GENERATE_ENUM(val, len, str, is_printable) val,
 typedef enum {
     KEY_MAP(GENERATE_ENUM)
 } Key;
 
 // Создание массива строковых представлений для enum
-#define GENERATE_STRING(val, len, str) str,
+#define GENERATE_STRING(val, len, str, is_printable) str,
 const char* key_strings[] = {
     KEY_MAP(GENERATE_STRING)
 };
 
 // Создание функции key_to_string
-#define GENERATE_KEY_STR(val, len, str) #val,
+#define GENERATE_KEY_STR(val, len, str, is_printable) #val,
 const char* key_to_str(Key key) {
     static const char* key_names[] = {
         KEY_MAP(GENERATE_KEY_STR)
@@ -273,7 +273,7 @@ const char* key_to_str(Key key) {
     return key_names[key];
 }
 
-#define GENERATE_LENGTH(val, len, str) len,
+#define GENERATE_LENGTH(val, len, str, is_printable) len,
 const int key_lengths[] = {
     KEY_MAP(GENERATE_LENGTH)
 };
@@ -1022,11 +1022,9 @@ int main() {
     // Включаем сырой режим
     enableRawMode(STDIN_FILENO);
 
-    char nc;
     char input[MAX_BUFFER]={0};
     int  input_size = 0;
     int  log_window_start = 0;
-    bool followTail = true; // Флаг (показывать ли последние команды)
 
     // Получаем размер терминала в win_cols и win_rows
     handle_winch(0);
