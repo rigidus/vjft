@@ -1,3 +1,4 @@
+//term.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -213,8 +214,11 @@ typedef enum {
     CMD
 } EventType;
 
+typedef void (*CmdFunc)(MessageNode*, const char* param);
+
 typedef struct InputEvent {
     EventType type;
+    CmdFunc cmdFn;
     char* seq;
     int seq_size;
     struct InputEvent* next;
@@ -223,7 +227,7 @@ typedef struct InputEvent {
 InputEvent* eventQueue = NULL;
 pthread_mutex_t eventQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void enqueueEvent(EventType type, char* seq, int seq_size) {
+void enqueueEvent(EventType type, CmdFunc cmdFn, char* seq, int seq_size) {
     pthread_mutex_lock(&eventQueue_mutex);
 
     InputEvent* newEvent = malloc(sizeof(InputEvent));
@@ -233,11 +237,12 @@ void enqueueEvent(EventType type, char* seq, int seq_size) {
         exit(1); // Выход при ошибке выделения памяти
     }
 
-    *newEvent = (InputEvent){
-        .type = type,
-        .seq = seq ? strdup(seq) : strdup("_"),
+    *newEvent  = (InputEvent){
+        .type  = type,
+        .cmdFn = cmdFn,
+        .seq   = seq ? strdup(seq) : strdup("_"),
         .seq_size = seq_size,
-        .next = NULL
+        .next  = NULL
     };
 
     if (eventQueue == NULL) {
@@ -286,10 +291,8 @@ Key identify_key(const char* seq, int seq_size) {
             return (Key)i;
         }
     }
-    return KEY_UNKNOWN; // Возвращает KEY_UNKNOWN если последовательность не найдена
+    return KEY_UNKNOWN; // return KEY_UNKNOWN if seq not found
 }
-
-typedef void (*CommandFunction)(MessageNode*, const char* param);
 
 // Функция для вычисления длины UTF-8 символа
 size_t utf8_char_length(const char* c) {
@@ -495,9 +498,9 @@ void cmd_insert(MessageNode* node, const char* insert_text) {
 
 typedef struct {
     Key key;
-    char* commandName;
-    CommandFunction commandFunc;
-    const char* param;
+    char* cmdName;
+    CmdFunc cmdFunc;
+    char* param;
 } KeyMap;
 
 KeyMap keyCommands[] = {
@@ -510,8 +513,10 @@ KeyMap keyCommands[] = {
     /* {KEY_CTRL_A, "CMD_MOVE_TO_BEGINNING_OF_LINE",
        cmd_move_to_beginning_of_line, NULL}, */
     {KEY_CTRL_E, "CMD_MOVE_TO_END_OF_LINE", cmd_move_to_end_of_line, NULL},
-    {KEY_A, "CMD_INSERT", cmd_insert, "a"},
+    {KEY_K, "CMD_INSERT_K", cmd_insert, "=ey"},
+    {KEY_L, "CMD_INSERT_L", cmd_insert, "-ol"},
 };
+
 
 const KeyMap* findCommandByKey(Key key) {
     for (int i = 0; i < sizeof(keyCommands) / sizeof(KeyMap); i++) {
@@ -577,30 +582,14 @@ bool processEvents(char* input, int* input_size,
             }
             break;
         case CMD:
-            if (event->seq != NULL) {
+            if (event->cmdFn) {
+                event->cmdFn(messageList.current, event->seq);
+                updated = true;
+            } else {
                 char logMsg[DBG_LOG_MSG_SIZE] = {0};
-                /* snprintf(logMsg, sizeof(logMsg), "[CMD]: %s\n", event->seq); */
-                /* addMessage(&messageList, logMsg); */
-
-                const KeyMap* command = NULL;
-                int n_commands = sizeof(keyCommands) / sizeof(keyCommands[0]);
-                for (int i = 0; i < n_commands; i++) {
-                    if (strcmp(keyCommands[i].commandName, event->seq) == 0) {
-                        command = &keyCommands[i];
-                        break;
-                    }
-                }
-                if (command) {
-                    command->commandFunc(messageList.current, command->param);
-                    /* snprintf(logMsg, sizeof(logMsg), */
-                             /* "Executing command: %s\n", command->commandName); */
-                    /* addMessage(&messageList, logMsg); */
-                } else {
-                    snprintf(logMsg, sizeof(logMsg),
-                             "No command found for: %s\n", event->seq);
-                    pushMessage(&messageList, logMsg);
-                }
-               /* updated = true; */
+                snprintf(logMsg, sizeof(logMsg),
+                         "case CMD: No command found for: %s\n", event->seq);
+                pushMessage(&messageList, logMsg);
             }
             break;
         }
@@ -847,11 +836,22 @@ bool keyb () {
         STDIN_FILENO, input_buffer, sizeof(input_buffer));
 
     Key key = identify_key(input_buffer, len);
-    const KeyMap* command = findCommandByKey(key);
-    if (command) {
-        enqueueEvent(CMD, command->commandName, 1);
+    bool key_printable = (key < KEY_UNKNOWN);
+    if (key_printable) {
+        enqueueEvent(CMD, cmd_insert, input_buffer, len);
     } else {
-        enqueueEvent(DBG, input_buffer, len);
+        const KeyMap* command = findCommandByKey(key);
+        if (command) {
+            // DBG ON
+            char logMsg[DBG_LOG_MSG_SIZE] = {0};
+            snprintf(logMsg, sizeof(logMsg),
+                     "keyb: enque cmd: %s\n", command->cmdName);
+            pushMessage(&messageList, logMsg);
+            // DBG OFF
+            enqueueEvent(CMD, command->cmdFunc, command->param, len);
+        } else {
+            enqueueEvent(DBG, NULL, input_buffer, len);
+        }
     }
 
     if (len == 1) {
