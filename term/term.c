@@ -11,6 +11,9 @@
 #include <pthread.h>
 #include <signal.h>
 #include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "term.h"
 
@@ -1039,24 +1042,50 @@ int main() {
     sa.sa_handler = handle_winch;
     sigaction(SIGWINCH, &sa, NULL);
 
+
+    //
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        perror("Cannot create socket");
+        return 1;
+    }
+
+    struct sockaddr_in serv_addr;
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(8888);
+    serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    if (connect(sockfd, (struct sockaddr *)&serv_addr,
+                sizeof(serv_addr)) < 0) {
+        perror("Connect failed");
+        return 1;
+    }
+    //
+
     fd_set read_fds;
     struct timeval timeout;
+    int maxfd;
 
     bool terminate = false;
 
     reDraw();
     while (!terminate) {
-        // Переинициализация структур для select
+        // initialization for select
         FD_ZERO(&read_fds);
         FD_SET(STDIN_FILENO, &read_fds);
-        // Устанавливаем время ожидания
+        FD_SET(sockfd, &read_fds);
+        maxfd = (STDIN_FILENO > sockfd ? STDIN_FILENO : sockfd) + 1;
+        // set timeout
         timeout.tv_sec = 0;
         timeout.tv_usec = READ_TIMEOUT;
-        // Вызываем Select
+        // Select
         int select_result;
         do {
-            select_result = select(STDIN_FILENO + 1,
-                                   &read_fds, NULL, NULL, &timeout);
+            select_result =
+                select(maxfd, &read_fds, NULL, NULL, &timeout);
+                /* select(STDIN_FILENO + 1, */
+                /*        &read_fds, NULL, NULL, &timeout); */
             if (select_result < 0) {
                 if (errno == EINTR) {
                     // Обработка прерывания вызова сигналом
@@ -1079,16 +1108,25 @@ int main() {
                 // Обработка таймаута
                 usleep(SLEEP_TIMEOUT);
             } else { // select_result > 0
-                // ПОЛУЧЕНИЕ ВВОДА:
-                terminate = keyb();
-                // ОБРАБОТКА:
-                // Обрабатываем события в конце каждой итерации
-                if (processEvents(input, &input_size,
-                                  &log_window_start, win_rows)) {
-                    /* Тут не требуется дополнительных действий, т.к. */
-                    /* далее все будет перерисовано */
+                if (FD_ISSET(STDIN_FILENO, &read_fds)) {
+                    // KEYBOARD
+                    terminate = keyb();
+                    if (processEvents(input, &input_size,
+                                      &log_window_start, win_rows)) {
+                        /* Тут не нужно дополнительных действий, т.к. */
+                        /* далее все будет перерисовано */
+                    }
+                    need_redraw = true;
+                } else if (FD_ISSET(sockfd, &read_fds)) {
+                    // NETWORK
+                    char buffer[1024];
+                    int nread = read(sockfd, buffer, sizeof(buffer) - 1);
+                    if (nread > 0) {
+                        buffer[nread] = '\0';
+                        pushMessage(&messageList, buffer);
+                        need_redraw = true;
+                    }
                 }
-                need_redraw = true;
             }
             // ОТОБРАЖЕНИЕ (если оно небходимо):
             if (need_redraw) {
