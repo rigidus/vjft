@@ -80,6 +80,18 @@ void moveCursor(int x, int y) {
     fflush(stdout);
 }
 
+volatile int win_cols = 0;
+volatile int win_rows = 0;
+
+void upd_win_size() {
+    struct winsize size;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == 0)
+    {
+        win_cols = size.ws_col;
+        win_rows = size.ws_row;
+    }
+}
+
 /* List of Messages */
 
 typedef struct MessageNode {
@@ -866,17 +878,10 @@ bool keyb () {
 
 int margin = 8;
 
-volatile sig_atomic_t win_cols = 0;
-volatile sig_atomic_t win_rows = 0;
-volatile bool need_redraw = true;
+volatile sig_atomic_t sig_winch_raised = false;
 
 void handle_winch(int sig) {
-    struct winsize size;
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == 0) {
-        win_cols = size.ws_col;
-        win_rows = size.ws_row;
-    }
-    need_redraw = true;
+    sig_winch_raised = true;
 }
 
 void reDraw() {
@@ -995,7 +1000,7 @@ void reDraw() {
 
 #define READ_TIMEOUT 50000 // 50000 микросекунд (50 миллисекунд)
 #define SLEEP_TIMEOUT 100000 // 100 микросекунд
-
+volatile bool need_redraw = true;
 
 int main() {
     const char* initial_text = "Что такое буфер ввода?\nБуфер ввода - это временная область хранения, используемая в вычислительной технике для хранения данных, получаемых от устройства ввода, такого как клавиатура или мышь. Он позволяет системе получать и обрабатывать данные в своем собственном темпе, а не зависеть от скорости их поступления.\nКак работает буфер ввода.\nКак вы набираете текст на клавиатуре, например, нажатия клавиш сохраняются в буфере ввода до тех пор, пока компьютер не будет готов их обработать. Буфер хранит нажатия в том порядке, в котором они были получены, что позволяет обрабатывать их последовательно. Когда компьютер готов, он извлекает данные из буфера и выполняет необходимые действия.\nЧто такое буфер ввода?\nОсновное назначение буфера ввода - отделить устройство ввода от вычислительного блока компьютерной системы. Временное хранение входных данных в буфере позволяет пользователю вводить данные в своем собственном темпе, в то время как компьютер обрабатывает их независимо. Это помогает предотвратить потерю данных и обеспечивает плавное взаимодействие между пользователем и системой.\nМожно ли использовать буфер ввода в программировании?\nДа, буферы ввода обычно используются в программировании для обработки пользовательского ввода. При написании кода вы можете создать буфер ввода для хранения пользовательского ввода до тех пор, пока он не понадобится для дальнейшей обработки. Это позволяет более эффективно обрабатывать пользовательское взаимодействие и обеспечивает бесперебойную работу пользователя.";
@@ -1027,7 +1032,7 @@ int main() {
     int  log_window_start = 0;
 
     // Получаем размер терминала в win_cols и win_rows
-    handle_winch(0);
+    upd_win_size();
 
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -1050,11 +1055,20 @@ int main() {
         // Вызываем Select
         int select_result;
         do {
-            select_result = select(STDIN_FILENO + 1, &read_fds, NULL, NULL, &timeout);
+            select_result = select(STDIN_FILENO + 1,
+                                   &read_fds, NULL, NULL, &timeout);
             if (select_result < 0) {
                 if (errno == EINTR) {
                     // Обработка прерывания вызова сигналом
-                    need_redraw = true;
+                    // изменения размера окна
+                    if (sig_winch_raised) {
+                        // Обновляем размеры окна
+                        upd_win_size();
+                        // Устанавливаем флаг необходимости перерисовки
+                        need_redraw = true;
+                        // Сбрасываем флаг сигнала
+                        sig_winch_raised =  false;
+                    }
                     // Сейчас мы должны сразу перейти к отображению..
                 } else {
                     // Ошибка, которая не является EINTR
