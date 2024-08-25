@@ -999,6 +999,31 @@ void reDraw() {
 }
 
 
+/* Network */
+
+int connect_to_server(const char* server_ip, int port) {
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        perror("Cannot create socket");
+        return -1;
+    }
+
+    struct sockaddr_in serv_addr;
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(port);
+    serv_addr.sin_addr.s_addr = inet_addr(server_ip);
+
+    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        perror("Connect failed");
+        close(sockfd);
+        return -1;
+    }
+
+    return sockfd;
+}
+
+
 /* Main */
 
 #define READ_TIMEOUT 50000 // 50000 микросекунд (50 миллисекунд)
@@ -1043,25 +1068,8 @@ int main() {
     sigaction(SIGWINCH, &sa, NULL);
 
 
-    //
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-        perror("Cannot create socket");
-        return 1;
-    }
+    int sockfd = connect_to_server("127.0.0.1", 8888);
 
-    struct sockaddr_in serv_addr;
-    memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(8888);
-    serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-
-    if (connect(sockfd, (struct sockaddr *)&serv_addr,
-                sizeof(serv_addr)) < 0) {
-        perror("Connect failed");
-        return 1;
-    }
-    //
 
     fd_set read_fds;
     struct timeval timeout;
@@ -1074,8 +1082,14 @@ int main() {
         // initialization for select
         FD_ZERO(&read_fds);
         FD_SET(STDIN_FILENO, &read_fds);
-        FD_SET(sockfd, &read_fds);
-        maxfd = (STDIN_FILENO > sockfd ? STDIN_FILENO : sockfd) + 1;
+
+        if (sockfd != -1) {
+            FD_SET(sockfd, &read_fds);
+            maxfd = (STDIN_FILENO > sockfd ? STDIN_FILENO : sockfd) + 1;
+        } else {
+            maxfd = STDIN_FILENO + 1;
+        }
+
         // set timeout
         timeout.tv_sec = 0;
         timeout.tv_usec = READ_TIMEOUT;
