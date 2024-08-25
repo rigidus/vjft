@@ -1,12 +1,13 @@
 # Имена исходных файлов
-SOURCES=term.c
-M4_HEAD=term.m4
+SOURCES=term.c msg.c ctrlstk.c main.c
+M4_HEAD=key_map.m4
 
 OBJECTS=$(SOURCES:.c=.o)
-HEADERS=$(M4_HEAD:.m4=.h)
+M4_HEADERS=$(M4_HEAD:.m4=.h)
+HEADERS=key_map.h term.h msg.h ctrlstk.h
 
 # Имя целевого исполняемого файла
-TARGET=term
+TARGET=main
 
 # Компилятор
 CC=gcc
@@ -22,25 +23,27 @@ $(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) -o $@ $^
 
 # Правило для сборки объектных файлов
-$(OBJECTS): $(SOURCES) $(HEADERS)
-	$(CC) $(CFLAGS) -c $<
+$(OBJECTS): %.o : %.c $(HEADERS) $(M4_HEADERS)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-$(HEADERS): $(M4_HEAD)
+# Правило для генерации заголовков из m4
+key_map.h: $(M4_HEAD)
 	m4 $< > $@
+
+# $(HEADERS): $(M4_HEAD)
+# 	m4 $< > $@
 
 # valgrind
 valgrind:
-	valgrind --leak-check=full ./($TARGET)
+	valgrind --leak-check=full ./$(TARGET)
 
 gdb:
 	gdb $(TARGET)
-# 	# run
-# 	# bt
-
+#   # run
+#   # bt
 
 # Очистка
 clean:
-	rm -f $(TARGET) $(OBJECTS) $(HEADERS)
+	rm -f $(TARGET) $(OBJECTS) $(M4_HEADERS)
 
-
-.PHONY: all clean
+.PHONY: all clean valgrind gdb

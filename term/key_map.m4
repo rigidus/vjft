@@ -1,4 +1,4 @@
-// term.h
+// key_map.h
 #define KEY_MAP(X)\
 define(`XY', `ifelse($4, 1, `printable($@)', `nonprintable($@)')')dnl
 define(`printable',    `divert(1)`  X'($@)\`
