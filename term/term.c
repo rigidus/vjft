@@ -187,40 +187,6 @@ void moveToPreviousMessage(MessageList* list) {
     /* pthread_mutex_unlock(&messageList_mutex); */
 }
 
-/* CtrlStack */
-
-typedef struct CtrlStack {
-    char key;
-    struct CtrlStack* next;
-} CtrlStack;
-
-CtrlStack* ctrlStack = NULL;
-
-void pushCtrlStack(char key) {
-    CtrlStack* newElement = malloc(sizeof(CtrlStack));
-    newElement->key = key;
-    newElement->next = ctrlStack;
-    ctrlStack = newElement;
-    /* ctrlStack = &(CtrlStack){.key = key, .next = ctrlStack}; */
-}
-
-char popCtrlStack() {
-    if (!ctrlStack) return '\0';
-    char key = ctrlStack->key;
-    CtrlStack* temp = ctrlStack;
-    ctrlStack = ctrlStack->next;
-    free(temp);
-    return key;
-}
-
-bool isCtrlStackEmpty() {
-    return ctrlStack == NULL;
-}
-
-void clearCtrlStack() {
-    while (popCtrlStack());
-}
-
 
 /* InputEvent */
 
@@ -230,6 +196,16 @@ typedef enum {
 } EventType;
 
 typedef void (*CmdFunc)(MessageNode*, const char* param);
+void cmd_cancel();
+void cmd_connect();
+void cmd_prev_msg();
+void cmd_next_msg();
+void cmd_backward_char();
+void cmd_forward_char();
+void cmd_forward_word();
+void cmd_backward_word();
+void cmd_move_to_end_of_line();
+void cmd_insert();
 
 typedef struct InputEvent {
     EventType type;
@@ -297,6 +273,49 @@ const char* key_to_str(Key key) {
 const int key_lengths[] = {
     KEY_MAP(GENERATE_LENGTH)
 };
+
+/* CtrlStack */
+
+typedef struct CtrlStack {
+    Key key;
+    struct CtrlStack* next;
+} CtrlStack;
+
+CtrlStack* ctrlStack = NULL;
+
+void pushCtrlStack(Key key) {
+    CtrlStack* newElement = malloc(sizeof(CtrlStack));
+    newElement->key = key;
+    newElement->next = ctrlStack;
+    ctrlStack = newElement;
+}
+
+char popCtrlStack() {
+    if (!ctrlStack) return '\0';
+    Key key = ctrlStack->key;
+    CtrlStack* temp = ctrlStack;
+    ctrlStack = ctrlStack->next;
+    free(temp);
+    return key;
+}
+
+bool isCtrlStackEmpty() {
+    return ctrlStack == NULL;
+}
+
+bool isCtrlStackActive(Key key) {
+    // Проверьте стек на наличие данного ключа
+    // Возвращает true, если ключ найден
+    if (!ctrlStack) return false;
+    if (ctrlStack->key == key) {
+        return true;
+    }
+    return false;
+}
+
+void clearCtrlStack() {
+    while (popCtrlStack());
+}
 
 
 Key identify_key(const char* seq, int seq_size) {
@@ -508,7 +527,6 @@ void cmd_insert(MessageNode* node, const char* insert_text) {
 }
 
 
-
 /* Commands */
 
 typedef struct {
@@ -530,6 +548,9 @@ KeyMap keyCommands[] = {
     {KEY_CTRL_E, "CMD_MOVE_TO_END_OF_LINE", cmd_move_to_end_of_line, NULL},
     {KEY_K, "CMD_INSERT_K", cmd_insert, "=ey"},
     {KEY_L, "CMD_INSERT_L", cmd_insert, "-ol"},
+    {KEY_CTRL_X, "CMD_CTRL_X", NULL, NULL},
+    {KEY_CTRL_O, "CMD_CONNECT", cmd_connect, NULL},
+    {KEY_CTRL_G, "CMD_CANCEL", cmd_cancel, NULL},
 };
 
 
@@ -788,7 +809,7 @@ bool is_utf8_complete(const char* buffer, int len) {
 
 // Функция чтения одного UTF-8 символа или ESC последовательности в buf
 int read_utf8_char_or_esc_seq(int fd, char* buf, int buf_size) {
-    int len = 0, nread;
+    int len = 0, nread = 0;
     struct timeval timeout;
     fd_set read_fds;
     while (len < buf_size - 1) {
@@ -816,9 +837,11 @@ int read_utf8_char_or_esc_seq(int fd, char* buf, int buf_size) {
                 }
                 continue; // Есть еще данные для чтения
             }
-            // Считано два символа и это CSI или SS3 последовательности - читаем дальше
+            // Считано два символа и это CSI или SS3 последовательности
+            // - читаем дальше
             if (len == 2 && (buf[1] == '[' || buf[1] == 'O')) { continue; }
-            // Считано два символа, и второй из них - это \xd0 или \xd1 - читаем дальше
+            // Считано два символа, и второй из них - это \xd0 или \xd1
+            // - читаем дальше
             // (это может быть модификатор + двухбайтовый кирилический символ)
             if (len == 2 && (buf[1] == '\xd0' || buf[1] == '\xd1')) { continue; }
             // Считано больше двух символов и это CSI или SS3 последовательности
@@ -849,26 +872,47 @@ bool keyb () {
     char input_buffer[MAX_INPUT_BUFFER];
     int len = read_utf8_char_or_esc_seq(
         STDIN_FILENO, input_buffer, sizeof(input_buffer));
-
+    if (len <= 0) {
+        // Не было считано никаких данных, но это
+        // не повод завершать выполенение программы
+        return false; // (terminate := false)
+    }
     Key key = identify_key(input_buffer, len);
     bool key_printable = (key < KEY_UNKNOWN);
     if (key_printable) {
         enqueueEvent(CMD, cmd_insert, input_buffer, len);
     } else {
-        const KeyMap* command = findCommandByKey(key);
-        if (command) {
-            // DBG ON
-            char logMsg[DBG_LOG_MSG_SIZE] = {0};
-            snprintf(logMsg, sizeof(logMsg),
-                     "keyb: enque cmd: %s\n", command->cmdName);
-            pushMessage(&messageList, logMsg);
-            // DBG OFF
-            enqueueEvent(CMD, command->cmdFunc, command->param, len);
+        const KeyMap* cmd = findCommandByKey(key);
+        if (cmd && cmd->cmdName) {
+            if (strcmp(cmd->cmdName, "CMD_CTRL_X") == 0) {
+                // Начало комбинации
+                pushCtrlStack(KEY_CTRL_X);
+                pushMessage(&messageList, "pushed C-x");
+            } else if ( (strcmp(cmd->cmdName, "CMD_CONNECT") == 0)
+                        && (isCtrlStackActive(KEY_CTRL_X)) ) {
+                // Если C-x уже был нажат
+                enqueueEvent(CMD, cmd->cmdFunc, "KEY_CTRL_X", 0);
+                pushMessage(&messageList, "pushed C-o");
+                clearCtrlStack();
+            } else if ( (strcmp(cmd->cmdName, "CMD_CANCEL") == 0)
+                        && (isCtrlStackActive(KEY_CTRL_X)) ) {
+                // Если C-x уже был нажат и следующий C-g
+                enqueueEvent(CMD, cmd->cmdFunc, cmd->param, 0);
+                clearCtrlStack();
+                pushMessage(&messageList, "C-g - clear stack");
+            } else {
+                // DBG ON
+                char logMsg[DBG_LOG_MSG_SIZE] = {0};
+                snprintf(logMsg, sizeof(logMsg),
+                         "keyb: enque cmd: %s\n", cmd->cmdName);
+                pushMessage(&messageList, logMsg);
+                // DBG OFF
+                enqueueEvent(CMD, cmd->cmdFunc, cmd->param, len);
+            }
         } else {
             enqueueEvent(DBG, NULL, input_buffer, len);
         }
     }
-
     if (len == 1) {
         if (input_buffer[0] == '\x04') {
             // Обрабатываем Ctrl-D для выхода
@@ -903,13 +947,25 @@ void reDraw() {
 
     // МИНИБУФЕР ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
+    // Формируем отображение CtrlStack
+    char buffer[256] = {0};
+    CtrlStack* selt = ctrlStack;
+    while (selt) {
+        strcat(buffer, key_to_str(selt->key));
+        if (selt->next) {
+            strcat(buffer, " ");
+        }
+        selt = selt->next;
+    }
+
     // Формируем текст для минибуфера с позицией курсора в строке inputBuffer-a
     // относительной позицией в строке и столбце минибуфера
     char mb_text[1024] = {0};
     snprintf(mb_text, 1024,
-             "cur_pos=%d\ncur_row=%d\ncur_col=%d\nib_need_rows=%d\nib_from_row=%d",
+             "cur_pos=%d\ncur_row=%d\ncur_col=%d\nib_need_rows=%d\nib_from_row=%d\n%s",
              messageList.current->cursor_pos,
-             ib_cursor_row, ib_cursor_col, ib_need_rows, ib_from_row);
+             ib_cursor_row, ib_cursor_col, ib_need_rows, ib_from_row,
+             buffer);
 
     int mb_need_cols = 0, mb_need_rows = 0, mb_cursor_row = 0, mb_cursor_col = 0;
     int mb_width = win_cols-2;
@@ -998,14 +1054,14 @@ void reDraw() {
     moveCursor(ib_cursor_col + margin, bottom + 1 + ib_cursor_row - ib_from_row);
 }
 
-
 /* Network */
 
-int connect_to_server(const char* server_ip, int port) {
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+int sockfd = -1;
+
+void connect_to_server(const char* server_ip, int port) {
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         perror("Cannot create socket");
-        return -1;
     }
 
     struct sockaddr_in serv_addr;
@@ -1017,12 +1073,25 @@ int connect_to_server(const char* server_ip, int port) {
     if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         perror("Connect failed");
         close(sockfd);
-        return -1;
+        sockfd = -1;
     }
-
-    return sockfd;
 }
 
+/* Command functions */
+
+void cmd_connect(MessageNode* msg, const char* param) {
+    if (strcmp(param, "KEY_CTRL_X") == 0) {
+        connect_to_server("127.0.0.1", 8888);
+        pushMessage(&messageList, "Connect to server command");
+    } else {
+        pushMessage(&messageList, "Non auth connect command");
+    }
+}
+
+void cmd_cancel() {
+    clearCtrlStack();
+    pushMessage(&messageList, "Cancel command");
+}
 
 /* Main */
 
@@ -1068,7 +1137,7 @@ int main() {
     sigaction(SIGWINCH, &sa, NULL);
 
 
-    int sockfd = connect_to_server("127.0.0.1", 8888);
+    connect_to_server("127.0.0.1", 8888);
 
 
     fd_set read_fds;
