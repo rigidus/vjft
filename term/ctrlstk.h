@@ -1,5 +1,8 @@
 // ctrlstk.h
 
+#ifndef CTRLSTK_H
+#define CTRLSTK_H
+
 #include "all_libs.h"
 
 #include "key.h"
@@ -16,3 +19,5 @@ Key popCtrlStack();
 bool isCtrlStackEmpty();
 bool isCtrlStackActive(Key key);
 void clearCtrlStack();
+
+#endif

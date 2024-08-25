@@ -1,4 +1,7 @@
 // key_map.h
+`#ifndef KEY_MAP_H'
+`#define KEY_MAP_H'
+
 #define KEY_MAP(X)\
 define(`XY', `ifelse($4, 1, `printable($@)', `nonprintable($@)')')dnl
 define(`printable',    `divert(1)`  X'($@)\`
@@ -44,7 +47,7 @@ XY(KEY_DOWN, 3, "\x1b\x5b\x42", 0)
 XY(KEY_ALT_DOWN, 6, "\x1b\x5b\x31\x3b\x33\x42", 0)
 XY(KEY_SHIFT_ALT_DOWN, 6, "\x1b\x5b\x31\x3b\x34\x42", 0)
 XY(KEY_CTRL_DOWN, 6, "\x1b\x5b\x31\x3b\x35\x42", 0)
-XY(LEY_RIGTH, 3, "\x1b\x5b\x43", 0)
+XY(KEY_RIGHT, 3, "\x1b\x5b\x43", 0)
 XY(KEY_ALT_RIGHT, 6, "\x1b\x5b\x31\x3b\x33\x43", 0)
 XY(KEY_SHIFT_ALT_RIGHT, 6, "\x1b\x5b\x31\x3b\x34\x43", 0)
 XY(KEY_CTRL_RIGHT, 6, "\x1b\x5b\x31\x3b\x35\x43", 0)
@@ -345,7 +348,7 @@ XY(KEY_CYRILLIC_PE, 2, "п", 0)
 XY(KEY_SHIFT_CYRILLIC_PE, 2, "П", 0)
 XY(KEY_ALT_CYRILLIC_PE, 3, "\x1bп", 0)
 XY(KEY_SHIFT_ALT_CYRILLIC_PE, 3, "\x1bП", 0)
-XY(KEY_H, 1, "h", 0)
+XY(`KEY_H', 1, "h", 0)
 XY(KEY_SHIFT_H, 1, "H", 0)
 XY(KEY_ALT_H, 2, "\x1b\x68", 0)
 XY(KEY_SHIFT_ALT_H, 2, "\x1b\x48", 0) /* C-h = C-BS, C-M-h = C-M-BS */
@@ -485,7 +488,7 @@ divert(0)dnl
 undivert(1)dnl
 undivert(2)dnl
 divert(0)
-/* -- END M4 GEN -- */
+`#endif'
 divert(-1)dnl
 
 /*

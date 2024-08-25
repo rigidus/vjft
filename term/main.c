@@ -4,34 +4,13 @@
 
 #include "term.h"
 #include "msg.h"
+#include "key.h"
 #include "ctrlstk.h" // include key.h and key_map.h
-// Здесь создается enum Key, содержащий перечисления вида
-// KEY_A, KEY_B, ... для всех возможных нажимаемых клавиш
-
-// Создание массива строковых представлений key_strings[]
-// для enum Key
-#define GENERATE_STRING(val, len, str, is_printable) str,
-const char* key_strings[] = {
-    KEY_MAP(GENERATE_STRING)
-};
-
-// Создание массива длин, индексы в котором соответствуют
-// индексам в массиве key_strings
-#define GENERATE_LENGTH(val, len, str, is_printable) len,
-const int key_lengths[] = {
-    KEY_MAP(GENERATE_LENGTH)
-};
-
-// Создание функции key_to_string() для преобразования
-// Key в соответствующую ему строку
-#define GENERATE_KEY_STR(val, len, str, is_printable) #val,
-const char* key_to_str(Key key) {
-    static const char* key_names[] = {
-        KEY_MAP(GENERATE_KEY_STR)
-    };
-    return key_names[key];
-}
-
+/* // Здесь создается enum Key, содержащий перечисления вида */
+/* // KEY_A, KEY_B, ... для всех возможных нажимаемых клавиш */
+#include "cmd.h"
+#include "utf8.h"
+#include "iface.h"
 
 #define MAX_BUFFER 1024
 
@@ -40,7 +19,6 @@ char miniBuffer[MAX_BUFFER] = {0};
 void drawHorizontalLine(int cols, int y, char sym);
 
 /* %%term%% */
-
 
 volatile int win_cols = 0;
 volatile int win_rows = 0;
@@ -67,17 +45,6 @@ typedef enum {
     CMD
 } EventType;
 
-typedef void (*CmdFunc)(MessageNode*, const char* param);
-void cmd_cancel();
-void cmd_connect();
-void cmd_prev_msg();
-void cmd_next_msg();
-void cmd_backward_char();
-void cmd_forward_char();
-void cmd_forward_word();
-void cmd_backward_word();
-void cmd_move_to_end_of_line();
-void cmd_insert();
 
 typedef struct InputEvent {
     EventType type;
@@ -119,223 +86,13 @@ void enqueueEvent(EventType type, CmdFunc cmdFn, char* seq, int seq_size) {
     pthread_mutex_unlock(&eventQueue_mutex);
 }
 
-
-
 /* %%ctrlstack%% */
+
 CtrlStack* ctrlStack = NULL;
 
+/* %%utf8 */
 
-
-Key identify_key(const char* seq, int seq_size) {
-    for (int i = 0; i < sizeof(key_strings) / sizeof(key_strings[0]); i++) {
-        if ( (key_lengths[i] == seq_size) &&
-             (strncmp(seq, key_strings[i], key_lengths[i]) == 0) ) {
-            return (Key)i;
-        }
-    }
-    return KEY_UNKNOWN; // return KEY_UNKNOWN if seq not found
-}
-
-// Функция для вычисления длины UTF-8 символа
-size_t utf8_char_length(const char* c) {
-    unsigned char byte = (unsigned char)*c;
-    if (byte <= 0x7F) return 1;        // ASCII
-    else if ((byte & 0xE0) == 0xC0) return 2; // 2-byte sequence
-    else if ((byte & 0xF0) == 0xE0) return 3; // 3-byte sequence
-    else if ((byte & 0xF8) == 0xF0) return 4; // 4-byte sequence
-    return 1; // Ошибочные символы обрабатываем как 1 байт
-}
-
-// Возвращает длину строки в utf-8 символах
-size_t utf8_strlen(const char *str) {
-    size_t length = 0;
-    for (; *str; length++) {
-        str += utf8_char_length(str);
-    }
-    return length;
-}
-
-void cmd_backward_char(MessageNode* node, const char* stub) {
-    if (node->cursor_pos > 0) { node->cursor_pos--; }
-}
-
-void cmd_forward_char(MessageNode* node, const char* stub) {
-    int len = utf8_strlen(node->message);
-    if (++node->cursor_pos > len) { node->cursor_pos = len; }
-}
-
-// Функция для перемещения курсора на следующий UTF-8 символ
-int utf8_next_char(const char* str, int pos) {
-    if (str[pos] == '\0') return pos;
-    return pos + utf8_char_length(&str[pos]);
-}
-
-// Функция для перемещения курсора на предыдущий UTF-8 символ
-int utf8_prev_char(const char* str, int pos) {
-    if (pos == 0) return 0;
-    do {
-        pos--;
-    } while (pos > 0 && ((str[pos] & 0xC0) == 0x80)); // Пропуск байтов продолжения
-    return pos;
-}
-
-// Функция для определения смещения в байтах
-// для указанной позиции курсора (в символах)
-int utf8_byte_offset(const char* str, int cursor_pos) {
-    int byte_offset = 0, char_count = 0;
-    while (str[byte_offset] && char_count < cursor_pos) {
-        byte_offset += utf8_char_length(&str[byte_offset]);
-        char_count++;
-    }
-    return byte_offset;
-}
-
-// Функция для конвертации byte_offset в индекс символа (UTF-8)
-int utf8_char_index(const char* str, int byte_offset) {
-    int char_index = 0;
-    int current_offset = 0;
-
-    while (current_offset < byte_offset && str[current_offset] != '\0') {
-        int char_len = utf8_char_length(&str[current_offset]);
-        current_offset += char_len;
-        char_index++;
-    }
-
-    return char_index;
-}
-
-// Перемещение курсора вперед на одно слово
-void cmd_forward_word(MessageNode* node, const char* stub) {
-    int len = utf8_strlen(node->message);  // Длина строки в байтах
-
-    // Смещение в байтах от начала строки до курсора
-    int byte_offset = utf8_byte_offset(node->message, node->cursor_pos);
-
-    // Пропуск пробелов (если курсор находится на пробеле)
-    while (byte_offset < len && isspace((unsigned char)node->message[byte_offset]))
-    {
-        byte_offset = utf8_next_char(node->message, byte_offset);
-        node->cursor_pos++;
-    }
-
-    // Перемещение вперед до конца слова
-    while (byte_offset < len && !isspace((unsigned char)node->message[byte_offset]))
-    {
-        byte_offset = utf8_next_char(node->message, byte_offset);
-        node->cursor_pos++;
-    }
-}
-
-// Перемещение курсора назад на одно слово
-void cmd_backward_word(MessageNode* node, const char* stub) {
-    if (node->cursor_pos == 0) return;  // Если курсор уже в начале, ничего не делаем
-
-    // Смещение в байтах от начала строки до курсора
-    int byte_offset = utf8_byte_offset(node->message, node->cursor_pos);
-
-    // Пропуск пробелов, если курсор находится на пробеле
-    while (byte_offset > 0) {
-        int prev_offset = utf8_prev_char(node->message, byte_offset);
-        if (!isspace((unsigned char)node->message[prev_offset])) {
-            break;
-        }
-        byte_offset = prev_offset;
-        node->cursor_pos--;
-    }
-
-    // Перемещение назад до начала предыдущего слова
-    while (byte_offset > 0) {
-        int prev_offset = utf8_prev_char(node->message, byte_offset);
-        if (isspace((unsigned char)node->message[prev_offset])) {
-            break;
-        }
-        byte_offset = prev_offset;
-        node->cursor_pos--;
-    }
-}
-
-/* void cmd_move_to_beginning_of_line(MessageNode* node, const char* stub) { */
-/*     // Если курсор уже в начале текста, ничего не делаем */
-/*     if (node->cursor_pos == 0) return; */
-
-/*     // Смещение в байтах от начала строки до курсора */
-/*     int byte_offset = utf8_byte_offset(node->message, node->cursor_pos); */
-
-/*     // Движемся назад, пока не найдем начало строки или начало текста */
-/*     while (byte_offset > 0) { */
-/*         int prev_offset = utf8_prev_char(node->message, byte_offset); */
-/*         if (node->message[prev_offset] == '\n') { */
-/*             // Переходим на следующий символ после \n */
-/*             byte_offset = utf8_next_char(node->message, prev_offset); */
-/*             node->cursor_pos = utf8_strlen(node->message); */
-/*             return; */
-/*         } */
-/*         byte_offset = prev_offset; */
-/*         node->cursor_pos--; */
-/*     } */
-/*     // Если достигли начала текста, устанавливаем курсор на позицию 0 */
-/*     node->cursor_pos = 0; */
-/* } */
-
-void cmd_move_to_end_of_line(MessageNode* node, const char* stub) {
-    // Длина строки в байтах
-    int len = strlen(node->message);
-
-    // Смещение в байтах от начала строки до курсора
-    int byte_offset = utf8_byte_offset(node->message, node->cursor_pos);
-
-    // Движемся вперед, пока не найдем конец строки или конец текста
-    while (byte_offset < len) {
-        if (node->message[byte_offset] == '\n') {
-            node->cursor_pos = utf8_char_index(node->message, byte_offset);
-            return;
-        }
-        byte_offset = utf8_next_char(node->message, byte_offset);
-        node->cursor_pos++;
-    }
-
-    // Если достигли конца текста
-    node->cursor_pos = utf8_char_index(node->message, len);
-}
-
-void cmd_next_msg() {
-    moveToNextMessage(&messageList);
-}
-
-void cmd_prev_msg() {
-    moveToPreviousMessage(&messageList);
-}
-
-
-// Функция для вставки текста в позицию курсора
-pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-void cmd_insert(MessageNode* node, const char* insert_text) {
-    pthread_mutex_lock(&lock);
-    if (!node || !node->message) return;
-
-    int byte_offset = utf8_byte_offset(node->message, node->cursor_pos);
-    int insert_len = strlen(insert_text);
-
-    char* new_message = realloc(node->message, strlen(node->message) + insert_len + 1);
-    if (new_message == NULL) {
-        perror("Failed to reallocate memory");
-        exit(1);
-    }
-    node->message = new_message;
-
-    memmove(node->message + byte_offset + insert_len,
-            node->message + byte_offset,
-            strlen(node->message) - byte_offset + 1);
-    memcpy(node->message + byte_offset,
-           insert_text,
-           insert_len);
-
-    node->cursor_pos += utf8_strlen(insert_text);
-    pthread_mutex_unlock(&lock);
-}
-
-
-/* Commands */
+/* %%cmd%% */
 
 typedef struct {
     Key key;
@@ -370,7 +127,6 @@ const KeyMap* findCommandByKey(Key key) {
     }
     return NULL;
 }
-
 
 
 void convertToAsciiCodes(const char *input, char *output, size_t outputSize) {
@@ -447,161 +203,10 @@ bool processEvents(char* input, int* input_size,
 }
 
 
-/* Iface */
-
-/**
-   Подсчитывает сколько строк и столбцов необходимо для вывода текста
-   в текстовое окно максималальной ширины max_width и в какой из этих
-   строк будет расположен курсор
-*/
-void calc_display_size(const char* text, int max_width, int cursor_pos,
-                       int* need_cols, int* need_rows,
-                       int* cursor_row, int* cursor_col)
-{
-    int cur_text_pos = -1; // Текущий индекс выводимого символа строки
-    int cur_row = 1; // Текущая строка, она же счетчик строк
-    int cur_col = 0; // Длина текущей строки
-    int max_col = 0; // Максимальная найденная длина строки
-
-    for (const char* p = text; *p; ) {
-        size_t char_len = utf8_char_length(p);
-
-        cur_text_pos++; // Увеличение текущей позиции в тексте
-        if (cur_text_pos == cursor_pos) { // Дошли до позиции курсора?
-            *cursor_row = cur_row;        // Вернуть текущую строку
-            *cursor_col = cur_col;        // Вернуть текущий столбец
-        }
-
-        cur_col++; // Увеличение позиции в текущей строке
-        // Если эта строка длиннее чем все ранее встреченные
-        if (cur_col > max_col) {
-            max_col = cur_col; // Обновить
-        }
-
-        // Символ переноса строки или правая граница?
-        if ((*p == '\n') || (cur_col >= max_width)) {
-            cur_col = 0;  // Сброс длины строки для новой строки
-            cur_row++;    // Увеличение счетчика строк
-        }
-
-        p += char_len; // Переходим к следующему символу
-    }
-
-    // Если последняя строка оказалась самой длинной
-    if (cur_col > max_col) {
-        max_col = cur_col;
-    }
-
-    *need_rows = cur_row;
-    *need_cols = max_col;
-}
+/* %%iface%% */
 
 
-/**
-   Вывод текста в текстовое окно
-
-   abs_x, abs_y - левый верхний угол окна
-   rel_max_width, rel_max_rows - размер окна
-   from_row - строка внутри text с которой начинается вывод
-     (он окончится когда закончится текст или окно, а окно
-     закончится, когда будет выведено max_width строк)
-*/
-
-#define FILLER ':'
-
-// Основная функция для вывода текста с учётом переноса строк
-void display_wrapped(const char* text, int abs_x, int abs_y,
-                     int rel_max_width, int rel_max_rows,
-                     int from_row)
-{
-    int rel_row = 0;  // Текущая строка, она же счётчик строк
-    int rel_col = 0;  // Текущий столбец
-
-    bool is_not_skipped_row() {
-        return (rel_row > from_row);
-    }
-
-    void fullfiller () {
-        if (is_not_skipped_row()) { // Если мы не пропускаем
-            while (rel_col < rel_max_width) { // Пока не правая граница
-                putchar(FILLER); // Заполняем
-                rel_col++; // Увеличиваем счётчик длины строки
-            }
-        }
-    }
-
-    void inc_rel_row() {
-        rel_col = 0; // Сброс длины строки для новой строки
-        rel_row++;   // Увеличение счётчика строк
-        if (is_not_skipped_row()) { // Если мы не пропускаем
-            moveCursor(abs_x, abs_y + rel_row - from_row - 1);
-        }
-    }
-
-    inc_rel_row(); // Курсор на начальную позицию
-
-    for (const char* p = text; *p; ) {
-        size_t char_len = utf8_char_length(p);
-
-        // Если текущая строка достигает максимальной ширины
-        if (rel_col >= rel_max_width) {
-            inc_rel_row();
-        }
-
-        // Если максимальное количество строк достигнуто
-        if (rel_row > (rel_max_rows + from_row)) {
-            break;  // Прекращаем вывод
-        }
-
-        if (*p == '\n') {  // Если текущий символ - перевод строки
-            fullfiller();  // Заполняем оставшееся филлером
-            inc_rel_row(); // Переходим на следующую строку
-            p += char_len; // Переходим к следующему символу
-        } else {
-            // Обычный печатаемый символ
-            if (is_not_skipped_row()) { // Если мы не пропускаем
-                fwrite(p, 1, char_len, stdout); // Выводим символ (UTF-8)
-            }
-            rel_col++; // Увеличиваем счётчик длины строки
-            p += char_len; // Переходим к следующему символу
-        }
-    }
-
-    // Заполнение оставшейся части строки до конца, если необходимо
-    if (rel_col != 0) {
-        fullfiller();
-    }
-}
-
-
-static inline int min(int a, int b) {
-    return (a < b) ? a : b;
-}
-
-
-int display_message(MessageNode* message, int x, int y, int max_width, int max_height) {
-    if (message == NULL || message->message == NULL) return 0;
-
-    int needed_cols, needed_rows, cursor_row, cursor_col;
-    calc_display_size(message->message, max_width, 0, &needed_cols, &needed_rows, &cursor_row, &cursor_col);
-
-    int display_start_row = (needed_rows > max_height) ? needed_rows - max_height : 0;
-    int actual_rows = min(needed_rows, max_height);
-
-    display_wrapped(message->message, x, y, max_width, actual_rows, display_start_row);
-
-    return actual_rows;
-}
-
-void drawHorizontalLine(int cols, int y, char sym) {
-    moveCursor(1, y);
-    for (int i = 0; i < cols; i++) {
-        putchar(sym);
-        fflush(stdout);
-    }
-}
-
-/* UTF-8 */
+/* keyboard */
 
 // Проверка, что UTF-8 символ полностью считан
 bool is_utf8_complete(const char* buffer, int len) {
@@ -768,8 +373,8 @@ void reDraw() {
 
     // Формируем текст для минибуфера с позицией курсора в строке inputBuffer-a
     // относительной позицией в строке и столбце минибуфера
-    char mb_text[1024] = {0};
-    snprintf(mb_text, 1024,
+    char mb_text[MAX_BUFFER] = {0};
+    snprintf(mb_text, MAX_BUFFER,
              "cur_pos=%d\ncur_row=%d\ncur_col=%d\nib_need_rows=%d\nib_from_row=%d\n%s",
              messageList.current->cursor_pos,
              ib_cursor_row, ib_cursor_col, ib_need_rows, ib_from_row,
@@ -885,22 +490,6 @@ void connect_to_server(const char* server_ip, int port) {
     }
 }
 
-/* Command functions */
-
-void cmd_connect(MessageNode* msg, const char* param) {
-    if (strcmp(param, "KEY_CTRL_X") == 0) {
-        connect_to_server("127.0.0.1", 8888);
-        pushMessage(&messageList, "Connect to server command");
-    } else {
-        pushMessage(&messageList, "Non auth connect command");
-    }
-}
-
-void cmd_cancel() {
-    clearCtrlStack();
-    pushMessage(&messageList, "Cancel command");
-}
-
 /* Main */
 
 #define READ_TIMEOUT 50000 // 50000 микросекунд (50 миллисекунд)
@@ -1010,7 +599,7 @@ int main() {
                     need_redraw = true;
                 } else if (FD_ISSET(sockfd, &read_fds)) {
                     // NETWORK
-                    char buffer[1024];
+                    char buffer[MAX_BUFFER];
                     int nread = read(sockfd, buffer, sizeof(buffer) - 1);
                     if (nread > 0) {
                         buffer[nread] = '\0';
