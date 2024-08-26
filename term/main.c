@@ -95,39 +95,92 @@ CtrlStack* ctrlStack = NULL;
 /* %%cmd%% */
 
 typedef struct {
-    Key key;
+    Key* combo;
+    int comboLength;
     char* cmdName;
     CmdFunc cmdFunc;
     char* param;
 } KeyMap;
 
+// Макрос для создания комбинации клавиш и инициализации KeyMap
+#define KEY_COMMAND(cmdName, cmdFunc, param, ...)       \
+    ((KeyMap) {                                         \
+        (Key[]){ __VA_ARGS__ },                         \
+        (sizeof((Key[]){ __VA_ARGS__ }) / sizeof(Key)), \
+        cmdName,                                        \
+        cmdFunc,                                        \
+        NULL                                            \
+    }),                                                 \
+
+
+// Использование макроса для создания элемента массива
 KeyMap keyCommands[] = {
-    {KEY_CTRL_P, "CMD_PREV_MSG", cmd_prev_msg, NULL},
-    {KEY_CTRL_N, "CMD_NEXT_MSG", cmd_next_msg, NULL},
-    {KEY_CTRL_B, "CMD_BACKWARD_CHAR", cmd_backward_char, NULL},
-    {KEY_CTRL_F, "CMD_FORWARD_CHAR", cmd_forward_char, NULL},
-    {KEY_ALT_F, "CMD_FORWARD_WORD", cmd_forward_word, NULL},
-    {KEY_ALT_B, "CMD_BACKWARD_WORD", cmd_backward_word, NULL},
-    /* {KEY_CTRL_A, "CMD_MOVE_TO_BEGINNING_OF_LINE",
-       cmd_move_to_beginning_of_line, NULL}, */
-    {KEY_CTRL_E, "CMD_MOVE_TO_END_OF_LINE", cmd_move_to_end_of_line, NULL},
-    {KEY_K, "CMD_INSERT_K", cmd_insert, "=ey"},
-    {KEY_L, "CMD_INSERT_L", cmd_insert, "-ol"},
-    {KEY_CTRL_X, "CMD_CTRL_X", NULL, NULL},
-    {KEY_CTRL_O, "CMD_CONNECT", cmd_connect, NULL},
-    {KEY_CTRL_G, "CMD_CANCEL", cmd_cancel, NULL},
+    KEY_COMMAND("CMD_CONNECT", cmd_connect, NULL, KEY_CTRL_X, KEY_CTRL_O)
+    // Другие команды...
+    /* {{KEY_CTRL_P}, "CMD_PREV_MSG", cmd_prev_msg, NULL}, */
+    /* {KEY_CTRL_N, "CMD_NEXT_MSG", cmd_next_msg, NULL}, */
+    /* {KEY_CTRL_B, "CMD_BACKWARD_CHAR", cmd_backward_char, NULL}, */
+    /* {KEY_CTRL_F, "CMD_FORWARD_CHAR", cmd_forward_char, NULL}, */
+    /* {KEY_ALT_F, "CMD_FORWARD_WORD", cmd_forward_word, NULL}, */
+    /* {KEY_ALT_B, "CMD_BACKWARD_WORD", cmd_backward_word, NULL}, */
+    /* /\* {KEY_CTRL_A, "CMD_MOVE_TO_BEGINNING_OF_LINE", */
+    /*    cmd_move_to_beginning_of_line, NULL}, *\/ */
+    /* {KEY_CTRL_E, "CMD_MOVE_TO_END_OF_LINE", cmd_move_to_end_of_line, NULL}, */
+    /* {KEY_K, "CMD_INSERT_K", cmd_insert, "=ey"}, */
+    /* {KEY_L, "CMD_INSERT_L", cmd_insert, "-ol"}, */
+    /* {KEY_CTRL_X, "CMD_CTRL_X", NULL, NULL}, */
+    /* {KEY_CTRL_O, "CMD_CONNECT", cmd_connect, NULL}, */
+    /* {KEY_CTRL_G, "CMD_CANCEL", cmd_cancel, NULL}, */
 };
 
 
-const KeyMap* findCommandByKey(Key key) {
+#define key_printable (key < KEY_UNKNOWN)
+
+extern char* key_strings;
+
+bool matchesCombo(Key* combo, int length) {
+    CtrlStack* current = ctrlStack;
+    for (int i = length - 1; i >= 0; i--) {
+        if (!current) {
+            /* pushMessage(&messageList, strdup("STACK is NULL")); */
+        } else {
+            /* char fc_text[MAX_BUFFER] = {0}; */
+            /* snprintf(fc_text, MAX_BUFFER,"STACK is NOT_NULL (%d): %s", */
+            /*          i, */
+            /*          key_to_str(current->key)); */
+            /* pushMessage(&messageList, strdup(fc_text)); */
+        }
+        if (!current || current->key != combo[i]) {
+            /* char fc_text[MAX_BUFFER] = {0}; */
+            /* snprintf(fc_text, MAX_BUFFER,"NOT_MATCH | key:%s | combo[i=%d]:%s", */
+            /*          key_to_str(current->key), */
+            /*          i, */
+            /*          key_to_str(combo[i])); */
+            /* pushMessage(&messageList, strdup(fc_text)); */
+            return false; // Не совпадает или стек короче комбинации
+        }
+        /* pushMessage(&messageList, strdup("MAY_BE")); */
+        current = current->next;
+    }
+    /* pushMessage(&messageList, strdup("ALMOST_MATCH")); */
+    return current == NULL; // Убедимся, что в стеке нет лишних клавиш
+}
+
+const KeyMap* findCommandByKey() {
     for (int i = 0; i < sizeof(keyCommands) / sizeof(KeyMap); i++) {
-        if (keyCommands[i].key == key) {
+
+        char fc_text[MAX_BUFFER] = {0};
+        snprintf(fc_text, MAX_BUFFER,"FINDCommandByKey: cmd by cmd = %s",
+                 keyCommands[i].cmdName);
+        pushMessage(&messageList, strdup(fc_text));
+
+        if (matchesCombo(keyCommands[i].combo, keyCommands[i].comboLength)) {
+            pushMessage(&messageList, "MATch!");
             return &keyCommands[i];
         }
     }
     return NULL;
 }
-
 
 void convertToAsciiCodes(const char *input, char *output, size_t outputSize) {
     size_t inputLen = strlen(input);
@@ -291,39 +344,48 @@ bool keyb () {
         return false; // (terminate := false)
     }
     Key key = identify_key(input_buffer, len);
-    bool key_printable = (key < KEY_UNKNOWN);
-    if (key_printable) {
+    if (key_printable && isCtrlStackEmpty()) {
         enqueueEvent(CMD, cmd_insert, input_buffer, len);
     } else {
-        const KeyMap* cmd = findCommandByKey(key);
-        if (cmd && cmd->cmdName) {
-            if (strcmp(cmd->cmdName, "CMD_CTRL_X") == 0) {
-                // Начало комбинации
-                pushCtrlStack(KEY_CTRL_X);
-                pushMessage(&messageList, "pushed C-x");
-            } else if ( (strcmp(cmd->cmdName, "CMD_CONNECT") == 0)
-                        && (isCtrlStackActive(KEY_CTRL_X)) ) {
-                // Если C-x уже был нажат
-                enqueueEvent(CMD, cmd->cmdFunc, "KEY_CTRL_X", 0);
-                pushMessage(&messageList, "pushed C-o");
-                clearCtrlStack();
-            } else if ( (strcmp(cmd->cmdName, "CMD_CANCEL") == 0)
-                        && (isCtrlStackActive(KEY_CTRL_X)) ) {
-                // Если C-x уже был нажат и следующий C-g
-                enqueueEvent(CMD, cmd->cmdFunc, cmd->param, 0);
-                clearCtrlStack();
-                pushMessage(&messageList, "C-g - clear stack");
-            } else {
-                // DBG ON
-                char logMsg[DBG_LOG_MSG_SIZE] = {0};
-                snprintf(logMsg, sizeof(logMsg),
-                         "keyb: enque cmd: %s\n", cmd->cmdName);
-                pushMessage(&messageList, logMsg);
-                // DBG OFF
-                enqueueEvent(CMD, cmd->cmdFunc, cmd->param, len);
-            }
+        if (key == KEY_CTRL_G) {
+            clearCtrlStack();
         } else {
-            enqueueEvent(DBG, NULL, input_buffer, len);
+            pushCtrlStack(key);
+            const KeyMap* cmd = findCommandByKey();
+            if (cmd && cmd->cmdName) {
+                // Command found
+                // DBG ON
+                char fc_text[MAX_BUFFER] = {0};
+                snprintf(fc_text, MAX_BUFFER,"CMD found=%s",strdup(cmd->cmdName));
+                pushMessage(&messageList, strdup(fc_text));
+                // DBG  OFF
+                /*     } else if ( (strcmp(cmd->cmdName, "CMD_CONNECT") == 0) */
+                /*                 && (isCtrlStackActive(KEY_CTRL_X)) ) { */
+                /*         // Если C-x уже был нажат */
+                /*         enqueueEvent(CMD, cmd->cmdFunc, "KEY_CTRL_X", 0); */
+                /*         pushMessage(&messageList, "pushed C-o"); */
+                /*         clearCtrlStack(); */
+                /*     } else if ( (strcmp(cmd->cmdName, "CMD_CANCEL") == 0) */
+                /*                 && (isCtrlStackActive(KEY_CTRL_X)) ) { */
+                /*         // Если C-x уже был нажат и следующий C-g */
+                /*         enqueueEvent(CMD, cmd->cmdFunc, cmd->param, 0); */
+                /*         clearCtrlStack(); */
+                /*         pushMessage(&messageList, "C-g - clear stack"); */
+                /*     } else { */
+                /*         // DBG ON */
+                /*         char logMsg[DBG_LOG_MSG_SIZE] = {0}; */
+                /*         snprintf(logMsg, sizeof(logMsg), */
+                /*                  "keyb: enque cmd: %s\n", cmd->cmdName); */
+                /*         pushMessage(&messageList, logMsg); */
+                /*         // DBG OFF */
+                /*         enqueueEvent(CMD, cmd->cmdFunc, cmd->param, len); */
+
+                // Clear command stack after sending command
+                clearCtrlStack();
+            } else {
+                // Command not found
+                enqueueEvent(DBG, NULL, input_buffer, len);
+            }
         }
     }
     if (len == 1) {
@@ -361,14 +423,23 @@ void reDraw() {
     // МИНИБУФЕР ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
     // Формируем отображение CtrlStack
-    char buffer[256] = {0};
+    char buffer[MAX_BUFFER / 2] = {0};
+    char *ptr = buffer + sizeof(buffer) - 1;  // Указатель на конец буфера
+    *ptr = '\0';  // Завершающий нуль-символ
+
     CtrlStack* selt = ctrlStack;
-    while (selt) {
-        strcat(buffer, key_to_str(selt->key));
-        if (selt->next) {
-            strcat(buffer, " ");
+    if (selt) {
+        while (selt) {
+            const char* tmp = key_to_str(selt->key);
+            int len = strlen(tmp);
+            ptr -= len; // Сдвиг указателя назад на длину строки ключа
+            memcpy(ptr, tmp, len); // Копирование строки в буфер
+            // Добавляем пробел между элементами, если это не первый элемент
+            *(--ptr) = ' ';
+            // Следующий элемент стека
+            selt = selt->next;
         }
-        selt = selt->next;
+        ptr++; // Убираем ведущий пробел
     }
 
     // Формируем текст для минибуфера с позицией курсора в строке inputBuffer-a
@@ -378,7 +449,7 @@ void reDraw() {
              "cur_pos=%d\ncur_row=%d\ncur_col=%d\nib_need_rows=%d\nib_from_row=%d\n%s",
              messageList.current->cursor_pos,
              ib_cursor_row, ib_cursor_col, ib_need_rows, ib_from_row,
-             buffer);
+             ptr);
 
     int mb_need_cols = 0, mb_need_rows = 0, mb_cursor_row = 0, mb_cursor_col = 0;
     int mb_width = win_cols-2;
