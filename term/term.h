@@ -3,10 +3,7 @@
 #ifndef TERM_H
 #define TERM_H
 
-#include <termios.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
+#include "all_libs.h"
 
 void disableRawMode();
 void enableRawMode();

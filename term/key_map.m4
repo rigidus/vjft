@@ -348,7 +348,7 @@ XY(KEY_CYRILLIC_PE, 2, "п", 0)
 XY(KEY_SHIFT_CYRILLIC_PE, 2, "П", 0)
 XY(KEY_ALT_CYRILLIC_PE, 3, "\x1bп", 0)
 XY(KEY_SHIFT_ALT_CYRILLIC_PE, 3, "\x1bП", 0)
-XY(`KEY_H', 1, "h", 0)
+XY(KEY_H, 1, "h", 0)
 XY(KEY_SHIFT_H, 1, "H", 0)
 XY(KEY_ALT_H, 2, "\x1b\x68", 0)
 XY(KEY_SHIFT_ALT_H, 2, "\x1b\x48", 0) /* C-h = C-BS, C-M-h = C-M-BS */
