@@ -116,21 +116,18 @@ typedef struct {
 // Использование макроса для создания элемента массива
 KeyMap keyCommands[] = {
     KEY_COMMAND("CMD_CONNECT", cmd_connect, NULL, KEY_CTRL_X, KEY_CTRL_O)
-    // Другие команды...
-    /* {{KEY_CTRL_P}, "CMD_PREV_MSG", cmd_prev_msg, NULL}, */
-    /* {KEY_CTRL_N, "CMD_NEXT_MSG", cmd_next_msg, NULL}, */
-    /* {KEY_CTRL_B, "CMD_BACKWARD_CHAR", cmd_backward_char, NULL}, */
-    /* {KEY_CTRL_F, "CMD_FORWARD_CHAR", cmd_forward_char, NULL}, */
-    /* {KEY_ALT_F, "CMD_FORWARD_WORD", cmd_forward_word, NULL}, */
-    /* {KEY_ALT_B, "CMD_BACKWARD_WORD", cmd_backward_word, NULL}, */
-    /* /\* {KEY_CTRL_A, "CMD_MOVE_TO_BEGINNING_OF_LINE", */
-    /*    cmd_move_to_beginning_of_line, NULL}, *\/ */
-    /* {KEY_CTRL_E, "CMD_MOVE_TO_END_OF_LINE", cmd_move_to_end_of_line, NULL}, */
-    /* {KEY_K, "CMD_INSERT_K", cmd_insert, "=ey"}, */
-    /* {KEY_L, "CMD_INSERT_L", cmd_insert, "-ol"}, */
-    /* {KEY_CTRL_X, "CMD_CTRL_X", NULL, NULL}, */
-    /* {KEY_CTRL_O, "CMD_CONNECT", cmd_connect, NULL}, */
-    /* {KEY_CTRL_G, "CMD_CANCEL", cmd_cancel, NULL}, */
+    KEY_COMMAND("CMD_ENTER", cmd_enter, NULL, KEY_ENTER)
+    KEY_COMMAND("CMD_ALT_ENTER", cmd_alt_enter, NULL, KEY_ALT_ENTER)
+    KEY_COMMAND("CMD_BACKWARD_CHAR", cmd_backward_char, NULL, KEY_CTRL_B)
+    KEY_COMMAND("CMD_FORWARD_CHAR", cmd_forward_char, NULL, KEY_CTRL_F)
+    KEY_COMMAND("CMD_FORWARD_WORD", cmd_forward_word, NULL, KEY_ALT_F)
+    KEY_COMMAND("CMD_BACKWARD_WORD", cmd_backward_word, NULL, KEY_ALT_B)
+    KEY_COMMAND("CMD_PREV_MSG", cmd_prev_msg, NULL, KEY_CTRL_P)
+    KEY_COMMAND("CMD_NEXT_MSG", cmd_next_msg, NULL, KEY_CTRL_N)
+    KEY_COMMAND("CMD_INSERT_K", cmd_insert, "THE_K", KEY_K)
+    KEY_COMMAND("CMD_INSERT_L", cmd_insert, "THE_L", KEY_L)
+    KEY_COMMAND("CMD_TO_BEGINNING_OF_LINE", cmd_to_beginning_of_line, NULL, KEY_CTRL_A)
+    KEY_COMMAND("CMD_TO_END_OF_LINE", cmd_to_end_of_line, NULL, KEY_CTRL_E)
 };
 
 
@@ -168,14 +165,12 @@ bool matchesCombo(Key* combo, int length) {
 
 const KeyMap* findCommandByKey() {
     for (int i = 0; i < sizeof(keyCommands) / sizeof(KeyMap); i++) {
-
-        char fc_text[MAX_BUFFER] = {0};
-        snprintf(fc_text, MAX_BUFFER,"FINDCommandByKey: cmd by cmd = %s",
-                 keyCommands[i].cmdName);
-        pushMessage(&messageList, strdup(fc_text));
-
+        /* char fc_text[MAX_BUFFER] = {0}; */
+        /* snprintf(fc_text, MAX_BUFFER,"FINDCommandByKey: cmd by cmd = %s", */
+        /*          keyCommands[i].cmdName); */
+        /* pushMessage(&messageList, strdup(fc_text)); */
         if (matchesCombo(keyCommands[i].combo, keyCommands[i].comboLength)) {
-            pushMessage(&messageList, "MATch!");
+            /* pushMessage(&messageList, "MATch!"); */
             return &keyCommands[i];
         }
     }
@@ -356,30 +351,10 @@ bool keyb () {
                 // Command found
                 // DBG ON
                 char fc_text[MAX_BUFFER] = {0};
-                snprintf(fc_text, MAX_BUFFER,"CMD found=%s",strdup(cmd->cmdName));
+                snprintf(fc_text, MAX_BUFFER,"enq CMD found=%s", strdup(cmd->cmdName));
                 pushMessage(&messageList, strdup(fc_text));
                 // DBG  OFF
-                /*     } else if ( (strcmp(cmd->cmdName, "CMD_CONNECT") == 0) */
-                /*                 && (isCtrlStackActive(KEY_CTRL_X)) ) { */
-                /*         // Если C-x уже был нажат */
-                /*         enqueueEvent(CMD, cmd->cmdFunc, "KEY_CTRL_X", 0); */
-                /*         pushMessage(&messageList, "pushed C-o"); */
-                /*         clearCtrlStack(); */
-                /*     } else if ( (strcmp(cmd->cmdName, "CMD_CANCEL") == 0) */
-                /*                 && (isCtrlStackActive(KEY_CTRL_X)) ) { */
-                /*         // Если C-x уже был нажат и следующий C-g */
-                /*         enqueueEvent(CMD, cmd->cmdFunc, cmd->param, 0); */
-                /*         clearCtrlStack(); */
-                /*         pushMessage(&messageList, "C-g - clear stack"); */
-                /*     } else { */
-                /*         // DBG ON */
-                /*         char logMsg[DBG_LOG_MSG_SIZE] = {0}; */
-                /*         snprintf(logMsg, sizeof(logMsg), */
-                /*                  "keyb: enque cmd: %s\n", cmd->cmdName); */
-                /*         pushMessage(&messageList, logMsg); */
-                /*         // DBG OFF */
-                /*         enqueueEvent(CMD, cmd->cmdFunc, cmd->param, len); */
-
+                enqueueEvent(CMD, cmd->cmdFunc, cmd->param, len);
                 // Clear command stack after sending command
                 clearCtrlStack();
             } else {
@@ -545,7 +520,7 @@ int sockfd = -1;
 void connect_to_server(const char* server_ip, int port) {
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        perror("Cannot create socket");
+        pushMessage(&messageList, "connect_to_server_err: Cannot create socket");
     }
 
     struct sockaddr_in serv_addr;
@@ -555,7 +530,7 @@ void connect_to_server(const char* server_ip, int port) {
     serv_addr.sin_addr.s_addr = inet_addr(server_ip);
 
     if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        perror("Connect failed");
+        pushMessage(&messageList, "connect_to_server_err: Connect failed");
         close(sockfd);
         sockfd = -1;
     }

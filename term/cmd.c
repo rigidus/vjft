@@ -4,19 +4,39 @@
 
 #include "utf8.h"
 
-
-void cmd_cancel() {
-    clearCtrlStack();
-    pushMessage(&messageList, "Cancel command");
-}
+extern int sockfd;
 
 void cmd_connect(MessageNode* msg, const char* param) {
-    if (strcmp(param, "KEY_CTRL_X") == 0) {
-        connect_to_server("127.0.0.1", 8888);
-        pushMessage(&messageList, "Connect to server command");
-    } else {
-        pushMessage(&messageList, "Non auth connect command");
+    connect_to_server("127.0.0.1", 8888);
+}
+
+void cmd_alt_enter(MessageNode* msg, const char* param) {
+    pushMessage(&messageList, "ALT enter function");
+}
+
+void cmd_enter(MessageNode* msg, const char* param) {
+    pushMessage(&messageList, "enter function");
+    if (messageList.current == NULL) {
+        pushMessage(&messageList, "cmd_enter_err: Нет сообщения для отправки");
+        return;
     }
+    const char* text = msg->message;
+    if (text == NULL || strlen(text) == 0) {
+        pushMessage(&messageList, "cmd_enter_err: Текущее сообщение пусто");
+        return;
+    }
+    if (sockfd <= 0) {
+        pushMessage(&messageList, "cmd_enter_err: Нет соединения");
+        return;
+    }
+
+    ssize_t bytes_sent = send(sockfd, text, strlen(text), 0);
+    if (bytes_sent < 0) {
+        pushMessage(&messageList, "cmd_enter_err: Ошибка при отправке сообщения");
+    } else {
+        pushMessage(&messageList, "cmd_enter: отправлено успешно");
+    }
+
 }
 
 void cmd_backward_char(MessageNode* node, const char* stub) {
@@ -79,30 +99,30 @@ void cmd_backward_word(MessageNode* node, const char* stub) {
     }
 }
 
-/* void cmd_move_to_beginning_of_line(MessageNode* node, const char* stub) { */
-/*     // Если курсор уже в начале текста, ничего не делаем */
-/*     if (node->cursor_pos == 0) return; */
+void cmd_to_beginning_of_line(MessageNode* node, const char* stub) {
+    // Если курсор уже в начале текста, ничего не делаем
+    if (node->cursor_pos == 0) return;
 
-/*     // Смещение в байтах от начала строки до курсора */
-/*     int byte_offset = utf8_byte_offset(node->message, node->cursor_pos); */
+    // Смещение в байтах от начала строки до курсора
+    int byte_offset = utf8_byte_offset(node->message, node->cursor_pos);
 
-/*     // Движемся назад, пока не найдем начало строки или начало текста */
-/*     while (byte_offset > 0) { */
-/*         int prev_offset = utf8_prev_char(node->message, byte_offset); */
-/*         if (node->message[prev_offset] == '\n') { */
-/*             // Переходим на следующий символ после \n */
-/*             byte_offset = utf8_next_char(node->message, prev_offset); */
-/*             node->cursor_pos = utf8_strlen(node->message); */
-/*             return; */
-/*         } */
-/*         byte_offset = prev_offset; */
-/*         node->cursor_pos--; */
-/*     } */
-/*     // Если достигли начала текста, устанавливаем курсор на позицию 0 */
-/*     node->cursor_pos = 0; */
-/* } */
+    // Движемся назад, пока не найдем начало строки или начало текста
+    while (byte_offset > 0) {
+        int prev_offset = utf8_prev_char(node->message, byte_offset);
+        if (node->message[prev_offset] == '\n') {
+            // Переходим на следующий символ после \n
+            byte_offset = utf8_next_char(node->message, prev_offset);
+            node->cursor_pos = utf8_strlen(node->message);
+            return;
+        }
+        byte_offset = prev_offset;
+        node->cursor_pos--;
+    }
+    // Если достигли начала текста, устанавливаем курсор на позицию 0
+    node->cursor_pos = 0;
+}
 
-void cmd_move_to_end_of_line(MessageNode* node, const char* stub) {
+void cmd_to_end_of_line(MessageNode* node, const char* stub) {
     // Длина строки в байтах
     int len = strlen(node->message);
 
