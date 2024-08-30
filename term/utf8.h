@@ -23,4 +23,7 @@ int utf8_byte_offset(const char* str, int cursor_pos);
 // Функция для конвертации byte_offset в индекс символа (UTF-8)
 int utf8_char_index(const char* str, int byte_offset);
 
+// Проверка, что UTF-8 символ полностью считан
+bool is_utf8_complete(const char* buffer, int len);
+
 #endif

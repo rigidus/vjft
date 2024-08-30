@@ -60,3 +60,15 @@ int utf8_char_index(const char* str, int byte_offset) {
 
     return char_index;
 }
+
+// Проверка, что UTF-8 символ полностью считан
+bool is_utf8_complete(const char* buffer, int len) {
+    if (len == 0) return false;
+    int expected_len = 0;
+    unsigned char c = buffer[0];
+    if ((c & 0x80) == 0) expected_len = 1;          // 0xxxxxxx
+    else if ((c & 0xE0) == 0xC0) expected_len = 2;  // 110xxxxx
+    else if ((c & 0xF0) == 0xE0) expected_len = 3;  // 1110xxxx
+    else if ((c & 0xF8) == 0xF0) expected_len = 4;  // 11110xxx
+    return expected_len == len;
+}

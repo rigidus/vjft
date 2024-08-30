@@ -1,10 +1,10 @@
 # Имена исходных файлов
-SOURCES=key.c term.c utf8.c msg.c ctrlstk.c cmd.c iface.c main.c
+SOURCES=key.c term.c utf8.c msg.c ctrlstk.c cmd.c iface.c kbd.c main.c
 M4_HEAD=key_map.m4
 
 OBJECTS=$(SOURCES:.c=.o)
 M4_HEADERS=$(M4_HEAD:.m4=.h)
-HEADERS=all_libs.h key_map.h key.h term.h utf8.h msg.h ctrlstk.h cmd.h iface.h
+HEADERS=all_libs.h key_map.h key.h term.h utf8.h msg.h ctrlstk.h cmd.h iface.h kbd.h
 
 # Имя целевого исполняемого файла
 TARGET=a.out
