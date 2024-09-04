@@ -11,7 +11,34 @@ void cmd_connect(MessageNode* msg, const char* param) {
 }
 
 void cmd_alt_enter(MessageNode* msg, const char* param) {
-    pushMessage(&messageList, "ALT enter function");
+    /* pushMessage(&messageList, "ALT enter function"); */
+    if (!msg || !msg->message) return;  // Проверяем, что msg и msg->message не NULL
+
+    // Вычисляем byte_offset, используя текущую позицию курсора
+    int byte_offset = utf8_byte_offset(msg->message, msg->cursor_pos);
+
+    // Выделяем новую память для сообщения
+    char* new_message = malloc(strlen(msg->message) + 2);  // +2 для новой строки и нуль-терминатора
+    if (!new_message) {
+        perror("Failed to allocate memory for new message");
+        return;
+    }
+
+    // Копируем часть сообщения до позиции курсора
+    strncpy(new_message, msg->message, byte_offset);
+    new_message[byte_offset] = '\n';  // Вставляем символ новой строки
+
+    // Копируем оставшуюся часть сообщения
+    strcpy(new_message + byte_offset + 1, msg->message + byte_offset);
+
+    // Освобождаем старое сообщение и обновляем указатель
+    free(msg->message);
+    msg->message = new_message;
+
+    msg->cursor_pos++; // Перемещаем курсор на следующий символ после '\n'
+
+    // При необходимости обновляем UI или логику отображения
+    // ...
 }
 
 void cmd_enter(MessageNode* msg, const char* param) {

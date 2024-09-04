@@ -42,6 +42,10 @@ gdb:
 #   # run
 #   # bt
 
+gpt:
+	./gpt.pl main.c
+	gedit output.c
+
 # Очистка
 clean:
 	rm -f $(TARGET) $(OBJECTS) $(M4_HEADERS)
