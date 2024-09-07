@@ -118,7 +118,7 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
         } else {
             if (*p == '\0') {  // Если текущий символ - завершающий нулевой байт
                 if (is_not_skipped_row()) { // Если мы не пропускаем
-                    fputs("\u2403", stdout); // Выводим символ END_OF_TEXT
+                    fputs("⍿", stdout); // Выводим символ END_OF_TEXT
                 }
                 break;
             } else {
