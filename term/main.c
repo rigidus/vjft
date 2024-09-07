@@ -55,36 +55,39 @@ typedef struct InputEvent {
     struct InputEvent* next;
 } InputEvent;
 
-InputEvent* eventQueue = NULL;
-pthread_mutex_t eventQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
+InputEvent* gInputEventQueue = NULL;
+pthread_mutex_t gEventQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void enqueueEvent(EventType type, CmdFunc cmdFn, char* seq, int seq_size) {
-    pthread_mutex_lock(&eventQueue_mutex);
+void enqueueEvent(InputEvent** eventQueue, EventType type,
+                  CmdFunc cmdFn, char* seq, int seq_size) {
+    pthread_mutex_lock(&gEventQueue_mutex);
 
-    InputEvent* newEvent = malloc(sizeof(InputEvent));
+    InputEvent* newEvent = (InputEvent*)malloc(sizeof(InputEvent));
     if (newEvent == NULL) {
         perror("Failed to allocate memory for a new event");
-        pthread_mutex_unlock(&eventQueue_mutex);
+        pthread_mutex_unlock(&gEventQueue_mutex);
         exit(1); // Выход при ошибке выделения памяти
     }
 
-    *newEvent  = (InputEvent){
-        .type  = type,
+    *newEvent = (InputEvent){
+        .type = type,
         .cmdFn = cmdFn,
-        .seq   = seq ? strdup(seq) : strdup("_"),
+        .seq = seq ? strdup(seq) : NULL,
         .seq_size = seq_size,
-        .next  = NULL
+        .next = NULL
     };
 
-    if (eventQueue == NULL) {
-        eventQueue = newEvent;
+    if (*eventQueue == NULL) {
+        *eventQueue = newEvent;
     } else {
-        InputEvent* lastEvent = eventQueue;
-        while (lastEvent->next) { lastEvent = lastEvent->next; }
+        InputEvent* lastEvent = *eventQueue;
+        while (lastEvent->next) {
+            lastEvent = lastEvent->next;
+        }
         lastEvent->next = newEvent;
     }
 
-    pthread_mutex_unlock(&eventQueue_mutex);
+    pthread_mutex_unlock(&gEventQueue_mutex);
 }
 
 /* %%ctrlstack%% */
@@ -212,17 +215,16 @@ void convertToAsciiCodes(const char *input, char *output, size_t outputSize) {
 #define ASCII_CODES_BUF_SIZE 127
 #define DBG_LOG_MSG_SIZE 255
 
-bool processEvents(char* input, int* input_size,
+bool processEvents(InputEvent** eventQueue, char* input, int* input_size,
                    int* log_window_start, int rows)
 {
-    pthread_mutex_lock(&eventQueue_mutex);
+    pthread_mutex_lock(&gEventQueue_mutex);
     bool updated = false;
-    while (eventQueue) {
-        InputEvent* event = eventQueue;
-        EventType type = event->type;
-        eventQueue = eventQueue->next;
+    while (*eventQueue) {
+        InputEvent* event = *eventQueue;
+        *eventQueue = (*eventQueue)->next;
 
-        switch(type) {
+        switch(event->type) {
         case DBG:
             if (event->seq != NULL) {
                 char asciiCodes[ASCII_CODES_BUF_SIZE] = {0};
@@ -252,7 +254,7 @@ bool processEvents(char* input, int* input_size,
         }
         free(event);
     }
-    pthread_mutex_unlock(&eventQueue_mutex);
+    pthread_mutex_unlock(&gEventQueue_mutex);
     return updated;
 }
 
@@ -277,7 +279,7 @@ bool keyb () {
     }
     Key key = identify_key(input_buffer, len);
     if (key_printable && isCtrlStackEmpty()) {
-        enqueueEvent(CMD, cmd_insert, input_buffer, len);
+        enqueueEvent(&gInputEventQueue, CMD, cmd_insert, input_buffer, len);
     } else {
         if (key == KEY_CTRL_G) {
             clearCtrlStack();
@@ -292,12 +294,12 @@ bool keyb () {
                 /*          strdup(cmd->cmdName)); */
                 /* pushMessage(&messageList, strdup(fc_text)); */
                 // DBG  OFF
-                enqueueEvent(CMD, cmd->cmdFunc, cmd->param, len);
+                enqueueEvent(&gInputEventQueue, CMD, cmd->cmdFunc, cmd->param, len);
                 // Clear command stack after sending command
                 clearCtrlStack();
             } else {
                 // Command not found
-                enqueueEvent(DBG, NULL, input_buffer, len);
+                enqueueEvent(&gInputEventQueue, DBG, NULL, input_buffer, len);
             }
         }
     }
@@ -578,7 +580,7 @@ int main() {
                 if (FD_ISSET(STDIN_FILENO, &read_fds)) {
                     // KEYBOARD
                     terminate = keyb();
-                    if (processEvents(input, &input_size,
+                    if (processEvents(&gInputEventQueue, input, &input_size,
                                       &log_window_start, win_rows)) {
                         /* Тут не нужно дополнительных действий, т.к. */
                         /* далее все будет перерисовано */
@@ -608,7 +610,7 @@ int main() {
     clearMessageList(&messageList);
 
     pthread_mutex_destroy(&messageList_mutex);
-    pthread_mutex_destroy(&eventQueue_mutex);
+    pthread_mutex_destroy(&gEventQueue_mutex);
 
     // Очищаем память перед завершением программы
     free(inputbuffer_text);
