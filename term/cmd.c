@@ -66,6 +66,37 @@ void cmd_enter(MessageNode* msg, const char* param) {
 
 }
 
+void cmd_backspace(MessageNode* msg, const char* param) {
+    if (!msg || !msg->message || msg->cursor_pos == 0) return;
+
+    // Находим байтовую позицию текущего и предыдущего UTF-8 символов
+    int byte_offset_current = utf8_byte_offset(msg->message, msg->cursor_pos);
+    int new_cursor_pos = msg->cursor_pos-1;
+    if (new_cursor_pos < 0) {
+        new_cursor_pos = 0;
+    }
+    int byte_offset_prev = utf8_byte_offset(msg->message, new_cursor_pos);
+
+    // Вычисляем новую длину сообщения
+    int new_length = strlen(msg->message) - (byte_offset_current - byte_offset_prev) + 1;
+    char* new_message = malloc(new_length);
+    if (!new_message) {
+        perror("Не удалось выделить память");
+        return;
+    }
+
+    // Копирование части строки до предыдущего символа
+    strncpy(new_message, msg->message, byte_offset_prev);
+
+    // Копирование части строки после текущего символа
+    strcpy(new_message + byte_offset_prev, msg->message + byte_offset_current);
+
+    // Освобождаем старое сообщение и присваиваем новое
+    free(msg->message);
+    msg->message = new_message;
+    msg->cursor_pos = new_cursor_pos; // Обновляем позицию курсора
+}
+
 void cmd_backward_char(MessageNode* node, const char* stub) {
     if (node->cursor_pos > 0) { node->cursor_pos--; }
 }

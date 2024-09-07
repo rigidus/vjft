@@ -119,6 +119,7 @@ KeyMap keyCommands[] = {
     KEY_COMMAND("CMD_CONNECT", cmd_connect, NULL, KEY_CTRL_X, KEY_CTRL_O)
     KEY_COMMAND("CMD_ENTER", cmd_enter, NULL, KEY_ENTER)
     KEY_COMMAND("CMD_ALT_ENTER", cmd_alt_enter, NULL, KEY_ALT_ENTER)
+    KEY_COMMAND("CMD_BACKSPACE", cmd_backspace, NULL, KEY_BACKSPACE)
     KEY_COMMAND("CMD_BACKWARD_CHAR", cmd_backward_char, NULL, KEY_CTRL_B)
     KEY_COMMAND("CMD_FORWARD_CHAR", cmd_forward_char, NULL, KEY_CTRL_F)
     KEY_COMMAND("CMD_FORWARD_WORD", cmd_forward_word, NULL, KEY_ALT_F)
@@ -282,9 +283,10 @@ bool keyb () {
             if (cmd && cmd->cmdName) {
                 // Command found
                 // DBG ON
-                char fc_text[MAX_BUFFER] = {0};
-                snprintf(fc_text, MAX_BUFFER,"enq CMD found=%s", strdup(cmd->cmdName));
-                pushMessage(&messageList, strdup(fc_text));
+                /* char fc_text[MAX_BUFFER] = {0}; */
+                /* snprintf(fc_text, MAX_BUFFER,"enq CMD found=%s", */
+                /*          strdup(cmd->cmdName)); */
+                /* pushMessage(&messageList, strdup(fc_text)); */
                 // DBG  OFF
                 enqueueEvent(CMD, cmd->cmdFunc, cmd->param, len);
                 // Clear command stack after sending command

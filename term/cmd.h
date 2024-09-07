@@ -14,6 +14,7 @@ typedef void (*CmdFunc)(MessageNode*, const char* param);
 void cmd_connect();
 void cmd_enter(MessageNode* msg, const char* param);
 void cmd_alt_enter(MessageNode* msg, const char* param);
+void cmd_backspace(MessageNode* msg, const char* param);
 void cmd_prev_msg();
 void cmd_next_msg();
 void cmd_backward_char();
