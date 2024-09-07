@@ -3,6 +3,9 @@
 #ifndef ALL_LIBS_H
 #define ALL_LIBS_H
 
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#define max(a, b) ((a) > (b) ? (a) : (b))
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

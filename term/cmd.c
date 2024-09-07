@@ -235,3 +235,73 @@ void cmd_insert(MessageNode* node, const char* insert_text) {
     node->cursor_pos += utf8_strlen(insert_text);
     pthread_mutex_unlock(&lock);
 }
+
+
+/* Clipboard commands  */
+
+typedef struct ClipboardNode {
+    char* text;
+    struct ClipboardNode* next;
+} ClipboardNode;
+
+ClipboardNode* clipboard_head = NULL;
+
+void push_clipboard(const char* text) {
+    ClipboardNode* new_node = malloc(sizeof(ClipboardNode));
+    if (new_node == NULL) return; // Обработка ошибки выделения памяти
+    new_node->text = strdup(text);
+    new_node->next = clipboard_head;
+    clipboard_head = new_node;
+}
+
+char* pop_clipboard() {
+    if (clipboard_head == NULL) return NULL;
+    ClipboardNode* top_node = clipboard_head;
+    clipboard_head = clipboard_head->next;
+    char* text = top_node->text;
+    free(top_node);
+    return text;
+}
+
+void cmd_copy(MessageNode* node, const char* param) {
+    int start = min(node->cursor_pos, node->shadow_cursor_pos);
+    int end = max(node->cursor_pos, node->shadow_cursor_pos);
+
+    int start_byte = utf8_byte_offset(node->message, start);
+    int end_byte = utf8_byte_offset(node->message, end);
+
+    if (start_byte != end_byte) {
+        char* text_to_copy = strndup(node->message + start_byte, end_byte - start_byte);
+        push_clipboard(text_to_copy);
+        free(text_to_copy);
+    }
+}
+
+void cmd_cut(MessageNode* node, const char* param) {
+    cmd_copy(node, param); // Сначала копируем текст
+
+    int start = min(node->cursor_pos, node->shadow_cursor_pos);
+    int end = max(node->cursor_pos, node->shadow_cursor_pos);
+
+    int start_byte = utf8_byte_offset(node->message, start);
+    int end_byte = utf8_byte_offset(node->message, end);
+
+    memmove(node->message + start_byte, node->message + end_byte,
+            strlen(node->message) - end_byte + 1);
+    node->cursor_pos = start;
+    node->shadow_cursor_pos = start;
+}
+
+void cmd_paste(MessageNode* node, const char* param) {
+    char* text_to_paste = pop_clipboard();
+    if (text_to_paste) {
+        cmd_insert(node, text_to_paste);
+        free(text_to_paste);
+    }
+}
+
+void cmd_toggle_cursor_shadow(MessageNode* node, const char* param) {
+    int temp = node->cursor_pos;
+    node->cursor_pos = node->shadow_cursor_pos;
+    node->shadow_cursor_pos = temp;
+}

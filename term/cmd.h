@@ -24,5 +24,9 @@ void cmd_backward_word();
 void cmd_to_end_of_line();
 void cmd_to_beginning_of_line();
 void cmd_insert();
+void cmd_copy(MessageNode* node, const char* param);
+void cmd_cut(MessageNode* node, const char* param);
+void cmd_paste(MessageNode* node, const char* param);
+void cmd_toggle_cursor_shadow(MessageNode* node, const char* param);
 
 #endif

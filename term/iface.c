@@ -56,6 +56,15 @@ void calc_display_size(const char* text, int max_width, int cursor_pos,
 }
 
 
+
+void set_highlight_color() {
+    printf("\033[7m"); // Инвертирование цветов (меняет фон и текст местами)
+}
+
+void reset_highlight_color() {
+    printf("\033[0m"); // Сброс всех атрибутов к стандартным
+}
+
 /**
    Вывод текста в текстовое окно
 
@@ -69,10 +78,15 @@ void calc_display_size(const char* text, int max_width, int cursor_pos,
 // Основная функция для вывода текста с учётом переноса строк
 void display_wrapped(const char* text, int abs_x, int abs_y,
                      int rel_max_width, int rel_max_rows,
-                     int from_row)
+                     int from_row, int cursor_pos,
+                     int shadow_cursor_pos)
 {
-    int rel_row = 0;  // Текущая строка, она же счётчик строк
-    int rel_col = 0;  // Текущий столбец
+    int cur_pos   = 0; // Текущий индекс символа в строке
+    int rel_row   = 0;  // Текущая строка, она же счётчик строк
+    int rel_col   = 0;  // Текущий столбец
+    int sel_start = min(cursor_pos, shadow_cursor_pos);
+    int sel_end   = max(cursor_pos, shadow_cursor_pos);
+    bool is_highlighted = false; // Флаг выделения
 
     bool is_not_skipped_row() {
         return (rel_row > from_row);
@@ -101,6 +115,19 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
     for (const char* p = text; ; ) {
         size_t char_len = utf8_char_length(p);
 
+        // Проверяем, нужно ли изменить цвет фона для этого символа
+        if (cur_pos >= sel_start && cur_pos < sel_end) {
+            if (!is_highlighted) {
+                set_highlight_color();
+                is_highlighted = true;
+            }
+        } else {
+            if (is_highlighted) {
+                reset_highlight_color();
+                is_highlighted = false;
+            }
+        }
+
         // Если текущая строка достигает максимальной ширины отображения
         if (rel_col >= rel_max_width) {
             inc_rel_row();
@@ -115,11 +142,16 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
             fullfiller();  // Заполняем оставшееся филлером
             inc_rel_row(); // Переходим на следующую строку
             p += char_len; // Переходим к следующему символу
+            cur_pos++;
         } else {
             if (*p == '\0') {  // Если текущий символ - завершающий нулевой байт
                 if (is_not_skipped_row()) { // Если мы не пропускаем
                     fputs("⍿", stdout); // Выводим символ END_OF_TEXT
                 }
+                if (is_highlighted) { // Убираем выделение если оно есть
+                    reset_highlight_color();
+                }
+                // выходим из цикла
                 break;
             } else {
                 // Обычный печатаемый символ
@@ -129,6 +161,7 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
             }
             rel_col++; // Увеличиваем счётчик длины строки
             p += char_len; // Переходим к следующему символу
+            cur_pos++;
         }
     }
 
@@ -149,7 +182,8 @@ int display_message(MessageNode* message, int x, int y, int max_width, int max_h
     int display_start_row = (needed_rows > max_height) ? needed_rows - max_height : 0;
     int actual_rows = min(needed_rows, max_height);
 
-    display_wrapped(message->message, x, y, max_width, actual_rows, display_start_row);
+    display_wrapped(message->message, x, y, max_width, actual_rows, display_start_row,
+                    message->cursor_pos, message->shadow_cursor_pos);
 
     return actual_rows;
 }

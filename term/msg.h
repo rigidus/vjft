@@ -12,6 +12,7 @@ typedef struct MessageNode {
     struct MessageNode* prev;
     struct MessageNode* next;
     int cursor_pos;
+    int shadow_cursor_pos;
 } MessageNode;
 
 typedef struct {

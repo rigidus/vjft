@@ -130,6 +130,10 @@ KeyMap keyCommands[] = {
     KEY_COMMAND("CMD_INSERT_L", cmd_insert, "THE_L", KEY_L)
     KEY_COMMAND("CMD_TO_BEGINNING_OF_LINE", cmd_to_beginning_of_line, NULL, KEY_CTRL_A)
     KEY_COMMAND("CMD_TO_END_OF_LINE", cmd_to_end_of_line, NULL, KEY_CTRL_E)
+    KEY_COMMAND("CMD_COPY", cmd_copy, NULL, KEY_ALT_W)
+    KEY_COMMAND("CMD_CUT", cmd_cut, NULL, KEY_CTRL_W)
+    KEY_COMMAND("CMD_PASTE", cmd_paste, NULL, KEY_CTRL_Y)
+    KEY_COMMAND("CMD_TOGGLE_CURSOR_SHADOW", cmd_toggle_cursor_shadow, NULL, KEY_CTRL_T)
 };
 
 
@@ -372,7 +376,7 @@ void reDraw() {
     }
     int mb_from_row = 0;
     int mb_up = win_rows + 1 - mb_need_rows + mb_from_row;
-    display_wrapped(mb_text, 2, mb_up, mb_width, mb_need_rows, mb_from_row);
+    display_wrapped(mb_text, 2, mb_up, mb_width, mb_need_rows, mb_from_row, -1, -1);
     drawHorizontalLine(win_cols, mb_up-1, '=');
     int bottom = mb_up-2;
 
@@ -405,7 +409,10 @@ void reDraw() {
     int up = bottom + 1 - ib_need_rows;
     // Выводим
     if (messageList.current) {
-        display_wrapped(messageList.current->message, margin, up, rel_max_width, ib_need_rows, ib_from_row);
+        display_wrapped(messageList.current->message, margin, up,
+                        rel_max_width, ib_need_rows, ib_from_row,
+                        messageList.current->cursor_pos,
+                        messageList.current->shadow_cursor_pos);
     }
     drawHorizontalLine(win_cols, up-1, '-');
     // Возвращаем номер строки выше отображения inputbuffer
@@ -430,11 +437,11 @@ void reDraw() {
 
         if (needRows <= ob_bottom) {
             display_wrapped(current->message, margin, ob_bottom - needRows,
-                            maxWidth, needRows, 0);
+                            maxWidth, needRows, 0, -1, -1);
             ob_bottom -= needRows+1; // обновляем начальную точку для следующего сообщения
         } else {
             display_wrapped(current->message, margin, 0,
-                            maxWidth, ob_bottom, needRows - ob_bottom);
+                            maxWidth, ob_bottom, needRows - ob_bottom, -1, -1);
             ob_bottom = 0; // заполнили доступное пространство
         }
         current = current->prev; // переходим к предыдущему сообщению
