@@ -102,10 +102,10 @@ void cmd_backward_char(MessageNode* node, const char* stub) {
 }
 
 void cmd_forward_char(MessageNode* node, const char* stub) {
+    // >=, чтобы позволить курсору стоять на позиции нулевого символа
     int len = utf8_strlen(node->message);
-    if (++node->cursor_pos > len) { node->cursor_pos = len; }
+    if (++node->cursor_pos >= len) { node->cursor_pos = len; }
 }
-
 
 // Перемещение курсора вперед на одно слово
 void cmd_forward_word(MessageNode* node, const char* stub) {
@@ -208,8 +208,6 @@ void cmd_prev_msg() {
 void cmd_next_msg() {
     moveToNextMessage(&messageList);
 }
-
-
 
 // Функция для вставки текста в позицию курсора
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;

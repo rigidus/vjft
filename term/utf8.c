@@ -39,10 +39,9 @@ int utf8_prev_char(const char* str, int pos) {
 // Функция для определения смещения в байтах
 // для указанной позиции курсора (в символах)
 int utf8_byte_offset(const char* str, int cursor_pos) {
-    int byte_offset = 0, char_count = 0;
-    while (str[byte_offset] && char_count < cursor_pos) {
-        byte_offset += utf8_char_length(&str[byte_offset]);
-        char_count++;
+    int byte_offset = 0;
+    for (int i = 0; i < cursor_pos && str[byte_offset]; i++) {
+        byte_offset += utf8_char_length(str + byte_offset);
     }
     return byte_offset;
 }

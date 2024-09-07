@@ -16,7 +16,7 @@ void calc_display_size(const char* text, int max_width, int cursor_pos,
     int cur_col = 0; // Длина текущей строки
     int max_col = 0; // Максимальная найденная длина строки
 
-    for (const char* p = text; *p; ) {
+    for (const char* p = text; ; ) {
         size_t char_len = utf8_char_length(p);
 
         cur_text_pos++; // Увеличение текущей позиции в тексте
@@ -28,13 +28,19 @@ void calc_display_size(const char* text, int max_width, int cursor_pos,
         cur_col++; // Увеличение позиции в текущей строке
         // Если эта строка длиннее чем все ранее встреченные
         if (cur_col > max_col) {
-            max_col = cur_col; // Обновить
+            max_col = cur_col; // Обновить максимальную длину строки
         }
 
         // Символ переноса строки или правая граница?
         if ((*p == '\n') || (cur_col >= max_width)) {
             cur_col = 0;  // Сброс длины строки для новой строки
             cur_row++;    // Увеличение счетчика строк
+        }
+
+        // Терминатор строки?
+        if (*p == 0) {
+            cur_col++;
+            break;
         }
 
         p += char_len; // Переходим к следующему символу
@@ -91,10 +97,11 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
 
     inc_rel_row(); // Курсор на начальную позицию
 
-    for (const char* p = text; *p; ) {
+
+    for (const char* p = text; ; ) {
         size_t char_len = utf8_char_length(p);
 
-        // Если текущая строка достигает максимальной ширины
+        // Если текущая строка достигает максимальной ширины отображения
         if (rel_col >= rel_max_width) {
             inc_rel_row();
         }
@@ -109,14 +116,22 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
             inc_rel_row(); // Переходим на следующую строку
             p += char_len; // Переходим к следующему символу
         } else {
-            // Обычный печатаемый символ
-            if (is_not_skipped_row()) { // Если мы не пропускаем
-                fwrite(p, 1, char_len, stdout); // Выводим символ (UTF-8)
+            if (*p == '\0') {  // Если текущий символ - завершающий нулевой байт
+                if (is_not_skipped_row()) { // Если мы не пропускаем
+                    fputs("\u2403", stdout); // Выводим символ END_OF_TEXT
+                }
+                break;
+            } else {
+                // Обычный печатаемый символ
+                if (is_not_skipped_row()) { // Если мы не пропускаем
+                    fwrite(p, 1, char_len, stdout); // Выводим символ (UTF-8)
+                }
             }
             rel_col++; // Увеличиваем счётчик длины строки
             p += char_len; // Переходим к следующему символу
         }
     }
+
 
     // Заполнение оставшейся части строки до конца, если необходимо
     if (rel_col != 0) {
