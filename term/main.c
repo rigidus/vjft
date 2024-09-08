@@ -141,6 +141,8 @@ KeyMap keyCommands[] = {
     KEY_COMMAND("CMD_CUT", cmd_cut, NULL, KEY_CTRL_W)
     KEY_COMMAND("CMD_PASTE", cmd_paste, NULL, KEY_CTRL_Y)
     KEY_COMMAND("CMD_TOGGLE_CURSOR_SHADOW", cmd_toggle_cursor_shadow, NULL, KEY_CTRL_T)
+    KEY_COMMAND("CMD_UNDO", cmd_undo, NULL, KEY_CTRL_BACKSPACE)
+    KEY_COMMAND("CMD_REDO", cmd_redo, NULL, KEY_ALT_BACKSPACE)
 };
 
 
@@ -504,16 +506,62 @@ void connect_to_server(const char* server_ip, int port) {
 }
 
 
-bool reinitializeState() {
+void reinitializeState() {
     initMessageList(&messageList);
     pushMessage(&messageList, "Что такое буфер ввода?\nБуфер ввода - это временная область хранения, используемая в вычислительной технике для хранения данных, получаемых от устройства ввода, такого как клавиатура или мышь. Он позволяет системе получать и обрабатывать данные в своем собственном темпе, а не зависеть от скорости их поступления.\nКак работает буфер ввода.\nКак вы набираете текст на клавиатуре, например, нажатия клавиш сохраняются в буфере ввода до тех пор, пока компьютер не будет готов их обработать. Буфер хранит нажатия в том порядке, в котором они были получены, что позволяет обрабатывать их последовательно. Когда компьютер готов, он извлекает данные из буфера и выполняет необходимые действия");
     pushMessage(&messageList, "Что такое кольцевой буффер?\nКольцевой буфер, или циклический буфер (англ. ring-buffer) — это структура данных, использующая единственный буфер фиксированного размера таким образом, как будто бы после последнего элемента сразу же снова идет первый. Такая структура легко предоставляет возможность буферизации потоков данных.");
     pushMessage(&messageList, "Разрежённый масси́в — абстрактное представление обычного массива, в котором данные представлены не непрерывно, а фрагментарно; большинство его элементов принимает одно и то же значение (значение по умолчанию, обычно 0 или null). Причём хранение большого числа нулей в массиве неэффективно как для хранения, так и для обработки массива.\nВ разрежённом массиве возможен доступ к неопределенным элементам. В этом случае массив вернет некоторое значение по умолчанию.\nПростейшая реализация этого массива выделяет место под весь массив, но когда значений, отличных от значений по умолчанию, мало, такая реализация неэффективна. К этому массиву не применяются функции для работы с обычными массивами в тех случаях, когда о разрежённости известно заранее (например, при блочном хранении данных).");
     pushMessage(&messageList, "XOR-связный список — структура данных, похожая на обычный двусвязный список, однако в каждом элементе хранится только один составной адрес — результат выполнения операции XOR над адресами предыдущего и следующего элементов списка.\nДля того, чтобы перемещаться по списку, необходимо иметь адреса двух последовательных элементов.\nВыполнение операции XOR над адресом первого элемента и составным адресом, хранящимся во втором элементе, даёт адрес элемента, следующего за этими двумя элементами.\nВыполнение операции XOR над составным адресом, хранящимся в первом элементе, и адресом второго элемента даёт адрес элемента, предшествующего этим двум элементам.");
-
-    return true;
 }
 
+void undoLastEvent() {
+    if (!gExecutedEventQueue || !gExecutedEventQueue->next) {
+        pushMessage(&messageList, "No events to undo");
+        return;
+    }
+
+    // Найти предпоследний элемент
+    InputEvent* current = gExecutedEventQueue;
+    InputEvent* prev = NULL;
+    while (current->next->next) {
+        current = current->next;
+    }
+    prev = current;
+    current = current->next;
+
+    // Переинициализировать состояние до последнего события
+    reinitializeState();
+    current = gExecutedEventQueue;
+    while (current != prev) {
+        if (current->cmdFn) {
+            current->cmdFn(messageList.current, current->seq);
+        }
+        current = current->next;
+    }
+
+    // Удалить последнее событие из списка выполненных событий
+    free(prev->next);
+    prev->next = NULL;
+}
+
+
+void redoLastEvent() {
+    if (!gExecutedEventQueue || !gExecutedEventQueue->next) {
+        pushMessage(&messageList, "No events to redo");
+        return;
+    }
+
+    // Взять последнее событие из списка отменённых
+    InputEvent* lastEvent = gExecutedEventQueue;
+    while (lastEvent->next) {
+        lastEvent = lastEvent->next;
+    }
+
+    // Выполнить последнее событие
+    if (lastEvent->cmdFn) {
+        lastEvent->cmdFn(messageList.current, lastEvent->seq);
+    }
+}
 
 /* Main */
 
@@ -522,9 +570,7 @@ bool reinitializeState() {
 volatile bool need_redraw = true;
 
 int main() {
-    if (!reinitializeState()) {
-        return -1;
-    }
+    reinitializeState();
 
     // Отключение буферизации для stdout
     setvbuf(stdout, NULL, _IONBF, 0);
