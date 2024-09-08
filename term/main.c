@@ -58,14 +58,18 @@ typedef struct InputEvent {
 InputEvent* gInputEventQueue = NULL;
 pthread_mutex_t gEventQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void enqueueEvent(InputEvent** eventQueue, EventType type,
-                  CmdFunc cmdFn, char* seq, int seq_size) {
-    pthread_mutex_lock(&gEventQueue_mutex);
+InputEvent* gExecutedEventQueue = NULL;
+pthread_mutex_t gExecutedQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+void enqueueEvent(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
+                  EventType type, CmdFunc cmdFn, char* seq, int seq_size)
+{
+    pthread_mutex_lock(queueMutex);
 
     InputEvent* newEvent = (InputEvent*)malloc(sizeof(InputEvent));
     if (newEvent == NULL) {
         perror("Failed to allocate memory for a new event");
-        pthread_mutex_unlock(&gEventQueue_mutex);
+        pthread_mutex_unlock(queueMutex);
         exit(1); // Выход при ошибке выделения памяти
     }
 
@@ -87,7 +91,7 @@ void enqueueEvent(InputEvent** eventQueue, EventType type,
         lastEvent->next = newEvent;
     }
 
-    pthread_mutex_unlock(&gEventQueue_mutex);
+    pthread_mutex_unlock(queueMutex);
 }
 
 /* %%ctrlstack%% */
@@ -151,14 +155,16 @@ bool matchesCombo(Key* combo, int length) {
             /* pushMessage(&messageList, strdup("STACK is NULL")); */
         } else {
             /* char fc_text[MAX_BUFFER] = {0}; */
-            /* snprintf(fc_text, MAX_BUFFER,"STACK is NOT_NULL (%d): %s", */
+            /* snprintf(fc_text, MAX_BUFFER, */
+            /*          "STACK is NOT_NULL (%d): %s", */
             /*          i, */
             /*          key_to_str(current->key)); */
             /* pushMessage(&messageList, strdup(fc_text)); */
         }
         if (!current || current->key != combo[i]) {
             /* char fc_text[MAX_BUFFER] = {0}; */
-            /* snprintf(fc_text, MAX_BUFFER,"NOT_MATCH | key:%s | combo[i=%d]:%s", */
+            /* snprintf(fc_text, MAX_BUFFER, */
+            /*          "NOT_MATCH | key:%s | combo[i=%d]:%s", */
             /*          key_to_str(current->key), */
             /*          i, */
             /*          key_to_str(combo[i])); */
@@ -175,10 +181,12 @@ bool matchesCombo(Key* combo, int length) {
 const KeyMap* findCommandByKey() {
     for (int i = 0; i < sizeof(keyCommands) / sizeof(KeyMap); i++) {
         /* char fc_text[MAX_BUFFER] = {0}; */
-        /* snprintf(fc_text, MAX_BUFFER,"FINDCommandByKey: cmd by cmd = %s", */
+        /* snprintf(fc_text, MAX_BUFFER, */
+        /*          "FINDCommandByKey: cmd by cmd = %s", */
         /*          keyCommands[i].cmdName); */
         /* pushMessage(&messageList, strdup(fc_text)); */
-        if (matchesCombo(keyCommands[i].combo, keyCommands[i].comboLength)) {
+        if (matchesCombo(keyCommands[i].combo,
+                         keyCommands[i].comboLength)) {
             /* pushMessage(&messageList, "MATch!"); */
             return &keyCommands[i];
         }
@@ -186,19 +194,23 @@ const KeyMap* findCommandByKey() {
     return NULL;
 }
 
-void convertToAsciiCodes(const char *input, char *output, size_t outputSize) {
+void convertToAsciiCodes(const char *input, char *output,
+                         size_t outputSize)
+{
     size_t inputLen = strlen(input);
     size_t offset = 0;
 
     for (size_t i = 0; i < inputLen; i++) {
-        int written = snprintf(output + offset, outputSize - offset, "%x", (unsigned char)input[i]);
+        int written = snprintf(output + offset, outputSize - offset,
+                               "%x", (unsigned char)input[i]);
         if (written < 0 || written >= outputSize - offset) {
             // Output buffer is full or an error occurred
             break;
         }
         offset += written;
         if (i < inputLen - 1) {
-            // Add a space between numbers, but not after the last number
+            // Add a space between numbers,
+            // but not after the last number
             if (offset < outputSize - 1) {
                 output[offset] = ' ';
                 offset++;
@@ -215,10 +227,11 @@ void convertToAsciiCodes(const char *input, char *output, size_t outputSize) {
 #define ASCII_CODES_BUF_SIZE 127
 #define DBG_LOG_MSG_SIZE 255
 
-bool processEvents(InputEvent** eventQueue, char* input, int* input_size,
+bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
+                   char* input, int* input_size,
                    int* log_window_start, int rows)
 {
-    pthread_mutex_lock(&gEventQueue_mutex);
+    pthread_mutex_lock(queueMutex);
     bool updated = false;
     while (*eventQueue) {
         InputEvent* event = *eventQueue;
@@ -228,10 +241,12 @@ bool processEvents(InputEvent** eventQueue, char* input, int* input_size,
         case DBG:
             if (event->seq != NULL) {
                 char asciiCodes[ASCII_CODES_BUF_SIZE] = {0};
-                convertToAsciiCodes(event->seq, asciiCodes, ASCII_CODES_BUF_SIZE);
+                convertToAsciiCodes(event->seq, asciiCodes,
+                                    ASCII_CODES_BUF_SIZE);
                 Key key = identify_key(event->seq, event->seq_size);
                 char logMsg[DBG_LOG_MSG_SIZE] = {0};
-                snprintf(logMsg, sizeof(logMsg), "[DBG]: %s, [%s] (%d)\n",
+                snprintf(logMsg, sizeof(logMsg),
+                         "[DBG]: %s, [%s] (%d)\n",
                          key_to_str(key), asciiCodes, event->seq_size);
                 pushMessage(&messageList, logMsg);
                 updated = true;
@@ -244,27 +259,33 @@ bool processEvents(InputEvent** eventQueue, char* input, int* input_size,
             } else {
                 char logMsg[DBG_LOG_MSG_SIZE] = {0};
                 snprintf(logMsg, sizeof(logMsg),
-                         "case CMD: No command found for: %s\n", event->seq);
+                         "case CMD: No command found for: %s\n",
+                         event->seq);
                 pushMessage(&messageList, logMsg);
             }
             break;
         }
+
+        // Пересоздать обработанное событие в очереди выполненных
+        // событий, при этом event->seq дублируется, если необходимо,
+        // внутри enqueueEvent(), поэтому здесь ниже его можно
+        // осовободить
+        enqueueEvent(&gExecutedEventQueue, &gExecutedQueue_mutex,
+                     event->type, event->cmdFn,
+                     event->seq, event->seq_size);
+
+        // Освободить событие
         if (event->seq != NULL) {
             free(event->seq);
         }
         free(event);
     }
-    pthread_mutex_unlock(&gEventQueue_mutex);
+    pthread_mutex_unlock(queueMutex);
     return updated;
 }
 
 
-/* %%iface%% */
-
-
 /* keyboard */
-
-
 
 #define MAX_INPUT_BUFFER 40
 
@@ -279,7 +300,8 @@ bool keyb () {
     }
     Key key = identify_key(input_buffer, len);
     if (key_printable && isCtrlStackEmpty()) {
-        enqueueEvent(&gInputEventQueue, CMD, cmd_insert, input_buffer, len);
+        enqueueEvent(&gInputEventQueue, &gEventQueue_mutex,
+                     CMD, cmd_insert, input_buffer, len);
     } else {
         if (key == KEY_CTRL_G) {
             clearCtrlStack();
@@ -294,12 +316,14 @@ bool keyb () {
                 /*          strdup(cmd->cmdName)); */
                 /* pushMessage(&messageList, strdup(fc_text)); */
                 // DBG  OFF
-                enqueueEvent(&gInputEventQueue, CMD, cmd->cmdFunc, cmd->param, len);
+                enqueueEvent(&gInputEventQueue, &gEventQueue_mutex,
+                             CMD, cmd->cmdFunc, cmd->param, len);
                 // Clear command stack after sending command
                 clearCtrlStack();
             } else {
                 // Command not found
-                enqueueEvent(&gInputEventQueue, DBG, NULL, input_buffer, len);
+                enqueueEvent(&gInputEventQueue, &gEventQueue_mutex,
+                             DBG, NULL, input_buffer, len);
             }
         }
     }
@@ -479,6 +503,18 @@ void connect_to_server(const char* server_ip, int port) {
     }
 }
 
+
+bool reinitializeState() {
+    initMessageList(&messageList);
+    pushMessage(&messageList, "Что такое буфер ввода?\nБуфер ввода - это временная область хранения, используемая в вычислительной технике для хранения данных, получаемых от устройства ввода, такого как клавиатура или мышь. Он позволяет системе получать и обрабатывать данные в своем собственном темпе, а не зависеть от скорости их поступления.\nКак работает буфер ввода.\nКак вы набираете текст на клавиатуре, например, нажатия клавиш сохраняются в буфере ввода до тех пор, пока компьютер не будет готов их обработать. Буфер хранит нажатия в том порядке, в котором они были получены, что позволяет обрабатывать их последовательно. Когда компьютер готов, он извлекает данные из буфера и выполняет необходимые действия");
+    pushMessage(&messageList, "Что такое кольцевой буффер?\nКольцевой буфер, или циклический буфер (англ. ring-buffer) — это структура данных, использующая единственный буфер фиксированного размера таким образом, как будто бы после последнего элемента сразу же снова идет первый. Такая структура легко предоставляет возможность буферизации потоков данных.");
+    pushMessage(&messageList, "Разрежённый масси́в — абстрактное представление обычного массива, в котором данные представлены не непрерывно, а фрагментарно; большинство его элементов принимает одно и то же значение (значение по умолчанию, обычно 0 или null). Причём хранение большого числа нулей в массиве неэффективно как для хранения, так и для обработки массива.\nВ разрежённом массиве возможен доступ к неопределенным элементам. В этом случае массив вернет некоторое значение по умолчанию.\nПростейшая реализация этого массива выделяет место под весь массив, но когда значений, отличных от значений по умолчанию, мало, такая реализация неэффективна. К этому массиву не применяются функции для работы с обычными массивами в тех случаях, когда о разрежённости известно заранее (например, при блочном хранении данных).");
+    pushMessage(&messageList, "XOR-связный список — структура данных, похожая на обычный двусвязный список, однако в каждом элементе хранится только один составной адрес — результат выполнения операции XOR над адресами предыдущего и следующего элементов списка.\nДля того, чтобы перемещаться по списку, необходимо иметь адреса двух последовательных элементов.\nВыполнение операции XOR над адресом первого элемента и составным адресом, хранящимся во втором элементе, даёт адрес элемента, следующего за этими двумя элементами.\nВыполнение операции XOR над составным адресом, хранящимся в первом элементе, и адресом второго элемента даёт адрес элемента, предшествующего этим двум элементам.");
+
+    return true;
+}
+
+
 /* Main */
 
 #define READ_TIMEOUT 50000 // 50000 микросекунд (50 миллисекунд)
@@ -486,24 +522,9 @@ void connect_to_server(const char* server_ip, int port) {
 volatile bool need_redraw = true;
 
 int main() {
-    const char* initial_text = "Что такое буфер ввода?\nБуфер ввода - это временная область хранения, используемая в вычислительной технике для хранения данных, получаемых от устройства ввода, такого как клавиатура или мышь. Он позволяет системе получать и обрабатывать данные в своем собственном темпе, а не зависеть от скорости их поступления.\nКак работает буфер ввода.\nКак вы набираете текст на клавиатуре, например, нажатия клавиш сохраняются в буфере ввода до тех пор, пока компьютер не будет готов их обработать. Буфер хранит нажатия в том порядке, в котором они были получены, что позволяет обрабатывать их последовательно. Когда компьютер готов, он извлекает данные из буфера и выполняет необходимые действия";
-
-    // Выделение памяти под строку и копирование начального текста
-    char* inputbuffer_text = NULL;
-    inputbuffer_text = (char*)malloc(strlen(initial_text) + 1); // +1 terminator
-    if (inputbuffer_text == NULL) {
-        fprintf(stderr, "Ошибка: не удалось выделить память для inputbuffer_text.\n");
-        return 1;
+    if (!reinitializeState()) {
+        return -1;
     }
-    strcpy(inputbuffer_text, initial_text);
-
-
-    initMessageList(&messageList);
-    pushMessage(&messageList, initial_text);
-    pushMessage(&messageList, "Что такое кольцевой буффер?\nКольцевой буфер, или циклический буфер (англ. ring-buffer) — это структура данных, использующая единственный буфер фиксированного размера таким образом, как будто бы после последнего элемента сразу же снова идет первый. Такая структура легко предоставляет возможность буферизации потоков данных.");
-    pushMessage(&messageList, "Разрежённый масси́в — абстрактное представление обычного массива, в котором данные представлены не непрерывно, а фрагментарно; большинство его элементов принимает одно и то же значение (значение по умолчанию, обычно 0 или null). Причём хранение большого числа нулей в массиве неэффективно как для хранения, так и для обработки массива.\nВ разрежённом массиве возможен доступ к неопределенным элементам. В этом случае массив вернет некоторое значение по умолчанию.\nПростейшая реализация этого массива выделяет место под весь массив, но когда значений, отличных от значений по умолчанию, мало, такая реализация неэффективна. К этому массиву не применяются функции для работы с обычными массивами в тех случаях, когда о разрежённости известно заранее (например, при блочном хранении данных).");
-    pushMessage(&messageList, "XOR-связный список — структура данных, похожая на обычный двусвязный список, однако в каждом элементе хранится только один составной адрес — результат выполнения операции XOR над адресами предыдущего и следующего элементов списка.\nДля того, чтобы перемещаться по списку, необходимо иметь адреса двух последовательных элементов.\nВыполнение операции XOR над адресом первого элемента и составным адресом, хранящимся во втором элементе, даёт адрес элемента, следующего за этими двумя элементами.\nВыполнение операции XOR над составным адресом, хранящимся в первом элементе, и адресом второго элемента даёт адрес элемента, предшествующего этим двум элементам.");
-
 
     // Отключение буферизации для stdout
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -580,7 +601,9 @@ int main() {
                 if (FD_ISSET(STDIN_FILENO, &read_fds)) {
                     // KEYBOARD
                     terminate = keyb();
-                    if (processEvents(&gInputEventQueue, input, &input_size,
+                    if (processEvents(&gInputEventQueue,
+                                      &gEventQueue_mutex,
+                                      input, &input_size,
                                       &log_window_start, win_rows)) {
                         /* Тут не нужно дополнительных действий, т.к. */
                         /* далее все будет перерисовано */
@@ -611,9 +634,6 @@ int main() {
 
     pthread_mutex_destroy(&messageList_mutex);
     pthread_mutex_destroy(&gEventQueue_mutex);
-
-    // Очищаем память перед завершением программы
-    free(inputbuffer_text);
 
     return 0;
 }
