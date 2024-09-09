@@ -345,10 +345,76 @@ char* getEventDescription(InputEvent* event) {
     static char desc[256];
     const char* typeName = (event->type == DBG) ? "Dbg" : "Cmd";
     const char* cmdName = event->cmdFn ? "Fn" : "No";
-    snprintf(desc, sizeof(desc), "[%s:%s-Dat:%s]", typeName, cmdName, event->seq ? event->seq : "NoDat");
+    snprintf(desc, sizeof(desc), "[%s:%s|Dat:%s]", typeName, cmdName, event->seq ? event->seq : "NoDat");
     return desc;
 }
 
+
+
+#define MINI_BUFFER_SIZE 1024  // Размер минибуфера
+
+char miniBuffer[MINI_BUFFER_SIZE];  // Объявляем минибуфер
+
+/**
+ * Добавляет текст в минибуфер.
+ * @param text Текст для добавления.
+ */
+void appendToMiniBuffer(const char* text) {
+    if (!text) return;  // Проверка на NULL
+
+    // Убеждаемся, что в минибуфере есть место для новой строки
+    int current_length = strlen(miniBuffer);
+    // -1 для нуль-терминатора
+    int available_space = MINI_BUFFER_SIZE - current_length - 1;
+
+    if (available_space > 0) {
+        strncat(miniBuffer, text, available_space);
+    }
+}
+
+/**
+ * Очищает минибуфер.
+ */
+void clearMiniBuffer() {
+    memset(miniBuffer, 0, MINI_BUFFER_SIZE);
+}
+
+
+// Формируем отображение CtrlStack
+void dispCtrlStack() {
+    char buffer[MAX_BUFFER / 2] = {0};
+    char *ptr = buffer + sizeof(buffer) - 1;  // Указатель на конец буфера
+    *ptr = '\0';  // Завершающий нуль-символ
+
+    CtrlStack* selt = ctrlStack;
+    if (selt) {
+        while (selt) {
+            const char* tmp = key_to_str(selt->key);
+            int len = strlen(tmp);
+            ptr -= len; // Сдвиг указателя назад на длину строки ключа
+            memcpy(ptr, tmp, len); // Копирование строки в буфер
+            // Добавляем пробел между элементами, если это не первый элемент
+            *(--ptr) = ' ';
+            // Следующий элемент стека
+            selt = selt->next;
+        }
+        ptr++; // Убираем ведущий пробел
+    }
+    appendToMiniBuffer(ptr);
+}
+
+// Формируем отображение gExecutedEventQueue
+void dispExEv () {
+    char gExecutedEventQueue_buffer[MAX_BUFFER / 2] = {0};
+    strcat(gExecutedEventQueue_buffer, "\nExEv: ");
+    InputEvent* currentEvent = gExecutedEventQueue;
+    while (currentEvent != NULL) {
+        strcat(gExecutedEventQueue_buffer, getEventDescription(currentEvent));
+        strcat(gExecutedEventQueue_buffer, " ");
+        currentEvent = currentEvent->next;
+    }
+    appendToMiniBuffer(gExecutedEventQueue_buffer);
+}
 
 int margin = 8;
 
@@ -374,52 +440,27 @@ void reDraw() {
 
     // МИНИБУФЕР ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-    // Формируем отображение CtrlStack
-    char buffer[MAX_BUFFER / 2] = {0};
-    char *ptr = buffer + sizeof(buffer) - 1;  // Указатель на конец буфера
-    *ptr = '\0';  // Завершающий нуль-символ
-
-    CtrlStack* selt = ctrlStack;
-    if (selt) {
-        while (selt) {
-            const char* tmp = key_to_str(selt->key);
-            int len = strlen(tmp);
-            ptr -= len; // Сдвиг указателя назад на длину строки ключа
-            memcpy(ptr, tmp, len); // Копирование строки в буфер
-            // Добавляем пробел между элементами, если это не первый элемент
-            *(--ptr) = ' ';
-            // Следующий элемент стека
-            selt = selt->next;
-        }
-        ptr++; // Убираем ведущий пробел
-    }
-
-    // Формируем отображение gExecutedEventQueue
-    char gExecutedEventQueue_buffer[MAX_BUFFER / 2] = {0};
-    strcat(gExecutedEventQueue_buffer, "Executed Events: ");
-    InputEvent* currentEvent = gExecutedEventQueue;
-    while (currentEvent != NULL) {
-        strcat(gExecutedEventQueue_buffer, getEventDescription(currentEvent));
-        strcat(gExecutedEventQueue_buffer, " ");
-        currentEvent = currentEvent->next;
-    }
-    pushMessage(&messageList, gExecutedEventQueue_buffer);
-
-    /* displayExecutedEvents(); */
+    clearMiniBuffer();
 
     // Формируем текст для минибуфера с позицией курсора в строке inputBuffer-a
     // относительной позицией в строке и столбце минибуфера
     char mb_text[MAX_BUFFER] = {0};
     snprintf(mb_text, MAX_BUFFER,
-             "cur_pos=%d\ncur_row=%d\ncur_col=%d\nib_need_rows=%d\nib_from_row=%d\n%s",
+             "cur_pos=%d\ncur_row=%d\ncur_col=%d\nib_need_rows=%d\nib_from_row=%d\n",
              messageList.current->cursor_pos,
-             ib_cursor_row, ib_cursor_col, ib_need_rows, ib_from_row,
-             ptr);
+             ib_cursor_row, ib_cursor_col, ib_need_rows, ib_from_row);
+    appendToMiniBuffer(mb_text);
 
+    dispCtrlStack();
+
+    dispExEv();
+
+    // Отображение минибуфера
     int mb_need_cols = 0, mb_need_rows = 0, mb_cursor_row = 0, mb_cursor_col = 0;
     int mb_width = win_cols-2;
-    calc_display_size(mb_text, mb_width, 0, &mb_need_cols, &mb_need_rows,
+    calc_display_size(miniBuffer, mb_width, 0, &mb_need_cols, &mb_need_rows,
                       &mb_cursor_row, &mb_cursor_col);
+
     // Когда я вывожу что-то в минибуфер я хочу чтобы при большом
     // выводе он показывал только первые 10 строк
     int max_minibuffer_rows = 10;
@@ -428,7 +469,7 @@ void reDraw() {
     }
     int mb_from_row = 0;
     int mb_up = win_rows + 1 - mb_need_rows + mb_from_row;
-    display_wrapped(mb_text, 2, mb_up, mb_width, mb_need_rows, mb_from_row, -1, -1);
+    display_wrapped(miniBuffer, 2, mb_up, mb_width, mb_need_rows, mb_from_row, -1, -1);
     drawHorizontalLine(win_cols, mb_up-1, '=');
     int bottom = mb_up-2;
 
