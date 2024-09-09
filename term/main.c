@@ -339,6 +339,17 @@ bool keyb () {
     return false; // (terminate := false)
 }
 
+
+// Функция для получения строкового представления события
+char* getEventDescription(InputEvent* event) {
+    static char desc[256];
+    const char* typeName = (event->type == DBG) ? "Dbg" : "Cmd";
+    const char* cmdName = event->cmdFn ? "Fn" : "No";
+    snprintf(desc, sizeof(desc), "[%s:%s-Dat:%s]", typeName, cmdName, event->seq ? event->seq : "NoDat");
+    return desc;
+}
+
+
 int margin = 8;
 
 volatile sig_atomic_t sig_winch_raised = false;
@@ -382,6 +393,19 @@ void reDraw() {
         }
         ptr++; // Убираем ведущий пробел
     }
+
+    // Формируем отображение gExecutedEventQueue
+    char gExecutedEventQueue_buffer[MAX_BUFFER / 2] = {0};
+    strcat(gExecutedEventQueue_buffer, "Executed Events: ");
+    InputEvent* currentEvent = gExecutedEventQueue;
+    while (currentEvent != NULL) {
+        strcat(gExecutedEventQueue_buffer, getEventDescription(currentEvent));
+        strcat(gExecutedEventQueue_buffer, " ");
+        currentEvent = currentEvent->next;
+    }
+    pushMessage(&messageList, gExecutedEventQueue_buffer);
+
+    /* displayExecutedEvents(); */
 
     // Формируем текст для минибуфера с позицией курсора в строке inputBuffer-a
     // относительной позицией в строке и столбце минибуфера
