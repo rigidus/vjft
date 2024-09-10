@@ -227,11 +227,9 @@ void convertToAsciiCodes(const char *input, char *output,
 
 
 typedef struct State {
-    MessageNode* head;
-    MessageNode* tail;
-    MessageNode* current;
-    int size;
-    // ...
+    char* message;
+    int cursor_pos;
+    int shadow_cursor_pos;
 } State;
 
 typedef struct StateStack {
@@ -242,12 +240,12 @@ typedef struct StateStack {
 StateStack* undoStack = NULL;
 StateStack* redoStack = NULL;
 
-State* createState(const MessageList* list);
+State* createStateFromCurrentNode(MessageNode* currentNode);
 void pushState(StateStack** stack, State* state);
 void clearStack(StateStack** stack);
 MessageNode* copyMessageNodes(MessageNode* node);
 void freeMessageNodes(MessageNode* node);
-
+void displayState(const State* state);
 
 #define ASCII_CODES_BUF_SIZE 127
 #define DBG_LOG_MSG_SIZE 255
@@ -280,12 +278,15 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
         case CMD:
             if (event->cmdFn) {
                 // Сохраняем состояние перед выполнением команды
-                State* currentState = createState(&messageList);
+                State* currentState = createStateFromCurrentNode(messageList.current);
                 pushState(&undoStack, currentState);
                 // Выполняем команду
                 event->cmdFn(messageList.current, event->seq);
                 // Очистка стека redo, так как история ветвится
                 clearStack(&redoStack);
+
+                displayState(currentState);
+
                 // Сообщаем что данные для отображения обновились
                 updated = true;
             } else {
@@ -603,52 +604,27 @@ void connect_to_server(const char* server_ip, int port) {
 
 // Undo/redo feature
 
-State* createState(const MessageList* list) {
+State* createStateFromCurrentNode(MessageNode* currentNode) {
+    if (!currentNode) return NULL;
     State* state = malloc(sizeof(State));
     if (!state) return NULL;
 
-    state->head = copyMessageNodes(list->head);
-    state->tail = list->tail ? copyMessageNodes(list->tail) : NULL;
-    state->current = list->current ? copyMessageNodes(list->current) : NULL;
-    state->size = list->size;
-
-    // Установка связей prev
-    MessageNode* node = state->head;
-    MessageNode* prev = NULL;
-    while (node) {
-        node->prev = prev;
-        prev = node;
-        node = node->next;
-    }
+    state->message = strdup(currentNode->message);
+    state->cursor_pos = currentNode->cursor_pos;
+    state->shadow_cursor_pos = currentNode->shadow_cursor_pos;
 
     return state;
 }
 
-void restoreState(MessageList* list, State* state) {
-    clearMessageList(list);  // Очищаем текущий список сообщений
+void restoreState(MessageNode* currentNode, State* state) {
+    if (!currentNode || !state) return;
 
-    // Восстанавливаем данные из сохранённого состояния
-    list->head = copyMessageNodes(state->head);
-    list->tail = list->head; // Начинаем с головы списка
-    list->current = NULL;
-
-    // Установка правильных tail и current
-    MessageNode* node = list->head;
-    MessageNode* prev = NULL;
-    while (node) {
-        if (node->next == NULL) {
-            list->tail = node;  // Устанавливаем хвост списка
-        }
-        node->prev = prev;  // Устанавливаем предыдущий узел
-        prev = node;
-        if (state->current && node->message == state->current->message) {
-            list->current = node;  // Устанавливаем текущий узел, если он совпадает
-        }
-        node = node->next;
-    }
-
-    list->size = state->size; // Восстанавливаем размер списка
+    free(currentNode->message);  // Освободите старое сообщение
+    currentNode->message = strdup(state->message);  // Копирование нового сообщения
+    currentNode->cursor_pos = state->cursor_pos;
+    currentNode->shadow_cursor_pos = state->shadow_cursor_pos;
 }
+
 
 // Функции для копирования и очистки узлов списка сообщений
 MessageNode* copyMessageNodes(MessageNode* node) {
@@ -669,7 +645,8 @@ MessageNode* copyMessageNodes(MessageNode* node) {
 }
 
 void freeState(State* state) {
-    freeMessageNodes(state->head); // Освобождаем весь список
+    if (!state) return;
+    free(state->message);  // Освобождение строки сообщения
     free(state);
 }
 
@@ -712,68 +689,80 @@ void clearStack(StateStack** stack) {
 void undo() {
     State* state = popState(&undoStack);
     if (state) {
-        // Восстанавливаем состояние
-        restoreState(&messageList, state);
-        pushState(&redoStack, state);  // Добавляем состояние в стек redo
+        restoreState(messageList.current, state);
+        pushState(&redoStack, state);
     }
 }
 
 void redo() {
     State* state = popState(&redoStack);
     if (state) {
-        // Восстанавливаем состояние
-        restoreState(&messageList, state);
-        pushState(&undoStack, state);  // Добавляем состояние обратно в стек undo
+        restoreState(messageList.current, state);
+        pushState(&undoStack, state);
     }
 }
 
 // Оптимизация различий между состояниями
 
-typedef struct StateDiff {
-    int cursor_pos;  // позиция курсора до изменения и после
-    char* diff;      // текстовые изменения
-    struct StateDiff* next;
-} StateDiff;
+/* typedef struct StateDiff { */
+/*     int cursor_pos;  // позиция курсора до изменения и после */
+/*     char* diff;      // текстовые изменения */
+/*     struct StateDiff* next; */
+/* } StateDiff; */
 
-char* createTextDiff(const char* oldText, const char* newText);
-void applyStateDiff(MessageNode* node, StateDiff* diff);
-char* applyTextDiff(const char* oldText, const char* diff);
+/* char* createTextDiff(const char* oldText, const char* newText); */
+/* void applyStateDiff(MessageNode* node, StateDiff* diff); */
+/* char* applyTextDiff(const char* oldText, const char* diff); */
 
-StateDiff* createStateDiff(MessageNode* oldNode, MessageNode* newNode) {
-    StateDiff* diff = malloc(sizeof(StateDiff));
-    if (!diff) return NULL;
+/* StateDiff* createStateDiff(MessageNode* oldNode, MessageNode* newNode) { */
+/*     StateDiff* diff = malloc(sizeof(StateDiff)); */
+/*     if (!diff) return NULL; */
 
-    diff->cursor_pos = newNode->cursor_pos - oldNode->cursor_pos;
-    diff->diff = createTextDiff(oldNode->message, newNode->message);
-    return diff;
-}
+/*     diff->cursor_pos = newNode->cursor_pos - oldNode->cursor_pos; */
+/*     diff->diff = createTextDiff(oldNode->message, newNode->message); */
+/*     return diff; */
+/* } */
 
-char* createTextDiff(const char* oldText, const char* newText) {
-    // Это псевдокод для создания диффа между двумя строками
-    // На практике может использоваться библиотека или специализированный алгоритм
-    return strdup(newText);  // Заглушка
-}
+/* char* createTextDiff(const char* oldText, const char* newText) { */
+/*     // Это псевдокод для создания диффа между двумя строками */
+/*     // На практике может использоваться библиотека или специализированный алгоритм */
+/*     return strdup(newText);  // Заглушка */
+/* } */
 
-void applyStateDiff(MessageNode* node, StateDiff* diff) {
-    node->cursor_pos += diff->cursor_pos;
-    // Применяем diff к тексту
-    char* newText = applyTextDiff(node->message, diff->diff);
-    free(node->message);
-    node->message = newText;
-}
+/* void applyStateDiff(MessageNode* node, StateDiff* diff) { */
+/*     node->cursor_pos += diff->cursor_pos; */
+/*     // Применяем diff к тексту */
+/*     char* newText = applyTextDiff(node->message, diff->diff); */
+/*     free(node->message); */
+/*     node->message = newText; */
+/* } */
 
-char* applyTextDiff(const char* oldText, const char* diff) {
-    // Применяем дифф к старому тексту
-    return strdup(diff);  // Заглушка
-}
+/* char* applyTextDiff(const char* oldText, const char* diff) { */
+/*     // Применяем дифф к старому тексту */
+/*     return strdup(diff);  // Заглушка */
+/* } */
 
 // Отображение истории состяний
 
-void displayHistory(StateStack* stack) {
-    int i = 0;
-    while (stack) {
-        printf("%d: Cursor at %d, Text length %zu\n", i++, stack->state->current->cursor_pos, strlen(stack->state->current->message));
-        stack = stack->next;
+State* peekState(const StateStack* stack) {
+    if (!stack) {
+        return NULL;  // Возвращаем NULL, если стек пуст
+    }
+    return stack->state;  // Возвращаем состояние на вершине стека
+}
+
+
+void displayState(const State* state) {
+    char tmpMsg[MAX_BUFFER] = {0};
+    if (!state) {
+        snprintf(tmpMsg, sizeof(tmpMsg), "No state to display");
+        pushMessage(&messageList, tmpMsg);
+    } else {
+        snprintf(tmpMsg, sizeof(tmpMsg), "pos: %d\n shad: %d\n msg:%s",
+                 state->cursor_pos,
+                 state->shadow_cursor_pos,
+                 state->message);
+        pushMessage(&messageList, tmpMsg);
     }
 }
 
@@ -781,10 +770,13 @@ void displayHistory(StateStack* stack) {
 
 void reinitializeState() {
     initMessageList(&messageList);
-    pushMessage(&messageList, "Что такое буфер ввода?\nБуфер ввода - это временная область хранения, используемая в вычислительной технике для хранения данных, получаемых от устройства ввода, такого как клавиатура или мышь. Он позволяет системе получать и обрабатывать данные в своем собственном темпе, а не зависеть от скорости их поступления.\nКак работает буфер ввода.\nКак вы набираете текст на клавиатуре, например, нажатия клавиш сохраняются в буфере ввода до тех пор, пока компьютер не будет готов их обработать. Буфер хранит нажатия в том порядке, в котором они были получены, что позволяет обрабатывать их последовательно. Когда компьютер готов, он извлекает данные из буфера и выполняет необходимые действия");
-    pushMessage(&messageList, "Что такое кольцевой буффер?\nКольцевой буфер, или циклический буфер (англ. ring-buffer) — это структура данных, использующая единственный буфер фиксированного размера таким образом, как будто бы после последнего элемента сразу же снова идет первый. Такая структура легко предоставляет возможность буферизации потоков данных.");
-    pushMessage(&messageList, "Разрежённый масси́в — абстрактное представление обычного массива, в котором данные представлены не непрерывно, а фрагментарно; большинство его элементов принимает одно и то же значение (значение по умолчанию, обычно 0 или null). Причём хранение большого числа нулей в массиве неэффективно как для хранения, так и для обработки массива.\nВ разрежённом массиве возможен доступ к неопределенным элементам. В этом случае массив вернет некоторое значение по умолчанию.\nПростейшая реализация этого массива выделяет место под весь массив, но когда значений, отличных от значений по умолчанию, мало, такая реализация неэффективна. К этому массиву не применяются функции для работы с обычными массивами в тех случаях, когда о разрежённости известно заранее (например, при блочном хранении данных).");
-    pushMessage(&messageList, "XOR-связный список — структура данных, похожая на обычный двусвязный список, однако в каждом элементе хранится только один составной адрес — результат выполнения операции XOR над адресами предыдущего и следующего элементов списка.\nДля того, чтобы перемещаться по списку, необходимо иметь адреса двух последовательных элементов.\nВыполнение операции XOR над адресом первого элемента и составным адресом, хранящимся во втором элементе, даёт адрес элемента, следующего за этими двумя элементами.\nВыполнение операции XOR над составным адресом, хранящимся в первом элементе, и адресом второго элемента даёт адрес элемента, предшествующего этим двум элементам.");
+    pushMessage(&messageList, "Что такое буфер ввода?\nБуфер ввода - это временная область хранения, используемая в вычислительной технике для хранения данных");//, получаемых от устройства ввода, такого как клавиатура или мышь. Он позволяет системе получать и обрабатывать данные в своем собственном темпе, а не зависеть от скорости их поступления.\nКак работает буфер ввода.\nКак вы набираете текст на клавиатуре, например, нажатия клавиш сохраняются в буфере ввода до тех пор, пока компьютер не будет готов их обработать. Буфер хранит нажатия в том порядке, в котором они были получены, что позволяет обрабатывать их последовательно. Когда компьютер готов, он извлекает данные из буфера и выполняет необходимые действия");
+
+    pushMessage(&messageList, "Что такое кольцевой буффер?\nКольцевой буфер");//, или циклический буфер (англ. ring-buffer) — это структура данных, использующая единственный буфер фиксированного размера таким образом, как будто бы после последнего элемента сразу же снова идет первый. Такая структура легко предоставляет возможность буферизации потоков данных.");
+
+    pushMessage(&messageList, "Разрежённый масси́в — абстрактное представление");// обычного массива, в котором данные представлены не непрерывно, а фрагментарно; большинство его элементов принимает одно и то же значение (значение по умолчанию, обычно 0 или null). Причём хранение большого числа нулей в массиве неэффективно как для хранения, так и для обработки массива.\nВ разрежённом массиве возможен доступ к неопределенным элементам. В этом случае массив вернет некоторое значение по умолчанию.\nПростейшая реализация этого массива выделяет место под весь массив, но когда значений, отличных от значений по умолчанию, мало, такая реализация неэффективна. К этому массиву не применяются функции для работы с обычными массивами в тех случаях, когда о разрежённости известно заранее (например, при блочном хранении данных).");
+
+    pushMessage(&messageList, "XOR-связный список — структура данных, похожая на обычный двусвязный список");//, однако в каждом элементе хранится только один составной адрес — результат выполнения операции XOR над адресами предыдущего и следующего элементов списка.\nДля того, чтобы перемещаться по списку, необходимо иметь адреса двух последовательных элементов.\nВыполнение операции XOR над адресом первого элемента и составным адресом, хранящимся во втором элементе, даёт адрес элемента, следующего за этими двумя элементами.\nВыполнение операции XOR над составным адресом, хранящимся в первом элементе, и адресом второго элемента даёт адрес элемента, предшествующего этим двум элементам.");
 }
 
 void undoLastEvent() {
