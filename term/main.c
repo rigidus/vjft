@@ -58,8 +58,8 @@ typedef struct InputEvent {
 InputEvent* gInputEventQueue = NULL;
 pthread_mutex_t gEventQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-InputEvent* gExecutedEventQueue = NULL;
-pthread_mutex_t gExecutedQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
+InputEvent* gHistoryEventQueue = NULL;
+pthread_mutex_t gHistoryQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void enqueueEvent(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
                   EventType type, CmdFunc cmdFn, char* seq, int seq_size)
@@ -226,6 +226,29 @@ void convertToAsciiCodes(const char *input, char *output,
 }
 
 
+typedef struct State {
+    MessageNode* head;
+    MessageNode* tail;
+    MessageNode* current;
+    int size;
+    // ...
+} State;
+
+typedef struct StateStack {
+    State* state;
+    struct StateStack* next;
+} StateStack;
+
+StateStack* undoStack = NULL;
+StateStack* redoStack = NULL;
+
+State* createState(const MessageList* list);
+void pushState(StateStack** stack, State* state);
+void clearStack(StateStack** stack);
+MessageNode* copyMessageNodes(MessageNode* node);
+void freeMessageNodes(MessageNode* node);
+
+
 #define ASCII_CODES_BUF_SIZE 127
 #define DBG_LOG_MSG_SIZE 255
 
@@ -234,7 +257,7 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
                    int* log_window_start, int rows)
 {
     pthread_mutex_lock(queueMutex);
-    bool updated = false;
+    bool updated= false;
     while (*eventQueue) {
         InputEvent* event = *eventQueue;
         *eventQueue = (*eventQueue)->next;
@@ -256,7 +279,14 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
             break;
         case CMD:
             if (event->cmdFn) {
+                // Сохраняем состояние перед выполнением команды
+                State* currentState = createState(&messageList);
+                pushState(&undoStack, currentState);
+                // Выполняем команду
                 event->cmdFn(messageList.current, event->seq);
+                // Очистка стека redo, так как история ветвится
+                clearStack(&redoStack);
+                // Сообщаем что данные для отображения обновились
                 updated = true;
             } else {
                 char logMsg[DBG_LOG_MSG_SIZE] = {0};
@@ -272,7 +302,7 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
         // событий, при этом event->seq дублируется, если необходимо,
         // внутри enqueueEvent(), поэтому здесь ниже его можно
         // осовободить
-        enqueueEvent(&gExecutedEventQueue, &gExecutedQueue_mutex,
+        enqueueEvent(&gHistoryEventQueue, &gHistoryQueue_mutex,
                      event->type, event->cmdFn,
                      event->seq, event->seq_size);
 
@@ -403,17 +433,17 @@ void dispCtrlStack() {
     appendToMiniBuffer(ptr);
 }
 
-// Формируем отображение gExecutedEventQueue
+// Формируем отображение gHistoryEventQueue
 void dispExEv () {
-    char gExecutedEventQueue_buffer[MAX_BUFFER / 2] = {0};
-    strcat(gExecutedEventQueue_buffer, "\nExEv: ");
-    InputEvent* currentEvent = gExecutedEventQueue;
+    char gHistoryEventQueue_buffer[MAX_BUFFER / 2] = {0};
+    strcat(gHistoryEventQueue_buffer, "\nExEv: ");
+    InputEvent* currentEvent = gHistoryEventQueue;
     while (currentEvent != NULL) {
-        strcat(gExecutedEventQueue_buffer, getEventDescription(currentEvent));
-        strcat(gExecutedEventQueue_buffer, " ");
+        strcat(gHistoryEventQueue_buffer, getEventDescription(currentEvent));
+        strcat(gHistoryEventQueue_buffer, " ");
         currentEvent = currentEvent->next;
     }
-    appendToMiniBuffer(gExecutedEventQueue_buffer);
+    appendToMiniBuffer(gHistoryEventQueue_buffer);
 }
 
 int margin = 8;
@@ -571,6 +601,184 @@ void connect_to_server(const char* server_ip, int port) {
 }
 
 
+// Undo/redo feature
+
+State* createState(const MessageList* list) {
+    State* state = malloc(sizeof(State));
+    if (!state) return NULL;
+
+    state->head = copyMessageNodes(list->head);
+    state->tail = list->tail ? copyMessageNodes(list->tail) : NULL;
+    state->current = list->current ? copyMessageNodes(list->current) : NULL;
+    state->size = list->size;
+
+    // Установка связей prev
+    MessageNode* node = state->head;
+    MessageNode* prev = NULL;
+    while (node) {
+        node->prev = prev;
+        prev = node;
+        node = node->next;
+    }
+
+    return state;
+}
+
+void restoreState(MessageList* list, State* state) {
+    clearMessageList(list);  // Очищаем текущий список сообщений
+
+    // Восстанавливаем данные из сохранённого состояния
+    list->head = copyMessageNodes(state->head);
+    list->tail = list->head; // Начинаем с головы списка
+    list->current = NULL;
+
+    // Установка правильных tail и current
+    MessageNode* node = list->head;
+    MessageNode* prev = NULL;
+    while (node) {
+        if (node->next == NULL) {
+            list->tail = node;  // Устанавливаем хвост списка
+        }
+        node->prev = prev;  // Устанавливаем предыдущий узел
+        prev = node;
+        if (state->current && node->message == state->current->message) {
+            list->current = node;  // Устанавливаем текущий узел, если он совпадает
+        }
+        node = node->next;
+    }
+
+    list->size = state->size; // Восстанавливаем размер списка
+}
+
+// Функции для копирования и очистки узлов списка сообщений
+MessageNode* copyMessageNodes(MessageNode* node) {
+    if (!node) return NULL;
+
+    MessageNode* newNode = malloc(sizeof(MessageNode));
+    if (!newNode) return NULL;
+    newNode->message = strdup(node->message);
+    newNode->cursor_pos = node->cursor_pos;
+    newNode->shadow_cursor_pos = node->shadow_cursor_pos;
+    newNode->next = copyMessageNodes(node->next);
+
+    if (newNode->next) {
+        newNode->next->prev = newNode;
+    }
+
+    return newNode;
+}
+
+void freeState(State* state) {
+    freeMessageNodes(state->head); // Освобождаем весь список
+    free(state);
+}
+
+void freeMessageNodes(MessageNode* node) {
+    if (!node) return;
+    freeMessageNodes(node->next);
+    free(node->message);
+    free(node);
+}
+
+// State Stakes
+
+
+void pushState(StateStack** stack, State* state) {
+    StateStack* newElement = malloc(sizeof(StateStack));
+    if (!newElement) return;
+    newElement->state = state;
+    newElement->next = *stack;
+    *stack = newElement;
+}
+
+State* popState(StateStack** stack) {
+    if (!*stack) return NULL;
+    StateStack* topElement = *stack;
+    State* state = topElement->state;
+    *stack = topElement->next;
+    free(topElement);
+    return state;
+}
+
+void clearStack(StateStack** stack) {
+    while (*stack) {
+        State* state = popState(stack);
+        freeState(state);
+    }
+}
+
+// undo & redo
+
+void undo() {
+    State* state = popState(&undoStack);
+    if (state) {
+        // Восстанавливаем состояние
+        restoreState(&messageList, state);
+        pushState(&redoStack, state);  // Добавляем состояние в стек redo
+    }
+}
+
+void redo() {
+    State* state = popState(&redoStack);
+    if (state) {
+        // Восстанавливаем состояние
+        restoreState(&messageList, state);
+        pushState(&undoStack, state);  // Добавляем состояние обратно в стек undo
+    }
+}
+
+// Оптимизация различий между состояниями
+
+typedef struct StateDiff {
+    int cursor_pos;  // позиция курсора до изменения и после
+    char* diff;      // текстовые изменения
+    struct StateDiff* next;
+} StateDiff;
+
+char* createTextDiff(const char* oldText, const char* newText);
+void applyStateDiff(MessageNode* node, StateDiff* diff);
+char* applyTextDiff(const char* oldText, const char* diff);
+
+StateDiff* createStateDiff(MessageNode* oldNode, MessageNode* newNode) {
+    StateDiff* diff = malloc(sizeof(StateDiff));
+    if (!diff) return NULL;
+
+    diff->cursor_pos = newNode->cursor_pos - oldNode->cursor_pos;
+    diff->diff = createTextDiff(oldNode->message, newNode->message);
+    return diff;
+}
+
+char* createTextDiff(const char* oldText, const char* newText) {
+    // Это псевдокод для создания диффа между двумя строками
+    // На практике может использоваться библиотека или специализированный алгоритм
+    return strdup(newText);  // Заглушка
+}
+
+void applyStateDiff(MessageNode* node, StateDiff* diff) {
+    node->cursor_pos += diff->cursor_pos;
+    // Применяем diff к тексту
+    char* newText = applyTextDiff(node->message, diff->diff);
+    free(node->message);
+    node->message = newText;
+}
+
+char* applyTextDiff(const char* oldText, const char* diff) {
+    // Применяем дифф к старому тексту
+    return strdup(diff);  // Заглушка
+}
+
+// Отображение истории состяний
+
+void displayHistory(StateStack* stack) {
+    int i = 0;
+    while (stack) {
+        printf("%d: Cursor at %d, Text length %zu\n", i++, stack->state->current->cursor_pos, strlen(stack->state->current->message));
+        stack = stack->next;
+    }
+}
+
+// Инициализация состояния
+
 void reinitializeState() {
     initMessageList(&messageList);
     pushMessage(&messageList, "Что такое буфер ввода?\nБуфер ввода - это временная область хранения, используемая в вычислительной технике для хранения данных, получаемых от устройства ввода, такого как клавиатура или мышь. Он позволяет системе получать и обрабатывать данные в своем собственном темпе, а не зависеть от скорости их поступления.\nКак работает буфер ввода.\nКак вы набираете текст на клавиатуре, например, нажатия клавиш сохраняются в буфере ввода до тех пор, пока компьютер не будет готов их обработать. Буфер хранит нажатия в том порядке, в котором они были получены, что позволяет обрабатывать их последовательно. Когда компьютер готов, он извлекает данные из буфера и выполняет необходимые действия");
@@ -580,13 +788,13 @@ void reinitializeState() {
 }
 
 void undoLastEvent() {
-    if (!gExecutedEventQueue || !gExecutedEventQueue->next) {
+    if (!gHistoryEventQueue || !gHistoryEventQueue->next) {
         pushMessage(&messageList, "No events to undo");
         return;
     }
 
     // Найти предпоследний элемент
-    InputEvent* current = gExecutedEventQueue;
+    InputEvent* current = gHistoryEventQueue;
     InputEvent* prev = NULL;
     while (current->next->next) {
         current = current->next;
@@ -596,7 +804,7 @@ void undoLastEvent() {
 
     // Переинициализировать состояние до последнего события
     reinitializeState();
-    current = gExecutedEventQueue;
+    current = gHistoryEventQueue;
     while (current != prev) {
         if (current->cmdFn) {
             current->cmdFn(messageList.current, current->seq);
@@ -611,13 +819,13 @@ void undoLastEvent() {
 
 
 void redoLastEvent() {
-    if (!gExecutedEventQueue || !gExecutedEventQueue->next) {
+    if (!gHistoryEventQueue || !gHistoryEventQueue->next) {
         pushMessage(&messageList, "No events to redo");
         return;
     }
 
     // Взять последнее событие из списка отменённых
-    InputEvent* lastEvent = gExecutedEventQueue;
+    InputEvent* lastEvent = gHistoryEventQueue;
     while (lastEvent->next) {
         lastEvent = lastEvent->next;
     }
