@@ -276,13 +276,18 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
             break;
         case CMD:
             if (event->cmdFn) {
-                // Сохраняем состояние перед выполнением команды
-                State* currentState = createStateFromCurrentNode(messageList.current);
-                pushState(&undoStack, currentState);
+                // Если это не cmd_undo или cmd_redo
+                if  ( (event->cmdFn != cmd_undo) &&
+                      (event->cmdFn != cmd_redo) ) {
+                    // Сохраняем состояние перед выполнением команды
+                    State* currentState = createStateFromCurrentNode(
+                        messageList.current);
+                    pushState(&undoStack, currentState);
+                    // Очистим redoStack, так как история ветвится
+                    clearStack(&redoStack);
+                }
                 // Выполняем команду
                 event->cmdFn(messageList.current, event->seq);
-                // Очистка стека redo, так как история ветвится
-                clearStack(&redoStack);
                 // Сообщаем что данные для отображения обновились
                 updated = true;
             } else {
@@ -443,22 +448,28 @@ void dispExEv () {
     appendToMiniBuffer(gHistoryEventQueue_buffer);
 }
 
-void displayUndoStates() {
+
+void displayUndoStates(StateStack* stateStack) {
     char undoStatesBuffer[MAX_BUFFER / 2] = {0};
     strcat(undoStatesBuffer, "\n");
-    StateStack* currentStateStack = undoStack;
+
+    StateStack* currentStateStack = stateStack;
     while (currentStateStack != NULL) {
         State* state = currentStateStack->state;
         if (state) {
-            char stateDesc[128] = {0};  // Буфер для описания одного состояния
-            snprintf(stateDesc, sizeof(stateDesc), "Msg: %.20s... Pos: %d, Shad: %d\n",
-                     state->message, state->cursor_pos, state->shadow_cursor_pos);
+            char stateDesc[128] = {0};
+            // Форматирование описания состояния и добавление его в буфер
+            snprintf(stateDesc, sizeof(stateDesc),
+                     "Msg: %.20s... Pos: %d, Shad: %d\n",
+                     state->message, state->cursor_pos,
+                     state->shadow_cursor_pos);
             strcat(undoStatesBuffer, stateDesc);
         }
         currentStateStack = currentStateStack->next;
     }
-    appendToMiniBuffer(undoStatesBuffer);  // Добавляем информацию в минибуфер
+    appendToMiniBuffer(undoStatesBuffer);  // Добавление информации о состояниях в минибуфер
 }
+
 
 
 int margin = 8;
@@ -500,7 +511,8 @@ void reDraw() {
 
     dispExEv();
 
-    displayUndoStates();
+    displayUndoStates(undoStack);
+    displayUndoStates(redoStack);
 
     // Отображение минибуфера
     int mb_need_cols = 0, mb_need_rows = 0, mb_cursor_row = 0, mb_cursor_col = 0;
@@ -635,6 +647,12 @@ State* createStateFromCurrentNode(MessageNode* currentNode) {
 void restoreState(MessageNode* currentNode, State* state) {
     if (!currentNode || !state) return;
 
+    char logMsg[DBG_LOG_MSG_SIZE] = {0};
+    snprintf(logMsg, sizeof(logMsg),
+             "RestoreState: %s, [%d]",
+             state->message, state->cursor_pos);
+    pushMessage(&messageList, logMsg);
+
     free(currentNode->message);  // Освободите старое сообщение
     currentNode->message = strdup(state->message);  // Копирование нового сообщения
     currentNode->cursor_pos = state->cursor_pos;
@@ -703,28 +721,55 @@ void clearStack(StateStack** stack) {
 // undo & redo
 
 void undo() {
-    State* state = popState(&undoStack);
-    if (state) {
-        // Перед восстановлением текущего состояния сохраняем его в стек redo
-        State* currentState = createStateFromCurrentNode(messageList.current);
-        pushState(&redoStack, currentState);
+    if (undoStack == NULL) {
+        pushMessage(&messageList,
+                    "No more actions to undo");
+        return;
+    }
 
-        // Восстанавливаем состояние
-        restoreState(messageList.current, state);
-        freeState(state);
+    // Сохраняем текущее состояние в redoStack
+    // перед восстановлением из undoStack
+    State* currentState = createStateFromCurrentNode(
+        messageList.current);
+    if (currentState) {
+        pushState(&redoStack, currentState);
+    }
+
+    // Извлекаем состояние из undoStack для восстановления
+    State* stateToRestore = popState(&undoStack);
+    if (stateToRestore) {
+        restoreState(messageList.current, stateToRestore);
+        freeState(stateToRestore);
+    } else {
+        pushMessage(&messageList,
+                    "Failed to pop state from undoStack");
     }
 }
 
-void redo() {
-    State* state = popState(&redoStack);
-    if (state) {
-        // Сохраняем текущее состояние в стек undo перед восстановлением redo состояния
-        State* currentState = createStateFromCurrentNode(messageList.current);
-        pushState(&undoStack, currentState);
 
-        // Восстанавливаем состояние
-        restoreState(messageList.current, state);
-        freeState(state);
+void redo() {
+    if (redoStack == NULL) {
+        pushMessage(&messageList,
+                    "No more actions to redo");
+        return;
+    }
+
+    // Сохраняем текущее состояние в undoStack
+    // перед восстановлением из redoStack
+    State* currentState = createStateFromCurrentNode(
+        messageList.current);
+    if (currentState) {
+        pushState(&undoStack, currentState);
+    }
+
+    // Извлекаем состояние из redoStack для восстановления
+    State* stateToRestore = popState(&redoStack);
+    if (stateToRestore) {
+        restoreState(messageList.current, stateToRestore);
+        freeState(stateToRestore);
+    } else {
+        pushMessage(&messageList,
+                    "Failed to pop state from redoStack");
     }
 }
 
@@ -792,54 +837,6 @@ void reinitializeState() {
     /* pushMessage(&messageList, "XOR-связный список — структура данных, похожая на обычный двусвязный список");//, однако в каждом элементе хранится только один составной адрес — результат выполнения операции XOR над адресами предыдущего и следующего элементов списка.\nДля того, чтобы перемещаться по списку, необходимо иметь адреса двух последовательных элементов.\nВыполнение операции XOR над адресом первого элемента и составным адресом, хранящимся во втором элементе, даёт адрес элемента, следующего за этими двумя элементами.\nВыполнение операции XOR над составным адресом, хранящимся в первом элементе, и адресом второго элемента даёт адрес элемента, предшествующего этим двум элементам."); */
 }
 
-void undoLastEvent() {
-    if (!gHistoryEventQueue || !gHistoryEventQueue->next) {
-        pushMessage(&messageList, "No events to undo");
-        return;
-    }
-
-    // Найти предпоследний элемент
-    InputEvent* current = gHistoryEventQueue;
-    InputEvent* prev = NULL;
-    while (current->next->next) {
-        current = current->next;
-    }
-    prev = current;
-    current = current->next;
-
-    // Переинициализировать состояние до последнего события
-    reinitializeState();
-    current = gHistoryEventQueue;
-    while (current != prev) {
-        if (current->cmdFn) {
-            current->cmdFn(messageList.current, current->seq);
-        }
-        current = current->next;
-    }
-
-    // Удалить последнее событие из списка выполненных событий
-    free(prev->next);
-    prev->next = NULL;
-}
-
-
-void redoLastEvent() {
-    if (!gHistoryEventQueue || !gHistoryEventQueue->next) {
-        pushMessage(&messageList, "No events to redo");
-        return;
-    }
-
-    // Взять последнее событие из списка отменённых
-    InputEvent* lastEvent = gHistoryEventQueue;
-    while (lastEvent->next) {
-        lastEvent = lastEvent->next;
-    }
-
-    // Выполнить последнее событие
-    if (lastEvent->cmdFn) {
-        lastEvent->cmdFn(messageList.current, lastEvent->seq);
-    }
-}
 
 /* Main */
 

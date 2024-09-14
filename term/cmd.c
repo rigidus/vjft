@@ -306,13 +306,14 @@ void cmd_toggle_cursor_shadow(MessageNode* node, const char* param) {
     node->shadow_cursor_pos = temp;
 }
 
-extern void undoLastEvent();
-extern void redoLastEvent();
+extern void undo();
+extern void redo();
+
 
 void cmd_undo(MessageNode* msg, const char* param) {
-    undoLastEvent();  // Вызов функции отмены последнего действия
+    undo();
 }
 
 void cmd_redo(MessageNode* msg, const char* param) {
-    redoLastEvent();  // Вызов функции повтора последнего действия
+    redo();
 }
