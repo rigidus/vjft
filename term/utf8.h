@@ -26,4 +26,12 @@ int utf8_char_index(const char* str, int byte_offset);
 // Проверка, что UTF-8 символ полностью считан
 bool is_utf8_complete(const char* buffer, int len);
 
+// функция для декодирования символа UTF-8 в его кодовую точку Unicode
+int utf8_decode(const char* s, size_t len, uint32_t* codepoint);
+
+// Используя кодовую точку Unicode, мы можем определить, является
+// ли символ пробелом или знаком пунктуации
+bool is_utf8_whitespace(const char* c, size_t len);
+bool is_utf8_punctuation(const char* c, size_t len);
+
 #endif

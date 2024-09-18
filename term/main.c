@@ -230,6 +230,16 @@ typedef struct State {
     char* message;
     int cursor_pos;
     int shadow_cursor_pos;
+    struct {
+        CmdFunc cmdFn;
+        char* seq;
+        int seq_size;
+    } forward;
+    struct {
+        CmdFunc cmdFn;
+        char* seq;
+        int seq_size;
+    } revert;
 } State;
 
 typedef struct StateStack {
@@ -240,7 +250,7 @@ typedef struct StateStack {
 StateStack* undoStack = NULL;
 StateStack* redoStack = NULL;
 
-State* createStateFromCurrentNode(MessageNode* currentNode);
+State* createState(MessageNode* currentNode, InputEvent* event);
 void pushState(StateStack** stack, State* state);
 void clearStack(StateStack** stack);
 MessageNode* copyMessageNodes(MessageNode* node);
@@ -279,17 +289,33 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
                 // Если это не cmd_undo или cmd_redo
                 if  ( (event->cmdFn != cmd_undo) &&
                       (event->cmdFn != cmd_redo) ) {
-                    // Сохраняем состояние перед выполнением команды
-                    State* currentState = createStateFromCurrentNode(
-                        messageList.current);
-                    pushState(&undoStack, currentState);
-                    // Очистим redoStack, так как история ветвится
-                    clearStack(&redoStack);
+                    // Получаем состояние или NULL, если в результате
+                    // выполнения cmdFn состояние не будет изменено
+                    State* currentState = createState(messageList.current, event);
+                    // Дальше все зависит от полученного значения
+                    if (currentState) {
+                        // Если состояние не NULL
+                        // сохраняем состояние перед выполнением команды
+                        pushState(&undoStack, currentState);
+                        // Очистим redoStack, чтобы история не ветвилась
+                        clearStack(&redoStack);
+                        // Выполняем команду
+                        event->cmdFn(messageList.current, event->seq);
+                        // Сообщаем что данные для отображения обновились
+                        updated = true;
+                    } else {
+                        // Если состояние NULL, то это значит, что в результате
+                        // выполнения cmdFn ничего не изменится, а значит
+                        // и выполнять cmdFn не надо - ничего не делаем
+                    }
+                } else {
+                    // Итак, это cmd_redo или cmd_undo - для них не нужно
+                    // сохранять состояниее перед выполнением команды
+                    // Выполняем команду
+                    event->cmdFn(messageList.current, event->seq);
+                    // Сообщаем что данные для отображения обновились
+                    updated = true;
                 }
-                // Выполняем команду
-                event->cmdFn(messageList.current, event->seq);
-                // Сообщаем что данные для отображения обновились
-                updated = true;
             } else {
                 char logMsg[DBG_LOG_MSG_SIZE] = {0};
                 snprintf(logMsg, sizeof(logMsg),
@@ -449,7 +475,15 @@ void dispExEv () {
 }
 
 
+
 void displayUndoStates(StateStack* stateStack) {
+    // Внутренняя функция для представляения cmdFn
+    char* sub_cmd_fn(CmdFunc cmd_fn) {
+        if (cmd_fn == cmd_insert) return "cmd_insert";
+        if (cmd_fn == cmd_backspace) return "cmd_backspace";
+        return  "cmd_notfound";
+    }
+
     char undoStatesBuffer[MAX_BUFFER / 2] = {0};
     strcat(undoStatesBuffer, "\n");
 
@@ -460,14 +494,17 @@ void displayUndoStates(StateStack* stateStack) {
             char stateDesc[128] = {0};
             // Форматирование описания состояния и добавление его в буфер
             snprintf(stateDesc, sizeof(stateDesc),
-                     "Msg: %.20s... Pos: %d, Shad: %d\n",
+                     "Msg: %.20s... Pos: %d, Shad: %d, fwd: %s, rvr: %s\n",
                      state->message, state->cursor_pos,
-                     state->shadow_cursor_pos);
+                     state->shadow_cursor_pos,
+                     sub_cmd_fn(state->forward.cmdFn),
+                     sub_cmd_fn(state->revert.cmdFn)
+                );
             strcat(undoStatesBuffer, stateDesc);
         }
         currentStateStack = currentStateStack->next;
     }
-    appendToMiniBuffer(undoStatesBuffer);  // Добавление информации о состояниях в минибуфер
+    appendToMiniBuffer(undoStatesBuffer);
 }
 
 
@@ -632,31 +669,48 @@ void connect_to_server(const char* server_ip, int port) {
 
 // Undo/redo feature
 
-State* createStateFromCurrentNode(MessageNode* currentNode) {
+State* createState(MessageNode* currentNode, InputEvent* event) {
     if (!currentNode) return NULL;
     State* state = malloc(sizeof(State));
     if (!state) return NULL;
 
+    // [TODO:gmm] Пока мы сохраняем полное состояние и обратное действие
     state->message = strdup(currentNode->message);
     state->cursor_pos = currentNode->cursor_pos;
     state->shadow_cursor_pos = currentNode->shadow_cursor_pos;
 
+    // Здесь мы для каждого действия ищем противодействие
+    if (event) {
+        if (event->type == CMD) {
+            if (event->cmdFn == cmd_insert) {
+                // Для cmd_insert обратное действие - это cmd_backspace
+                state->forward.cmdFn = event->cmdFn;
+                state->forward.seq = event->seq;
+                state->forward.seq_size = event->seq_size;
+                state->revert.cmdFn = cmd_backspace;
+                state->revert.seq = "+";
+                state->forward.seq_size = 1;
+            } else if (event->cmdFn == cmd_backspace) {
+                // Для cmd_backspace обратное действие - это cmd_insert
+                // с символом, который мы собираемся удалить
+                // но только если есть что удалять, а удалять есть что
+                // только если cursor_pos > 0
+                if (currentNode->cursor_pos == 0) {
+                    return NULL;
+                } else {
+                    state->forward.cmdFn = event->cmdFn;
+                    state->forward.seq = event->seq;
+                    state->forward.seq_size = event->seq_size;
+                    state->revert.cmdFn = cmd_insert;
+                    state->revert.seq = "+"; // [TODO:gmm] получать из currentNode
+                    state->forward.seq_size = 1;
+                }
+            }
+
+        }
+    }
+
     return state;
-}
-
-void restoreState(MessageNode* currentNode, State* state) {
-    if (!currentNode || !state) return;
-
-    char logMsg[DBG_LOG_MSG_SIZE] = {0};
-    snprintf(logMsg, sizeof(logMsg),
-             "RestoreState: %s, [%d]",
-             state->message, state->cursor_pos);
-    pushMessage(&messageList, logMsg);
-
-    free(currentNode->message);  // Освободите старое сообщение
-    currentNode->message = strdup(state->message);  // Копирование нового сообщения
-    currentNode->cursor_pos = state->cursor_pos;
-    currentNode->shadow_cursor_pos = state->shadow_cursor_pos;
 }
 
 
@@ -722,96 +776,49 @@ void clearStack(StateStack** stack) {
 
 void undo() {
     if (undoStack == NULL) {
-        pushMessage(&messageList,
-                    "No more actions to undo");
+        pushMessage(&messageList, "No more actions to undo");
         return;
     }
-
-    // Сохраняем текущее состояние в redoStack
-    // перед восстановлением из undoStack
-    State* currentState = createStateFromCurrentNode(
-        messageList.current);
-    if (currentState) {
-        pushState(&redoStack, currentState);
-    }
-
-    // Извлекаем состояние из undoStack для восстановления
-    State* stateToRestore = popState(&undoStack);
-    if (stateToRestore) {
-        restoreState(messageList.current, stateToRestore);
-        freeState(stateToRestore);
+    // Извлекаем последнее состояние из undoStack
+    State* prevState = popState(&undoStack);
+    if (prevState) {
+        // Отладочный вывод
+        char logMsg[DBG_LOG_MSG_SIZE] = {0};
+        snprintf(logMsg, sizeof(logMsg), "revert: %s, [%d]",
+                 prevState->message, prevState->cursor_pos);
+        pushMessage(&messageList, logMsg);
+        // Применяем revert к messageList.current
+        prevState->revert.cmdFn(messageList.current, prevState->revert.seq);
+        // Перемещаем prevState в redoStack
+        pushState(&redoStack, prevState);
     } else {
-        pushMessage(&messageList,
-                    "Failed to pop state from undoStack");
+        pushMessage(&messageList, "Failed to pop state from undoStack");
     }
 }
 
 
 void redo() {
     if (redoStack == NULL) {
-        pushMessage(&messageList,
-                    "No more actions to redo");
+        pushMessage(&messageList, "No more actions to redo");
         return;
     }
-
-    // Сохраняем текущее состояние в undoStack
-    // перед восстановлением из redoStack
-    State* currentState = createStateFromCurrentNode(
-        messageList.current);
-    if (currentState) {
-        pushState(&undoStack, currentState);
-    }
-
-    // Извлекаем состояние из redoStack для восстановления
-    State* stateToRestore = popState(&redoStack);
-    if (stateToRestore) {
-        restoreState(messageList.current, stateToRestore);
-        freeState(stateToRestore);
+    // Извлекаем состояние из redoStack
+    State* prevState = popState(&redoStack);
+    if (prevState) {
+        // Отладочный вывод
+        char logMsg[DBG_LOG_MSG_SIZE] = {0};
+        snprintf(logMsg, sizeof(logMsg), "forward: %s, [%d]",
+                 prevState->message, prevState->cursor_pos);
+        pushMessage(&messageList, logMsg);
+        // Применяем forward к messageList.current
+        prevState->forward.cmdFn(messageList.current, prevState->forward.seq);
+        // Перемещаем prevState в undoStack
+        pushState(&undoStack, prevState);
     } else {
-        pushMessage(&messageList,
-                    "Failed to pop state from redoStack");
+        pushMessage(&messageList, "Failed to pop state from redoStack");
     }
 }
 
-// Оптимизация различий между состояниями
-
-/* typedef struct StateDiff { */
-/*     int cursor_pos;  // позиция курсора до изменения и после */
-/*     char* diff;      // текстовые изменения */
-/*     struct StateDiff* next; */
-/* } StateDiff; */
-
-/* char* createTextDiff(const char* oldText, const char* newText); */
-/* void applyStateDiff(MessageNode* node, StateDiff* diff); */
-/* char* applyTextDiff(const char* oldText, const char* diff); */
-
-/* StateDiff* createStateDiff(MessageNode* oldNode, MessageNode* newNode) { */
-/*     StateDiff* diff = malloc(sizeof(StateDiff)); */
-/*     if (!diff) return NULL; */
-
-/*     diff->cursor_pos = newNode->cursor_pos - oldNode->cursor_pos; */
-/*     diff->diff = createTextDiff(oldNode->message, newNode->message); */
-/*     return diff; */
-/* } */
-
-/* char* createTextDiff(const char* oldText, const char* newText) { */
-/*     // Это псевдокод для создания диффа между двумя строками */
-/*     // На практике может использоваться библиотека или специализированный алгоритм */
-/*     return strdup(newText);  // Заглушка */
-/* } */
-
-/* void applyStateDiff(MessageNode* node, StateDiff* diff) { */
-/*     node->cursor_pos += diff->cursor_pos; */
-/*     // Применяем diff к тексту */
-/*     char* newText = applyTextDiff(node->message, diff->diff); */
-/*     free(node->message); */
-/*     node->message = newText; */
-/* } */
-
-/* char* applyTextDiff(const char* oldText, const char* diff) { */
-/*     // Применяем дифф к старому тексту */
-/*     return strdup(diff);  // Заглушка */
-/* } */
 
 // Отображение истории состяний
 
@@ -827,14 +834,6 @@ State* peekState(const StateStack* stack) {
 void reinitializeState() {
     initMessageList(&messageList);
     pushMessage(&messageList, "");
-
-    /* pushMessage(&messageList, "Что такое буфер ввода?\nБуфер ввода - это временная область хранения, используемая в вычислительной технике для хранения данных");//, получаемых от устройства ввода, такого как клавиатура или мышь. Он позволяет системе получать и обрабатывать данные в своем собственном темпе, а не зависеть от скорости их поступления.\nКак работает буфер ввода.\nКак вы набираете текст на клавиатуре, например, нажатия клавиш сохраняются в буфере ввода до тех пор, пока компьютер не будет готов их обработать. Буфер хранит нажатия в том порядке, в котором они были получены, что позволяет обрабатывать их последовательно. Когда компьютер готов, он извлекает данные из буфера и выполняет необходимые действия"); */
-
-    /* pushMessage(&messageList, "Что такое кольцевой буффер?\nКольцевой буфер");//, или циклический буфер (англ. ring-buffer) — это структура данных, использующая единственный буфер фиксированного размера таким образом, как будто бы после последнего элемента сразу же снова идет первый. Такая структура легко предоставляет возможность буферизации потоков данных."); */
-
-    /* pushMessage(&messageList, "Разрежённый масси́в — абстрактное представление");// обычного массива, в котором данные представлены не непрерывно, а фрагментарно; большинство его элементов принимает одно и то же значение (значение по умолчанию, обычно 0 или null). Причём хранение большого числа нулей в массиве неэффективно как для хранения, так и для обработки массива.\nВ разрежённом массиве возможен доступ к неопределенным элементам. В этом случае массив вернет некоторое значение по умолчанию.\nПростейшая реализация этого массива выделяет место под весь массив, но когда значений, отличных от значений по умолчанию, мало, такая реализация неэффективна. К этому массиву не применяются функции для работы с обычными массивами в тех случаях, когда о разрежённости известно заранее (например, при блочном хранении данных)."); */
-
-    /* pushMessage(&messageList, "XOR-связный список — структура данных, похожая на обычный двусвязный список");//, однако в каждом элементе хранится только один составной адрес — результат выполнения операции XOR над адресами предыдущего и следующего элементов списка.\nДля того, чтобы перемещаться по списку, необходимо иметь адреса двух последовательных элементов.\nВыполнение операции XOR над адресом первого элемента и составным адресом, хранящимся во втором элементе, даёт адрес элемента, следующего за этими двумя элементами.\nВыполнение операции XOR над составным адресом, хранящимся в первом элементе, и адресом второго элемента даёт адрес элемента, предшествующего этим двум элементам."); */
 }
 
 
