@@ -8,18 +8,21 @@
 #include "ctrlstk.h" // include key.h and key_map.h
 /* // Здесь создается enum Key, содержащий перечисления вида */
 /* // KEY_A, KEY_B, ... для всех возможных нажимаемых клавиш */
-#include "cmd.h"
+/* #include "cmd.h" */
 #include "utf8.h"
 #include "iface.h"
 #include "kbd.h"
+/* #include "undo.h" */
+#include "event.h"
 
 #define MAX_BUFFER 1024
+
+extern StateStack* undoStack;
+extern StateStack* redoStack;
 
 char miniBuffer[MAX_BUFFER] = {0};
 
 void drawHorizontalLine(int cols, int y, char sym);
-
-/* %%term%% */
 
 volatile int win_cols = 0;
 volatile int win_rows = 0;
@@ -33,74 +36,7 @@ void upd_win_size() {
     }
 }
 
-/* %%msg%% */
-
-MessageList messageList = {0};
-pthread_mutex_t messageList_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-
-/* InputEvent */
-
-typedef enum {
-    DBG,
-    CMD
-} EventType;
-
-
-typedef struct InputEvent {
-    EventType type;
-    CmdFunc cmdFn;
-    char* seq;
-    int seq_size;
-    struct InputEvent* next;
-} InputEvent;
-
-InputEvent* gInputEventQueue = NULL;
-pthread_mutex_t gEventQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-InputEvent* gHistoryEventQueue = NULL;
-pthread_mutex_t gHistoryQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-void enqueueEvent(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
-                  EventType type, CmdFunc cmdFn, char* seq, int seq_size)
-{
-    pthread_mutex_lock(queueMutex);
-
-    InputEvent* newEvent = (InputEvent*)malloc(sizeof(InputEvent));
-    if (newEvent == NULL) {
-        perror("Failed to allocate memory for a new event");
-        pthread_mutex_unlock(queueMutex);
-        exit(1); // Выход при ошибке выделения памяти
-    }
-
-    *newEvent = (InputEvent){
-        .type = type,
-        .cmdFn = cmdFn,
-        .seq = seq ? strdup(seq) : NULL,
-        .seq_size = seq_size,
-        .next = NULL
-    };
-
-    if (*eventQueue == NULL) {
-        *eventQueue = newEvent;
-    } else {
-        InputEvent* lastEvent = *eventQueue;
-        while (lastEvent->next) {
-            lastEvent = lastEvent->next;
-        }
-        lastEvent->next = newEvent;
-    }
-
-    pthread_mutex_unlock(queueMutex);
-}
-
-/* %%ctrlstack%% */
-
 CtrlStack* ctrlStack = NULL;
-
-/* %%utf8 */
-
-/* %%cmd%% */
 
 typedef struct {
     Key* combo;
@@ -119,7 +55,6 @@ typedef struct {
         cmdFunc,                                        \
         NULL                                            \
     }),                                                 \
-
 
 // Использование макроса для создания элемента массива
 KeyMap keyCommands[] = {
@@ -196,153 +131,9 @@ const KeyMap* findCommandByKey() {
     return NULL;
 }
 
-void convertToAsciiCodes(const char *input, char *output,
-                         size_t outputSize)
-{
-    size_t inputLen = strlen(input);
-    size_t offset = 0;
 
-    for (size_t i = 0; i < inputLen; i++) {
-        int written = snprintf(output + offset, outputSize - offset,
-                               "%x", (unsigned char)input[i]);
-        if (written < 0 || written >= outputSize - offset) {
-            // Output buffer is full or an error occurred
-            break;
-        }
-        offset += written;
-        if (i < inputLen - 1) {
-            // Add a space between numbers,
-            // but not after the last number
-            if (offset < outputSize - 1) {
-                output[offset] = ' ';
-                offset++;
-            } else {
-                // Output buffer is full
-                break;
-            }
-        }
-    }
-    output[offset] = '\0'; // Null-terminate the output string
-}
-
-
-typedef struct State {
-    char* message;
-    int cursor_pos;
-    int shadow_cursor_pos;
-    struct {
-        CmdFunc cmdFn;
-        char* seq;
-        int seq_size;
-    } forward;
-    struct {
-        CmdFunc cmdFn;
-        char* seq;
-        int seq_size;
-    } revert;
-} State;
-
-typedef struct StateStack {
-    State* state;
-    struct StateStack* next;
-} StateStack;
-
-StateStack* undoStack = NULL;
-StateStack* redoStack = NULL;
-
-State* createState(MessageNode* currentNode, InputEvent* event);
-void pushState(StateStack** stack, State* state);
-void clearStack(StateStack** stack);
 MessageNode* copyMessageNodes(MessageNode* node);
 void freeMessageNodes(MessageNode* node);
-
-#define ASCII_CODES_BUF_SIZE 127
-#define DBG_LOG_MSG_SIZE 255
-
-bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
-                   char* input, int* input_size,
-                   int* log_window_start, int rows)
-{
-    pthread_mutex_lock(queueMutex);
-    bool updated= false;
-    while (*eventQueue) {
-        InputEvent* event = *eventQueue;
-        *eventQueue = (*eventQueue)->next;
-
-        switch(event->type) {
-        case DBG:
-            if (event->seq != NULL) {
-                char asciiCodes[ASCII_CODES_BUF_SIZE] = {0};
-                convertToAsciiCodes(event->seq, asciiCodes,
-                                    ASCII_CODES_BUF_SIZE);
-                Key key = identify_key(event->seq, event->seq_size);
-                char logMsg[DBG_LOG_MSG_SIZE] = {0};
-                snprintf(logMsg, sizeof(logMsg),
-                         "[DBG]: %s, [%s] (%d)\n",
-                         key_to_str(key), asciiCodes, event->seq_size);
-                pushMessage(&messageList, logMsg);
-                updated = true;
-            }
-            break;
-        case CMD:
-            if (event->cmdFn) {
-                // Если это не cmd_undo или cmd_redo
-                if  ( (event->cmdFn != cmd_undo) &&
-                      (event->cmdFn != cmd_redo) ) {
-                    // Получаем состояние или NULL, если в результате
-                    // выполнения cmdFn состояние не будет изменено
-                    State* currentState = createState(messageList.current, event);
-                    // Дальше все зависит от полученного значения
-                    if (currentState) {
-                        // Если состояние не NULL
-                        // сохраняем состояние перед выполнением команды
-                        pushState(&undoStack, currentState);
-                        // Очистим redoStack, чтобы история не ветвилась
-                        clearStack(&redoStack);
-                        // Выполняем команду
-                        event->cmdFn(messageList.current, event->seq);
-                        // Сообщаем что данные для отображения обновились
-                        updated = true;
-                    } else {
-                        // Если состояние NULL, то это значит, что в результате
-                        // выполнения cmdFn ничего не изменится, а значит
-                        // и выполнять cmdFn не надо - ничего не делаем
-                    }
-                } else {
-                    // Итак, это cmd_redo или cmd_undo - для них не нужно
-                    // сохранять состояниее перед выполнением команды
-                    // Выполняем команду
-                    event->cmdFn(messageList.current, event->seq);
-                    // Сообщаем что данные для отображения обновились
-                    updated = true;
-                }
-            } else {
-                char logMsg[DBG_LOG_MSG_SIZE] = {0};
-                snprintf(logMsg, sizeof(logMsg),
-                         "case CMD: No command found for: %s\n",
-                         event->seq);
-                pushMessage(&messageList, logMsg);
-            }
-            break;
-        }
-
-        // Пересоздать обработанное событие в очереди выполненных
-        // событий, при этом event->seq дублируется, если необходимо,
-        // внутри enqueueEvent(), поэтому здесь ниже его можно
-        // осовободить
-        enqueueEvent(&gHistoryEventQueue, &gHistoryQueue_mutex,
-                     event->type, event->cmdFn,
-                     event->seq, event->seq_size);
-
-        // Освободить событие
-        if (event->seq != NULL) {
-            free(event->seq);
-        }
-        free(event);
-    }
-    pthread_mutex_unlock(queueMutex);
-    return updated;
-}
 
 
 /* keyboard */
@@ -361,7 +152,7 @@ bool keyb () {
     Key key = identify_key(input_buffer, len);
     if (key_printable && isCtrlStackEmpty()) {
         enqueueEvent(&gInputEventQueue, &gEventQueue_mutex,
-                     CMD, cmd_insert, input_buffer, len);
+                     CMD, cmd_insert, input_buffer);
     } else {
         if (key == KEY_CTRL_G) {
             clearCtrlStack();
@@ -377,13 +168,13 @@ bool keyb () {
                 /* pushMessage(&messageList, strdup(fc_text)); */
                 // DBG  OFF
                 enqueueEvent(&gInputEventQueue, &gEventQueue_mutex,
-                             CMD, cmd->cmdFunc, cmd->param, len);
+                             CMD, cmd->cmdFunc, cmd->param);
                 // Clear command stack after sending command
                 clearCtrlStack();
             } else {
                 // Command not found
                 enqueueEvent(&gInputEventQueue, &gEventQueue_mutex,
-                             DBG, NULL, input_buffer, len);
+                             DBG, NULL, input_buffer);
             }
         }
     }
@@ -464,7 +255,7 @@ void dispCtrlStack() {
 // Формируем отображение gHistoryEventQueue
 void dispExEv () {
     char gHistoryEventQueue_buffer[MAX_BUFFER / 2] = {0};
-    strcat(gHistoryEventQueue_buffer, "\nExEv: ");
+    strcat(gHistoryEventQueue_buffer, "\nHistory: ");
     InputEvent* currentEvent = gHistoryEventQueue;
     while (currentEvent != NULL) {
         strcat(gHistoryEventQueue_buffer, getEventDescription(currentEvent));
@@ -475,6 +266,7 @@ void dispExEv () {
 }
 
 
+// Undo/Redo
 
 void displayUndoStates(StateStack* stateStack) {
     // Внутренняя функция для представляения cmdFn
@@ -494,11 +286,13 @@ void displayUndoStates(StateStack* stateStack) {
             char stateDesc[128] = {0};
             // Форматирование описания состояния и добавление его в буфер
             snprintf(stateDesc, sizeof(stateDesc),
-                     "Msg: %.20s... Pos: %d, Shad: %d, fwd: %s, rvr: %s\n",
+                     "Msg: %.20s... Pos: %d, Shad: %d, fwd: %s[%s], rvr: %s[%s]\n",
                      state->message, state->cursor_pos,
                      state->shadow_cursor_pos,
                      sub_cmd_fn(state->forward.cmdFn),
-                     sub_cmd_fn(state->revert.cmdFn)
+                     state->forward.seq,
+                     sub_cmd_fn(state->revert.cmdFn),
+                     state->revert.seq
                 );
             strcat(undoStatesBuffer, stateDesc);
         }
@@ -643,77 +437,6 @@ void reDraw() {
     moveCursor(ib_cursor_col + margin, bottom + 1 + ib_cursor_row - ib_from_row);
 }
 
-/* Network */
-
-int sockfd = -1;
-
-void connect_to_server(const char* server_ip, int port) {
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-        pushMessage(&messageList, "connect_to_server_err: Cannot create socket");
-    }
-
-    struct sockaddr_in serv_addr;
-    memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(port);
-    serv_addr.sin_addr.s_addr = inet_addr(server_ip);
-
-    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        pushMessage(&messageList, "connect_to_server_err: Connect failed");
-        close(sockfd);
-        sockfd = -1;
-    }
-}
-
-
-// Undo/redo feature
-
-State* createState(MessageNode* currentNode, InputEvent* event) {
-    if (!currentNode) return NULL;
-    State* state = malloc(sizeof(State));
-    if (!state) return NULL;
-
-    // [TODO:gmm] Пока мы сохраняем полное состояние и обратное действие
-    state->message = strdup(currentNode->message);
-    state->cursor_pos = currentNode->cursor_pos;
-    state->shadow_cursor_pos = currentNode->shadow_cursor_pos;
-
-    // Здесь мы для каждого действия ищем противодействие
-    if (event) {
-        if (event->type == CMD) {
-            if (event->cmdFn == cmd_insert) {
-                // Для cmd_insert обратное действие - это cmd_backspace
-                state->forward.cmdFn = event->cmdFn;
-                state->forward.seq = event->seq;
-                state->forward.seq_size = event->seq_size;
-                state->revert.cmdFn = cmd_backspace;
-                state->revert.seq = "+";
-                state->forward.seq_size = 1;
-            } else if (event->cmdFn == cmd_backspace) {
-                // Для cmd_backspace обратное действие - это cmd_insert
-                // с символом, который мы собираемся удалить
-                // но только если есть что удалять, а удалять есть что
-                // только если cursor_pos > 0
-                if (currentNode->cursor_pos == 0) {
-                    return NULL;
-                } else {
-                    state->forward.cmdFn = event->cmdFn;
-                    state->forward.seq = event->seq;
-                    state->forward.seq_size = event->seq_size;
-                    state->revert.cmdFn = cmd_insert;
-                    state->revert.seq = "+"; // [TODO:gmm] получать из currentNode
-                    state->forward.seq_size = 1;
-                }
-            }
-
-        }
-    }
-
-    return state;
-}
-
-
 // Функции для копирования и очистки узлов списка сообщений
 MessageNode* copyMessageNodes(MessageNode* node) {
     if (!node) return NULL;
@@ -732,91 +455,11 @@ MessageNode* copyMessageNodes(MessageNode* node) {
     return newNode;
 }
 
-void freeState(State* state) {
-    if (!state) return;
-    free(state->message);  // Освобождение строки сообщения
-    free(state);
-}
-
 void freeMessageNodes(MessageNode* node) {
     if (!node) return;
     freeMessageNodes(node->next);
     free(node->message);
     free(node);
-}
-
-// State Stakes
-
-
-void pushState(StateStack** stack, State* state) {
-    StateStack* newElement = malloc(sizeof(StateStack));
-    if (!newElement) return;
-    newElement->state = state;
-    newElement->next = *stack;
-    *stack = newElement;
-}
-
-State* popState(StateStack** stack) {
-    if (!*stack) return NULL;
-    StateStack* topElement = *stack;
-    State* state = topElement->state;
-    *stack = topElement->next;
-    free(topElement);
-    return state;
-}
-
-void clearStack(StateStack** stack) {
-    while (*stack) {
-        State* state = popState(stack);
-        freeState(state);
-    }
-}
-
-// undo & redo
-
-void undo() {
-    if (undoStack == NULL) {
-        pushMessage(&messageList, "No more actions to undo");
-        return;
-    }
-    // Извлекаем последнее состояние из undoStack
-    State* prevState = popState(&undoStack);
-    if (prevState) {
-        // Отладочный вывод
-        char logMsg[DBG_LOG_MSG_SIZE] = {0};
-        snprintf(logMsg, sizeof(logMsg), "revert: %s, [%d]",
-                 prevState->message, prevState->cursor_pos);
-        pushMessage(&messageList, logMsg);
-        // Применяем revert к messageList.current
-        prevState->revert.cmdFn(messageList.current, prevState->revert.seq);
-        // Перемещаем prevState в redoStack
-        pushState(&redoStack, prevState);
-    } else {
-        pushMessage(&messageList, "Failed to pop state from undoStack");
-    }
-}
-
-
-void redo() {
-    if (redoStack == NULL) {
-        pushMessage(&messageList, "No more actions to redo");
-        return;
-    }
-    // Извлекаем состояние из redoStack
-    State* prevState = popState(&redoStack);
-    if (prevState) {
-        // Отладочный вывод
-        char logMsg[DBG_LOG_MSG_SIZE] = {0};
-        snprintf(logMsg, sizeof(logMsg), "forward: %s, [%d]",
-                 prevState->message, prevState->cursor_pos);
-        pushMessage(&messageList, logMsg);
-        // Применяем forward к messageList.current
-        prevState->forward.cmdFn(messageList.current, prevState->forward.seq);
-        // Перемещаем prevState в undoStack
-        pushState(&undoStack, prevState);
-    } else {
-        pushMessage(&messageList, "Failed to pop state from redoStack");
-    }
 }
 
 
@@ -837,11 +480,13 @@ void reinitializeState() {
 }
 
 
-/* Main */
+// Main
 
 #define READ_TIMEOUT 50000 // 50000 микросекунд (50 миллисекунд)
 #define SLEEP_TIMEOUT 100000 // 100 микросекунд
 volatile bool need_redraw = true;
+
+int sockfd = -1;
 
 int main() {
     reinitializeState();
