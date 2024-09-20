@@ -43,7 +43,7 @@ typedef struct State {
     int cursor_pos;
     int shadow_cursor_pos;
     InputEvent forward;
-    InputEvent revert;
+    /* InputEvent revert; */
 } State;
 
 // Тип стека состояний для undo/redo

@@ -180,8 +180,9 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
                                 strncpy(new_seq + prev_seq_len,
                                         event->seq, event_seq_len);
 
-                                // Записываем реаллоцированный указатель
+                                // Записываем реаллоцированный forward.seq
                                 prevState->forward.seq = new_seq;
+
                                 /* prevState->revert.seq = new_seq; */
                                 // Сохраняем обновленное событие в undoStack
                                 pushState(&undoStack, prevState);
@@ -189,10 +190,9 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
                                 // Отладочный вывод
                                 char log[DBG_LOG_MSG_SIZE] = {0};
                                 snprintf(log, sizeof(log),
-             "prev_seq_len:%d event_seq_len:%d, new_seq_len:%d (%p -> %p) <%s> <%s>",
+             "prev_seq_len:%d event_seq_len:%d, new_seq_len:%d (%p -> %p) <%s>",
                                          prev_seq_len, event_seq_len, new_seq_len,
-                                         prevState->forward.seq, new_seq, new_seq,
-                                         prevState->revert.seq);
+                                         prevState->forward.seq, new_seq, new_seq);
                                 pushMessage(&messageList, log);
                             }
                        }
@@ -242,32 +242,13 @@ State* createState(MessageNode* currentNode, InputEvent* event) {
     state->cursor_pos = currentNode->cursor_pos;
     state->shadow_cursor_pos = currentNode->shadow_cursor_pos;
 
-    // Здесь мы для каждого действия ищем противодействие
     if (event) {
         if (event->type == CMD) {
             if (event->cmdFn == cmd_insert) {
-                // Для cmd_insert обратное действие - это cmd_backspace
-                state->forward.type = CMD;
+                state->forward.type = event->type;
                 state->forward.cmdFn = event->cmdFn;
                 state->forward.seq = strdup(event->seq);
-                state->revert.type = CMD;
-                state->revert.cmdFn = cmd_backspace;
-                state->revert.seq = "+";
-            } else if (event->cmdFn == cmd_backspace) {
-                // Для cmd_backspace обратное действие - это cmd_insert
-                // с символом, который мы собираемся удалить
-                // но только если есть что удалять, а удалять есть что
-                // только если cursor_pos > 0
-                if (currentNode->cursor_pos == 0) {
-                    return NULL;
-                } else {
-                    state->forward.cmdFn = event->cmdFn;
-                    state->forward.seq = event->seq;
-                    state->revert.cmdFn = cmd_insert;
-                    state->revert.seq = "+"; // [TODO:gmm] получать из currentNode
-                }
             }
-
         }
     }
 
@@ -683,9 +664,8 @@ State* cmd_toggle_cursor_shadow(MessageNode* node, InputEvent* event) {
     return NULL;
 }
 
-// cmd_undo & cmd_redo
 
-State* cmd_undo(MessageNode* msg, InputEvent* event) {
+State* cmd_undo(MessageNode* msgnode, InputEvent* event) {
     if (undoStack == NULL) {
         pushMessage(&messageList, "No more actions to undo");
         // Если undoStack пуст, то ничего перерисовывать не надо
@@ -699,15 +679,33 @@ State* cmd_undo(MessageNode* msg, InputEvent* event) {
             pushMessage(&messageList, "Failed to pop state from undoStack");
             return NULL;
         } else {
+
             // Отладочный вывод
             char logMsg[DBG_LOG_MSG_SIZE] = {0};
-            snprintf(logMsg, sizeof(logMsg), "revert: %s, [%d]",
-                     prevState->message, prevState->cursor_pos);
+            snprintf(logMsg,
+                     sizeof(logMsg),
+                     "cmd_undo: %s : %s - <%s> [%d]",
+                     (prevState->forward.type == CMD) ? "CMD" : "unk_type",
+                     (prevState->forward.cmdFn == cmd_insert)
+                     ? "cmd_insert" : "unk_cmdFn",
+                     prevState->forward.seq,
+                     (int)utf8_strlen(prevState->forward.seq)
+                );
             pushMessage(&messageList, logMsg);
-            // Применяем revert к messageList.current
-            prevState->revert.cmdFn(messageList.current, &prevState->revert);
-            // Перемещаем prevState в redoStack
-            pushState(&redoStack, prevState);
+
+            if (prevState->forward.type == CMD) {
+                // undo for cmd_insert
+                if (prevState->forward.cmdFn == cmd_insert) {
+                    // Вызываем cmd_backspace столько раз, сколько
+                    // символов записано в cmd_insert
+                    for (int i=0; i < strlen(prevState->forward.seq); i++) {
+                        // Второй параметр все равно не ниспользуется в cmd_backspace
+                        cmd_backspace(msgnode, NULL);
+                    }
+                    // Перемещаем prevState в redoStack
+                    pushState(&redoStack, prevState);
+                }
+            }
         }
 
         // Возвращаем состояние чтобы обновить отображение
@@ -715,7 +713,7 @@ State* cmd_undo(MessageNode* msg, InputEvent* event) {
     }
 }
 
-State* cmd_redo(MessageNode* msg, InputEvent* event) {
+State* cmd_redo(MessageNode* msgnode, InputEvent* event) {
     if (redoStack == NULL) {
         pushMessage(&messageList, "No more actions to redo");
         // Если redoStack пуст, то ничего перерисовывать не надо
@@ -729,13 +727,28 @@ State* cmd_redo(MessageNode* msg, InputEvent* event) {
             pushMessage(&messageList, "Failed to pop state from redoStack");
             return NULL;
         } else {
+
             // Отладочный вывод
             char logMsg[DBG_LOG_MSG_SIZE] = {0};
-            snprintf(logMsg, sizeof(logMsg), "forward: %s, [%d]",
-                     prevState->message, prevState->cursor_pos);
+            snprintf(logMsg,
+                     sizeof(logMsg),
+                     "cmd_undo: %s : %s - <%s> [%d]",
+                     (prevState->forward.type == CMD) ? "CMD" : "unk_type",
+                     (prevState->forward.cmdFn == cmd_insert)
+                     ? "cmd_insert" : "unk_cmdFn",
+                     prevState->forward.seq,
+                     (int)utf8_strlen(prevState->forward.seq)
+                );
             pushMessage(&messageList, logMsg);
-            // Применяем forward к messageList.current
-            prevState->forward.cmdFn(messageList.current, &prevState->forward);
+
+            if (prevState->forward.type == CMD) {
+                // undo for cmd_insert
+                if (prevState->forward.cmdFn == cmd_insert) {
+                    // Применяем forward к messageList.current */
+                    cmd_insert(msgnode, &prevState->forward);
+                }
+            }
+
             // Перемещаем prevState в undoStack
             pushState(&undoStack, prevState);
         }

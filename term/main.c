@@ -8,11 +8,9 @@
 #include "ctrlstk.h" // include key.h and key_map.h
 /* // Здесь создается enum Key, содержащий перечисления вида */
 /* // KEY_A, KEY_B, ... для всех возможных нажимаемых клавиш */
-/* #include "cmd.h" */
 #include "utf8.h"
 #include "iface.h"
 #include "kbd.h"
-/* #include "undo.h" */
 #include "event.h"
 
 #define MAX_BUFFER 1024
@@ -286,13 +284,11 @@ void displayUndoStates(StateStack* stateStack) {
             char stateDesc[128] = {0};
             // Форматирование описания состояния и добавление его в буфер
             snprintf(stateDesc, sizeof(stateDesc),
-                     "Msg: %.20s... Pos: %d, Shad: %d, fwd: %s[%s], rvr: %s[%s]\n",
+                     "Msg: %.20s... Pos: %d, Shad: %d, fwd: %s[%s]\n",
                      state->message, state->cursor_pos,
                      state->shadow_cursor_pos,
                      sub_cmd_fn(state->forward.cmdFn),
-                     state->forward.seq,
-                     sub_cmd_fn(state->revert.cmdFn),
-                     state->revert.seq
+                     state->forward.seq
                 );
             strcat(undoStatesBuffer, stateDesc);
         }
