@@ -139,69 +139,6 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
                     // - значит ничего не делаем
                 } else {
                     // Если текущее состояние не NULL
-                    if (event->cmdFn == cmd_insert) {
-                        // ..и является вызовом cmd_insert
-                        // - пытаемся получить предыдущее состояние
-                        State* prevState = popState(&undoStack);
-                        if (!prevState) {
-                            // Если предыдущее состояние не существует
-                            // - мы должны только записать текущее состояние
-                            pushState(&undoStack, currentState);
-                        } else {
-                            if ( (prevState->forward.cmdFn != cmd_insert)
-                                 || (utf8_char_length(prevState->forward.seq) > 5)
-                                ) {
-                                // Если предыдущее состояние не cmd_insert
-                                // или его длина больше 5, вернем его обратно
-                                pushState(&undoStack, prevState);
-                                //  и запишем сверху текущее состояние
-                                pushState(&undoStack, currentState);
-                            } else {
-                                //  Иначе, если в undo-стеке существует предыдущее
-                                // состояние, которое тоже cmd_insert и в нем
-                                // менее 5 символов - добавляем к предыдущему
-                                // состоянию новые символы
-                                int prev_seq_len  = strlen(prevState->forward.seq);
-                                int event_seq_len = strlen(event->seq);
-                                int new_seq_len = prev_seq_len + event_seq_len + 1;
-
-                                // Реаллоцируем forward.seq в new_seq
-                                char* new_seq = realloc(prevState->forward.seq,
-                                                        new_seq_len);
-                                if (new_seq == NULL) {
-                                    perror("Failed to reallocate memory");
-                                    exit(1);
-                                }
-
-                                // Записываем завершающий нуль, на всякий
-                                memset(new_seq + new_seq_len - 2, 0, 1);
-
-                                // Дописываем к new_seq новый event->seq
-                                strncpy(new_seq + prev_seq_len,
-                                        event->seq, event_seq_len);
-
-                                // Записываем реаллоцированный forward.seq
-                                prevState->forward.seq = new_seq;
-
-                                /* prevState->revert.seq = new_seq; */
-                                // Сохраняем обновленное событие в undoStack
-                                pushState(&undoStack, prevState);
-
-                                // Отладочный вывод
-                                char log[DBG_LOG_MSG_SIZE] = {0};
-                                snprintf(log, sizeof(log),
-             "prev_seq_len:%d event_seq_len:%d, new_seq_len:%d (%p -> %p) <%s>",
-                                         prev_seq_len, event_seq_len, new_seq_len,
-                                         prevState->forward.seq, new_seq, new_seq);
-                                pushMessage(&messageList, log);
-                            }
-                       }
-                    } else {
-                        // Другие cmdFn, кроме cmd_insert
-                        pushState(&undoStack, currentState);
-                    }
-                    // Очистим redoStack, чтобы история не ветвилась
-                    clearStack(&redoStack);
                     // Сообщаем что данные для отображения обновились
                     updated = true;
                 }
@@ -577,13 +514,73 @@ State* cmd_insert(MessageNode* node, InputEvent* event) {
 
     // Теперь, когда у нас есть изменненная node
     // мы можем создать State для undoStack
-    State* retval = createState(node, event);
+    State* currentState = createState(node, event);
+
+    // Пытаемся получить предыдущее состояние
+    State* prevState = popState(&undoStack);
+    if (!prevState) {
+        // Если предыдущее состояние не существует
+        // - мы должны только записать текущее состояние
+        pushState(&undoStack, currentState);
+    } else {
+        if ( (prevState->forward.cmdFn != cmd_insert)
+             || (utf8_char_length(prevState->forward.seq) > 5)
+            ) {
+            // Если предыдущее состояние не cmd_insert
+            // или его длина больше 5, вернем его обратно
+            pushState(&undoStack, prevState);
+            //  и запишем сверху текущее состояние
+            pushState(&undoStack, currentState);
+        } else {
+            // Иначе, если в undo-стеке существует предыдущее
+            // состояние, которое тоже cmd_insert и в нем
+            // менее 5 символов - добавляем к предыдущему
+            // состоянию новые символы
+            int prev_seq_len  = strlen(prevState->forward.seq);
+            int event_seq_len = strlen(event->seq);
+            int new_seq_len = prev_seq_len + event_seq_len + 1;
+
+            // Реаллоцируем forward.seq в new_seq
+            char* new_seq = realloc(prevState->forward.seq,
+                                    new_seq_len);
+            if (new_seq == NULL) {
+                perror("Failed to reallocate memory");
+                exit(1);
+            }
+
+            // Записываем завершающий нуль, на всякий
+            memset(new_seq + new_seq_len - 2, 0, 1);
+
+            // Дописываем к new_seq новый event->seq
+            strncpy(new_seq + prev_seq_len,
+                    event->seq, event_seq_len);
+
+            // Записываем реаллоцированный forward.seq
+            prevState->forward.seq = new_seq;
+
+            /* prevState->revert.seq = new_seq; */
+            // Сохраняем обновленное событие в undoStack
+            pushState(&undoStack, prevState);
+
+            // Отладочный вывод
+            char log[DBG_LOG_MSG_SIZE] = {0};
+            snprintf(
+                log, sizeof(log),
+                "prev_seq_len:%d event_seq_len:%d, new_seq_len:%d (%p -> %p) <%s>",
+                prev_seq_len, event_seq_len, new_seq_len,
+                prevState->forward.seq, new_seq, new_seq);
+            pushMessage(&messageList, log);
+        }
+    }
+
+    // Очистим redoStack, чтобы история не ветвилась
+    clearStack(&redoStack);
 
     // Снимаем Lock
     pthread_mutex_unlock(&lock);
 
     // Возвращаем State
-    return retval;
+    return currentState;
 }
 
 
