@@ -308,7 +308,8 @@ void handle_winch(int sig) {
 }
 
 void reDraw() {
-    int ib_need_cols = 0, ib_need_rows = 0, ib_cursor_row = 0, ib_cursor_col = 0,
+    int ib_need_cols = 0, ib_need_rows = 0,
+        ib_cursor_row = 0, ib_cursor_col = 0,
         ib_from_row = 0;
 
     // Вычисляем относительную позицию курсора в inputbuffer-е
@@ -321,7 +322,7 @@ void reDraw() {
     // Очищаем экран
     clearScreen();
 
-    // МИНИБУФЕР ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    // МИНИБУФЕР ::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
     clearMiniBuffer();
 
@@ -342,9 +343,11 @@ void reDraw() {
     displayUndoStates(redoStack);
 
     // Отображение минибуфера
-    int mb_need_cols = 0, mb_need_rows = 0, mb_cursor_row = 0, mb_cursor_col = 0;
+    int mb_need_cols = 0, mb_need_rows = 0,
+        mb_cursor_row = 0, mb_cursor_col = 0;
     int mb_width = win_cols-2;
-    calc_display_size(miniBuffer, mb_width, 0, &mb_need_cols, &mb_need_rows,
+    calc_display_size(miniBuffer, mb_width, 0, &mb_need_cols,
+                      &mb_need_rows,
                       &mb_cursor_row, &mb_cursor_col);
 
     // Когда я вывожу что-то в минибуфер я хочу чтобы при большом
@@ -355,11 +358,12 @@ void reDraw() {
     }
     int mb_from_row = 0;
     int mb_up = win_rows + 1 - mb_need_rows + mb_from_row;
-    display_wrapped(miniBuffer, 2, mb_up, mb_width, mb_need_rows, mb_from_row, -1, -1);
+    display_wrapped(miniBuffer, 2, mb_up, mb_width, mb_need_rows,
+                    mb_from_row, -1, -1);
     drawHorizontalLine(win_cols, mb_up-1, '=');
     int bottom = mb_up-2;
 
-    // INPUTBUFFER :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    // INPUTBUFFER :::::::::::::::::::::::::::::::::::::::::::::::::::::
 
     // Область вывода может быть максимум половиной от оставшейся высоты
     int max_ib_rows = bottom / 2;
@@ -415,12 +419,15 @@ void reDraw() {
                           &needCols, &needRows, &cursorRow, &cursorCol);
 
         if (needRows <= ob_bottom) {
-            display_wrapped(current->message, margin, ob_bottom - needRows,
+            display_wrapped(current->message, margin,
+                            ob_bottom - needRows,
                             maxWidth, needRows, 0, -1, -1);
-            ob_bottom -= needRows+1; // обновляем начальную точку для следующего сообщения
+            // обновляем начальную точку для следующего сообщения
+            ob_bottom -= needRows+1;
         } else {
             display_wrapped(current->message, margin, 0,
-                            maxWidth, ob_bottom, needRows - ob_bottom, -1, -1);
+                            maxWidth, ob_bottom,
+                            needRows - ob_bottom, -1, -1);
             ob_bottom = 0; // заполнили доступное пространство
         }
         current = current->prev; // переходим к предыдущему сообщению
@@ -429,8 +436,10 @@ void reDraw() {
     // Flush
     fflush(stdout);
 
-    // Перемещаем курсор в нужную позицию с поправкой на расположение inputbuffer
-    moveCursor(ib_cursor_col + margin, bottom + 1 + ib_cursor_row - ib_from_row);
+    // Перемещаем курсор в нужную позицию с поправкой
+    // на расположение inputbuffer
+    moveCursor(ib_cursor_col + margin,
+               bottom + 1 + ib_cursor_row - ib_from_row);
 }
 
 // Функции для копирования и очистки узлов списка сообщений

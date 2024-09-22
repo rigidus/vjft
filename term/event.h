@@ -19,7 +19,8 @@ typedef struct State State;
 // Предварительное объявление структуры InputEvent
 typedef struct InputEvent InputEvent;
 
-// Определение типа функции CmdFunc, который теперь знает о типе State и InputEvent
+// Определение типа функции CmdFunc, который теперь
+// знает о типе State и InputEvent
 typedef State* (*CmdFunc)(MsgNode*, InputEvent* event);
 
 // Типы Event-ов (нужны для отладочного вывода, после удалить)

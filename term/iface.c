@@ -58,7 +58,8 @@ void calc_display_size(const char* text, int max_width, int cursor_pos,
 
 
 void set_highlight_color() {
-    printf("\033[7m"); // Инвертирование цветов (меняет фон и текст местами)
+    // Инвертирование цветов (меняет фон и текст местами)
+    printf("\033[7m");
 }
 
 void reset_highlight_color() {
@@ -144,7 +145,8 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
             p += char_len; // Переходим к следующему символу
             cur_pos++;
         } else {
-            if (*p == '\0') {  // Если текущий символ - завершающий нулевой байт
+            if (*p == '\0') {
+                // Если текущий символ - завершающий нулевой байт
                 if (is_not_skipped_row()) { // Если мы не пропускаем
                     fputs("⍿", stdout); // Выводим символ END_OF_TEXT
                 }
@@ -156,7 +158,7 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
             } else {
                 // Обычный печатаемый символ
                 if (is_not_skipped_row()) { // Если мы не пропускаем
-                    fwrite(p, 1, char_len, stdout); // Выводим символ (UTF-8)
+                    fwrite(p, 1, char_len, stdout); // Выводим UTF8-символ
                 }
             }
             rel_col++; // Увеличиваем счётчик длины строки
@@ -173,16 +175,23 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
 }
 
 
-int display_message(MsgNode* message, int x, int y, int max_width, int max_height) {
-    if (message == NULL || message->message == NULL) return 0;
+int display_message(MsgNode* message, int x, int y,
+                    int max_width, int max_height) {
+    if (message == NULL || message->message == NULL) {
+        return 0;
+    }
 
     int needed_cols, needed_rows, cursor_row, cursor_col;
-    calc_display_size(message->message, max_width, 0, &needed_cols, &needed_rows, &cursor_row, &cursor_col);
+    calc_display_size(message->message, max_width, 0,
+                      &needed_cols, &needed_rows,
+                      &cursor_row, &cursor_col);
 
-    int display_start_row = (needed_rows > max_height) ? needed_rows - max_height : 0;
+    int display_start_row =
+        (needed_rows > max_height) ? needed_rows - max_height : 0;
     int actual_rows = min(needed_rows, max_height);
 
-    display_wrapped(message->message, x, y, max_width, actual_rows, display_start_row,
+    display_wrapped(message->message, x, y, max_width,
+                    actual_rows, display_start_row,
                     message->cursor_pos, message->shadow_cursor_pos);
 
     return actual_rows;

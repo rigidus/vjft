@@ -120,8 +120,8 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
             } else if ( (event->cmdFn == cmd_undo)
                         || (event->cmdFn == cmd_redo) ) {
                 // Итак, это cmd_redo или cmd_undo - для них не нужно
-                // ничего делать с возвращенным состоянием (кроме проверки
-                // на NULL), они все сделают сами.
+                // ничего делать с возвращенным состоянием
+                // (кроме проверки на NULL), они все сделают сами.
                 // Нужно только выполнить команду
                 if (event->cmdFn(msgList.current, event)) {
                     // Если возвращен не NULL, то cообщаем,
@@ -243,7 +243,8 @@ void connect_to_server(const char* server_ip, int port) {
     serv_addr.sin_port = htons(port);
     serv_addr.sin_addr.s_addr = inet_addr(server_ip);
 
-    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+    if (connect(sockfd, (struct sockaddr *)&serv_addr,
+                sizeof(serv_addr)) < 0) {
         pushMessage(&msgList, "connect_to_server_err: Connect failed");
         close(sockfd);
         sockfd = -1;
@@ -258,13 +259,14 @@ State* cmd_connect(MsgNode* msg, InputEvent* event) {
 
 State* cmd_alt_enter(MsgNode* msg, InputEvent* event) {
     /* pushMessage(&msgList, "ALT enter function"); */
-    if (!msg || !msg->message) return NULL;  // Проверяем, что msg и msg->message не NULL
+    if (!msg || !msg->message) return NULL;
 
     // Вычисляем byte_offset, используя текущую позицию курсора
     int byte_offset = utf8_byte_offset(msg->message, msg->cursor_pos);
 
     // Выделяем новую память для сообщения
-    char* new_message = malloc(strlen(msg->message) + 2);  // +2 для новой строки и нуль-терминатора
+    // +2 для новой строки и нуль-терминатора
+    char* new_message = malloc(strlen(msg->message) + 2);
     if (!new_message) {
         perror("Failed to allocate memory for new message");
         return NULL;
@@ -281,7 +283,8 @@ State* cmd_alt_enter(MsgNode* msg, InputEvent* event) {
     free(msg->message);
     msg->message = new_message;
 
-    msg->cursor_pos++; // Перемещаем курсор на следующий символ после '\n'
+    // Перемещаем курсор на следующий символ после '\n'
+    msg->cursor_pos++;
 
     // При необходимости обновляем UI или логику отображения
     // ...
@@ -315,6 +318,7 @@ State* cmd_enter(MsgNode* msg, InputEvent* event) {
     return NULL;
 }
 
+// Функция для удаления символа слева от курсора
 State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
     // Lock
     pthread_mutex_lock(&lock);
@@ -327,19 +331,23 @@ State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
     }
 
     // Находим байтовую позицию текущего и предыдущего UTF-8 символов
-    int byte_offset_current =
+    int byte_offset =
         utf8_byte_offset(msgnode->message, msgnode->cursor_pos);
-    int new_cursor_pos = msgnode->cursor_pos-1;
-    if (new_cursor_pos < 0) {
-        new_cursor_pos = 0;
-    }
+
+    // Так как ранее мы проверили, что msgnode->cursor_pos не ноль,
+    // не может быть ситуации антипереполения, и проверять не нужно
+    int new_cursor_pos = msgnode->cursor_pos - 1;
+
+    // Находим байтовую позицию предыдущего символа
     int byte_offset_prev =
         utf8_byte_offset(msgnode->message, new_cursor_pos);
 
-    // Вычисляем новую длину сообщения
+    // Вычисляем новую длину сообщения в байтах
     int new_length =
         strlen(msgnode->message)
-        - (byte_offset_current - byte_offset_prev) + 1;
+        - (byte_offset - byte_offset_prev) + 1;
+
+    // Выделяем память под новое сообщение
     char* new_message = malloc(new_length);
     if (!new_message) {
         perror("Не удалось выделить память");
@@ -351,12 +359,24 @@ State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
 
     // Копирование части строки после текущего символа
     strcpy(new_message + byte_offset_prev,
-           msgnode->message + byte_offset_current);
+           msgnode->message + byte_offset);
 
     // Освобождаем старое сообщение и присваиваем новое
     free(msgnode->message);
     msgnode->message = new_message;
-    msgnode->cursor_pos = new_cursor_pos; // Обновляем позицию курсора
+
+    // Обновляем позицию курсора
+    msgnode->cursor_pos = new_cursor_pos;
+
+    // Теперь, когда у нас есть изменненная msgnode
+    // мы можем создать State для undoStack
+    State* currentState = createState(msgnode, event);
+
+    // Запишем в undo-стек текущее состояние
+    pushState(&undoStack, currentState);
+
+    // Очистим redoStack, чтобы история не ветвилась
+    clearStack(&redoStack);
 
     // Снимаем Lock
     pthread_mutex_unlock(&lock);
@@ -507,6 +527,7 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
     // Байтовое смещение позиции курсора
     int byte_offset =
         utf8_byte_offset(msgnode->message, msgnode->cursor_pos);
+
     // Длина вставляемой последовательности
     int insert_len = strlen(event->seq);
 
@@ -519,6 +540,7 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
         perror("Failed to reallocate memory");
         exit(1);
     }
+
     // Обновляем указатель на message в msgnode
     msgnode->message = new_message;
 
@@ -526,6 +548,7 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
     memmove(msgnode->message + byte_offset + insert_len, // dest
             msgnode->message + byte_offset,              // src
             strlen(msgnode->message) - byte_offset + 1); // size_t
+
     // Вставка event->seq в позицию курсора
     memcpy(msgnode->message + byte_offset, event->seq, insert_len);
 
@@ -719,6 +742,9 @@ State* cmd_undo(MsgNode* msgnode, InputEvent* event) {
                         // Второй параметр все равно не ниспользуется в cmd_backspace
                         cmd_backspace(msgnode, NULL);
                     }
+                    // Перемещаем prevState в redoStack
+                    pushState(&redoStack, prevState);
+                } else {
                     // Перемещаем prevState в redoStack
                     pushState(&redoStack, prevState);
                 }
