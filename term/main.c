@@ -87,14 +87,14 @@ bool matchesCombo(Key* combo, int length) {
     CtrlStack* current = ctrlStack;
     for (int i = length - 1; i >= 0; i--) {
         if (!current) {
-            /* pushMessage(&messageList, strdup("STACK is NULL")); */
+            /* pushMessage(&msgList, strdup("STACK is NULL")); */
         } else {
             /* char fc_text[MAX_BUFFER] = {0}; */
             /* snprintf(fc_text, MAX_BUFFER, */
             /*          "STACK is NOT_NULL (%d): %s", */
             /*          i, */
             /*          key_to_str(current->key)); */
-            /* pushMessage(&messageList, strdup(fc_text)); */
+            /* pushMessage(&msgList, strdup(fc_text)); */
         }
         if (!current || current->key != combo[i]) {
             /* char fc_text[MAX_BUFFER] = {0}; */
@@ -103,13 +103,13 @@ bool matchesCombo(Key* combo, int length) {
             /*          key_to_str(current->key), */
             /*          i, */
             /*          key_to_str(combo[i])); */
-            /* pushMessage(&messageList, strdup(fc_text)); */
+            /* pushMessage(&msgList, strdup(fc_text)); */
             return false; // Не совпадает или стек короче комбинации
         }
-        /* pushMessage(&messageList, strdup("MAY_BE")); */
+        /* pushMessage(&msgList, strdup("MAY_BE")); */
         current = current->next;
     }
-    /* pushMessage(&messageList, strdup("ALMOST_MATCH")); */
+    /* pushMessage(&msgList, strdup("ALMOST_MATCH")); */
     return current == NULL; // Убедимся, что в стеке нет лишних клавиш
 }
 
@@ -119,10 +119,10 @@ const KeyMap* findCommandByKey() {
         /* snprintf(fc_text, MAX_BUFFER, */
         /*          "FINDCommandByKey: cmd by cmd = %s", */
         /*          keyCommands[i].cmdName); */
-        /* pushMessage(&messageList, strdup(fc_text)); */
+        /* pushMessage(&msgList, strdup(fc_text)); */
         if (matchesCombo(keyCommands[i].combo,
                          keyCommands[i].comboLength)) {
-            /* pushMessage(&messageList, "MATch!"); */
+            /* pushMessage(&msgList, "MATch!"); */
             return &keyCommands[i];
         }
     }
@@ -130,8 +130,8 @@ const KeyMap* findCommandByKey() {
 }
 
 
-MessageNode* copyMessageNodes(MessageNode* node);
-void freeMessageNodes(MessageNode* node);
+MsgNode* copyMsgNodes(MsgNode* node);
+void freeMsgNodes(MsgNode* node);
 
 
 /* keyboard */
@@ -163,7 +163,7 @@ bool keyb () {
                 /* char fc_text[MAX_BUFFER] = {0}; */
                 /* snprintf(fc_text, MAX_BUFFER,"enq CMD found=%s", */
                 /*          strdup(cmd->cmdName)); */
-                /* pushMessage(&messageList, strdup(fc_text)); */
+                /* pushMessage(&msgList, strdup(fc_text)); */
                 // DBG  OFF
                 enqueueEvent(&gInputEventQueue, &gEventQueue_mutex,
                              CMD, cmd->cmdFunc, cmd->param);
@@ -313,8 +313,8 @@ void reDraw() {
 
     // Вычисляем относительную позицию курсора в inputbuffer-е
     int rel_max_width = win_cols - margin*2;
-    calc_display_size(messageList.current->message, rel_max_width,
-                      messageList.current->cursor_pos,
+    calc_display_size(msgList.current->message, rel_max_width,
+                      msgList.current->cursor_pos,
                       &ib_need_cols, &ib_need_rows,
                       &ib_cursor_row, &ib_cursor_col);
 
@@ -330,7 +330,7 @@ void reDraw() {
     char mb_text[MAX_BUFFER] = {0};
     snprintf(mb_text, MAX_BUFFER,
              "cur_pos=%d\ncur_row=%d\ncur_col=%d\nib_need_rows=%d\nib_from_row=%d\n",
-             messageList.current->cursor_pos,
+             msgList.current->cursor_pos,
              ib_cursor_row, ib_cursor_col, ib_need_rows, ib_from_row);
     appendToMiniBuffer(mb_text);
 
@@ -387,11 +387,11 @@ void reDraw() {
     // Определяем абсолютные координаты верхней строки
     int up = bottom + 1 - ib_need_rows;
     // Выводим
-    if (messageList.current) {
-        display_wrapped(messageList.current->message, margin, up,
+    if (msgList.current) {
+        display_wrapped(msgList.current->message, margin, up,
                         rel_max_width, ib_need_rows, ib_from_row,
-                        messageList.current->cursor_pos,
-                        messageList.current->shadow_cursor_pos);
+                        msgList.current->cursor_pos,
+                        msgList.current->shadow_cursor_pos);
     }
     drawHorizontalLine(win_cols, up-1, '-');
     // Возвращаем номер строки выше отображения inputbuffer
@@ -404,7 +404,7 @@ void reDraw() {
     int ob_bottom = outputBufferAvailableLines;
     int maxWidth = win_cols - 2 * margin; // максимальная ширина текста
 
-    MessageNode* current = messageList.tail; // начинаем с последнего элемента
+    MsgNode* current = msgList.tail; // начинаем с последнего элемента
     if (current) {
         current = current->prev; // пропускаем последнее сообщение
     }
@@ -434,15 +434,15 @@ void reDraw() {
 }
 
 // Функции для копирования и очистки узлов списка сообщений
-MessageNode* copyMessageNodes(MessageNode* node) {
+MsgNode* copyMsgNodes(MsgNode* node) {
     if (!node) return NULL;
 
-    MessageNode* newNode = malloc(sizeof(MessageNode));
+    MsgNode* newNode = malloc(sizeof(MsgNode));
     if (!newNode) return NULL;
     newNode->message = strdup(node->message);
     newNode->cursor_pos = node->cursor_pos;
     newNode->shadow_cursor_pos = node->shadow_cursor_pos;
-    newNode->next = copyMessageNodes(node->next);
+    newNode->next = copyMsgNodes(node->next);
 
     if (newNode->next) {
         newNode->next->prev = newNode;
@@ -451,9 +451,9 @@ MessageNode* copyMessageNodes(MessageNode* node) {
     return newNode;
 }
 
-void freeMessageNodes(MessageNode* node) {
+void freeMsgNodes(MsgNode* node) {
     if (!node) return;
-    freeMessageNodes(node->next);
+    freeMsgNodes(node->next);
     free(node->message);
     free(node);
 }
@@ -471,8 +471,8 @@ State* peekState(const StateStack* stack) {
 // Инициализация состояния
 
 void reinitializeState() {
-    initMessageList(&messageList);
-    pushMessage(&messageList, "");
+    initMsgList(&msgList);
+    pushMessage(&msgList, "");
 }
 
 
@@ -576,7 +576,7 @@ int main() {
                     int nread = read(sockfd, buffer, sizeof(buffer) - 1);
                     if (nread > 0) {
                         buffer[nread] = '\0';
-                        pushMessage(&messageList, buffer);
+                        pushMessage(&msgList, buffer);
                         need_redraw = true;
                     }
                 }
@@ -591,9 +591,9 @@ int main() {
 
     clearScreen();
 
-    clearMessageList(&messageList);
+    clearMsgList(&msgList);
 
-    pthread_mutex_destroy(&messageList_mutex);
+    pthread_mutex_destroy(&msgList_mutex);
     pthread_mutex_destroy(&gEventQueue_mutex);
 
     return 0;

@@ -7,27 +7,27 @@
 #include <string.h>
 #include <pthread.h>
 
-typedef struct MessageNode {
+typedef struct MsgNode {
     char* message;
-    struct MessageNode* prev;
-    struct MessageNode* next;
+    struct MsgNode* prev;
+    struct MsgNode* next;
     int cursor_pos;
     int shadow_cursor_pos;
-} MessageNode;
+} MsgNode;
 
 typedef struct {
-    MessageNode* head;
-    MessageNode* tail;
-    MessageNode* current;
+    MsgNode* head;
+    MsgNode* tail;
+    MsgNode* current;
     int size;
-} MessageList;
+} MsgList;
 
-extern pthread_mutex_t messageList_mutex;
+extern pthread_mutex_t msgList_mutex;
 
-void initMessageList(MessageList* list);
-void pushMessage(MessageList* list, const char* text);
-void clearMessageList(MessageList* list);
-void moveToNextMessage(MessageList* list);
-void moveToPreviousMessage(MessageList* list);
+void initMsgList(MsgList* list);
+void pushMessage(MsgList* list, const char* text);
+void clearMsgList(MsgList* list);
+void moveToNextMessage(MsgList* list);
+void moveToPreviousMessage(MsgList* list);
 
 #endif

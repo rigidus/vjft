@@ -2,8 +2,8 @@
 
 #include "event.h"
 
-MessageList messageList = {0};
-pthread_mutex_t messageList_mutex = PTHREAD_MUTEX_INITIALIZER;
+MsgList msgList = {0};
+pthread_mutex_t msgList_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Стеки undo и redo
 StateStack* undoStack = NULL;
@@ -15,6 +15,10 @@ pthread_mutex_t gEventQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 InputEvent* gHistoryEventQueue = NULL;
 pthread_mutex_t gHistoryQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+// Lock для операций с msgNode ([TODO:gmm] вероятно нужно
+// сделать для каждой msgNode свой Lock)
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 
 void enqueueEvent(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
@@ -101,7 +105,7 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
                 snprintf(logMsg, sizeof(logMsg),
                          "[DBG]: %s, [%s]\n",
                          key_to_str(key), asciiCodes);
-                pushMessage(&messageList, logMsg);
+                pushMessage(&msgList, logMsg);
                 updated = true;
             }
             break;
@@ -112,14 +116,14 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
                 snprintf(logMsg, sizeof(logMsg),
                          "case CMD: No command found for: %s\n",
                          event->seq);
-                pushMessage(&messageList, logMsg);
+                pushMessage(&msgList, logMsg);
             } else if ( (event->cmdFn == cmd_undo)
                         || (event->cmdFn == cmd_redo) ) {
                 // Итак, это cmd_redo или cmd_undo - для них не нужно
                 // ничего делать с возвращенным состоянием (кроме проверки
                 // на NULL), они все сделают сами.
                 // Нужно только выполнить команду
-                if (event->cmdFn(messageList.current, event)) {
+                if (event->cmdFn(msgList.current, event)) {
                     // Если возвращен не NULL, то cообщаем,
                     // что данные для отображения обновились
                     updated = true;
@@ -130,7 +134,7 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
                 // Получаем состояние или NULL, если в результате
                 // выполнения cmdFn состояние не было изменено
                 State* currentState =
-                    event->cmdFn(messageList.current, event);
+                    event->cmdFn(msgList.current, event);
 
                 // Дальше все зависит от полученного состояния
                 if (!currentState) {
@@ -148,7 +152,7 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
             // Обнаружили странный event type
             char logMsg[DBG_LOG_MSG_SIZE] = {0};
             snprintf(logMsg, sizeof(logMsg), "Unk event type\n");
-            pushMessage(&messageList, logMsg);
+            pushMessage(&msgList, logMsg);
         } // endswitch
 
         // Пересоздать обработанное событие в очереди выполненных
@@ -169,7 +173,7 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
 }
 
 
-State* createState(MessageNode* currentNode, InputEvent* event) {
+State* createState(MsgNode* currentNode, InputEvent* event) {
     if (!currentNode) return NULL;
     State* state = malloc(sizeof(State));
     if (!state) return NULL;
@@ -230,7 +234,7 @@ extern int sockfd;
 void connect_to_server(const char* server_ip, int port) {
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        pushMessage(&messageList, "connect_to_server_err: Cannot create socket");
+        pushMessage(&msgList, "connect_to_server_err: Cannot create socket");
     }
 
     struct sockaddr_in serv_addr;
@@ -240,20 +244,20 @@ void connect_to_server(const char* server_ip, int port) {
     serv_addr.sin_addr.s_addr = inet_addr(server_ip);
 
     if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        pushMessage(&messageList, "connect_to_server_err: Connect failed");
+        pushMessage(&msgList, "connect_to_server_err: Connect failed");
         close(sockfd);
         sockfd = -1;
     }
 }
 
-State* cmd_connect(MessageNode* msg, InputEvent* event) {
+State* cmd_connect(MsgNode* msg, InputEvent* event) {
     connect_to_server("127.0.0.1", 8888);
 
     return NULL;
 }
 
-State* cmd_alt_enter(MessageNode* msg, InputEvent* event) {
-    /* pushMessage(&messageList, "ALT enter function"); */
+State* cmd_alt_enter(MsgNode* msg, InputEvent* event) {
+    /* pushMessage(&msgList, "ALT enter function"); */
     if (!msg || !msg->message) return NULL;  // Проверяем, что msg и msg->message не NULL
 
     // Вычисляем byte_offset, используя текущую позицию курсора
@@ -285,45 +289,57 @@ State* cmd_alt_enter(MessageNode* msg, InputEvent* event) {
     return NULL;
 }
 
-State* cmd_enter(MessageNode* msg, InputEvent* event) {
-    pushMessage(&messageList, "enter function");
-    if (messageList.current == NULL) {
-        pushMessage(&messageList, "cmd_enter_err: Нет сообщения для отправки");
+State* cmd_enter(MsgNode* msg, InputEvent* event) {
+    pushMessage(&msgList, "enter function");
+    if (msgList.current == NULL) {
+        pushMessage(&msgList, "cmd_enter_err: Нет сообщения для отправки");
         return NULL;
     }
     const char* text = msg->message;
     if (text == NULL || strlen(text) == 0) {
-        pushMessage(&messageList, "cmd_enter_err: Текущее сообщение пусто");
+        pushMessage(&msgList, "cmd_enter_err: Текущее сообщение пусто");
         return NULL;
     }
     if (sockfd <= 0) {
-        pushMessage(&messageList, "cmd_enter_err: Нет соединения");
+        pushMessage(&msgList, "cmd_enter_err: Нет соединения");
         return NULL;
     }
 
     ssize_t bytes_sent = send(sockfd, text, strlen(text), 0);
     if (bytes_sent < 0) {
-        pushMessage(&messageList, "cmd_enter_err: Ошибка при отправке сообщения");
+        pushMessage(&msgList, "cmd_enter_err: Ошибка при отправке сообщения");
     } else {
-        pushMessage(&messageList, "cmd_enter: отправлено успешно");
+        pushMessage(&msgList, "cmd_enter: отправлено успешно");
     }
 
     return NULL;
 }
 
-State* cmd_backspace(MessageNode* msg, InputEvent* event) {
-    if (!msg || !msg->message || msg->cursor_pos == 0) return NULL;
+State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
+    // Lock
+    pthread_mutex_lock(&lock);
+
+    if ( (!msgnode) || (!msgnode->message)
+         || (msgnode->cursor_pos == 0) ) {
+        // Если с msgnode что-то не так,
+        // отпустим lock и вернемся
+        return NULL;
+    }
 
     // Находим байтовую позицию текущего и предыдущего UTF-8 символов
-    int byte_offset_current = utf8_byte_offset(msg->message, msg->cursor_pos);
-    int new_cursor_pos = msg->cursor_pos-1;
+    int byte_offset_current =
+        utf8_byte_offset(msgnode->message, msgnode->cursor_pos);
+    int new_cursor_pos = msgnode->cursor_pos-1;
     if (new_cursor_pos < 0) {
         new_cursor_pos = 0;
     }
-    int byte_offset_prev = utf8_byte_offset(msg->message, new_cursor_pos);
+    int byte_offset_prev =
+        utf8_byte_offset(msgnode->message, new_cursor_pos);
 
     // Вычисляем новую длину сообщения
-    int new_length = strlen(msg->message) - (byte_offset_current - byte_offset_prev) + 1;
+    int new_length =
+        strlen(msgnode->message)
+        - (byte_offset_current - byte_offset_prev) + 1;
     char* new_message = malloc(new_length);
     if (!new_message) {
         perror("Не удалось выделить память");
@@ -331,26 +347,30 @@ State* cmd_backspace(MessageNode* msg, InputEvent* event) {
     }
 
     // Копирование части строки до предыдущего символа
-    strncpy(new_message, msg->message, byte_offset_prev);
+    strncpy(new_message, msgnode->message, byte_offset_prev);
 
     // Копирование части строки после текущего символа
-    strcpy(new_message + byte_offset_prev, msg->message + byte_offset_current);
+    strcpy(new_message + byte_offset_prev,
+           msgnode->message + byte_offset_current);
 
     // Освобождаем старое сообщение и присваиваем новое
-    free(msg->message);
-    msg->message = new_message;
-    msg->cursor_pos = new_cursor_pos; // Обновляем позицию курсора
+    free(msgnode->message);
+    msgnode->message = new_message;
+    msgnode->cursor_pos = new_cursor_pos; // Обновляем позицию курсора
+
+    // Снимаем Lock
+    pthread_mutex_unlock(&lock);
 
     return NULL;
 }
 
-State* cmd_backward_char(MessageNode* node, InputEvent* event) {
+State* cmd_backward_char(MsgNode* node, InputEvent* event) {
     if (node->cursor_pos > 0) { node->cursor_pos--; }
 
     return NULL;
 }
 
-State* cmd_forward_char(MessageNode* node, InputEvent* event) {
+State* cmd_forward_char(MsgNode* node, InputEvent* event) {
     // >=, чтобы позволить курсору стоять на позиции нулевого символа
     int len = utf8_strlen(node->message);
     if (++node->cursor_pos >= len) { node->cursor_pos = len; }
@@ -359,7 +379,7 @@ State* cmd_forward_char(MessageNode* node, InputEvent* event) {
 }
 
 // Перемещение курсора вперед на одно слово
-State* cmd_forward_word(MessageNode* node, InputEvent* event) {
+State* cmd_forward_word(MsgNode* node, InputEvent* event) {
     int len = utf8_strlen(node->message);  // Длина строки в байтах
 
     // Смещение в байтах от начала строки до курсора
@@ -383,7 +403,7 @@ State* cmd_forward_word(MessageNode* node, InputEvent* event) {
 }
 
 // Перемещение курсора назад на одно слово
-State* cmd_backward_word(MessageNode* node, InputEvent* event) {
+State* cmd_backward_word(MsgNode* node, InputEvent* event) {
     if (node->cursor_pos == 0) return NULL;  // Если курсор уже в начале, ничего не делаем
 
     // Смещение в байтах от начала строки до курсора
@@ -412,7 +432,7 @@ State* cmd_backward_word(MessageNode* node, InputEvent* event) {
     return NULL;
 }
 
-State* cmd_to_beginning_of_line(MessageNode* node, InputEvent* event) {
+State* cmd_to_beginning_of_line(MsgNode* node, InputEvent* event) {
     // Если курсор уже в начале текста, ничего не делаем
     if (node->cursor_pos == 0) return NULL;
 
@@ -437,7 +457,7 @@ State* cmd_to_beginning_of_line(MessageNode* node, InputEvent* event) {
     return NULL;
 }
 
-State* cmd_to_end_of_line(MessageNode* node, InputEvent* event) {
+State* cmd_to_end_of_line(MsgNode* node, InputEvent* event) {
     // Длина строки в байтах
     int len = strlen(node->message);
 
@@ -461,60 +481,60 @@ State* cmd_to_end_of_line(MessageNode* node, InputEvent* event) {
 }
 
 State* cmd_prev_msg() {
-    moveToPreviousMessage(&messageList);
+    moveToPreviousMessage(&msgList);
 
     return NULL;
 }
 
 State* cmd_next_msg() {
-    moveToNextMessage(&messageList);
+    moveToNextMessage(&msgList);
 
     return NULL;
 }
 
 // Функция для вставки текста в позицию курсора
-pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-State* cmd_insert(MessageNode* node, InputEvent* event) {
+State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
     // Lock
     pthread_mutex_lock(&lock);
 
-    if (!node || !node->message) {
-        // Если с node что-то не так,
+    if (!msgnode || !msgnode->message) {
+        // Если с msgnode что-то не так,
         // отпустим lock и вернемся
         pthread_mutex_unlock(&lock);
         return NULL;
     }
 
     // Байтовое смещение позиции курсора
-    int byte_offset = utf8_byte_offset(node->message, node->cursor_pos);
+    int byte_offset =
+        utf8_byte_offset(msgnode->message, msgnode->cursor_pos);
     // Длина вставляемой последовательности
     int insert_len = strlen(event->seq);
 
     // Реаллоцируем message
     char* new_message =
-        realloc(node->message,
-                strlen(node->message) + insert_len + 1);
+        realloc(msgnode->message,
+                strlen(msgnode->message) + insert_len + 1);
     if (new_message == NULL) {
         // Тут Lock можно не отпускать, все равно выходим
         perror("Failed to reallocate memory");
         exit(1);
     }
-    // Обновляем указатель на message в node
-    node->message = new_message;
+    // Обновляем указатель на message в msgnode
+    msgnode->message = new_message;
 
     // Сдвиг части строки справа от курсора вправо на insert_len
-    memmove(node->message + byte_offset + insert_len, // dest
-            node->message + byte_offset,              // src
-            strlen(node->message) - byte_offset + 1); // size_t
+    memmove(msgnode->message + byte_offset + insert_len, // dest
+            msgnode->message + byte_offset,              // src
+            strlen(msgnode->message) - byte_offset + 1); // size_t
     // Вставка event->seq в позицию курсора
-    memcpy(node->message + byte_offset, event->seq, insert_len);
+    memcpy(msgnode->message + byte_offset, event->seq, insert_len);
 
     // Смещение курсора (выполняется в utf8-символах)
-    node->cursor_pos += utf8_strlen(event->seq);
+    msgnode->cursor_pos += utf8_strlen(event->seq);
 
-    // Теперь, когда у нас есть изменненная node
+    // Теперь, когда у нас есть изменненная msgnode
     // мы можем создать State для undoStack
-    State* currentState = createState(node, event);
+    State* currentState = createState(msgnode, event);
 
     // Пытаемся получить предыдущее состояние
     State* prevState = popState(&undoStack);
@@ -569,7 +589,7 @@ State* cmd_insert(MessageNode* node, InputEvent* event) {
                 "prev_seq_len:%d event_seq_len:%d, new_seq_len:%d (%p -> %p) <%s>",
                 prev_seq_len, event_seq_len, new_seq_len,
                 prevState->forward.seq, new_seq, new_seq);
-            pushMessage(&messageList, log);
+            pushMessage(&msgList, log);
         }
     }
 
@@ -610,7 +630,7 @@ char* pop_clipboard() {
     return text;
 }
 
-State* cmd_copy(MessageNode* node, InputEvent* event) {
+State* cmd_copy(MsgNode* node, InputEvent* event) {
     int start = min(node->cursor_pos, node->shadow_cursor_pos);
     int end = max(node->cursor_pos, node->shadow_cursor_pos);
 
@@ -626,7 +646,7 @@ State* cmd_copy(MessageNode* node, InputEvent* event) {
     return NULL;
 }
 
-State* cmd_cut(MessageNode* node, InputEvent* event) {
+State* cmd_cut(MsgNode* node, InputEvent* event) {
     /* cmd_copy(node, param); // Сначала копируем текст */
 
     /* int start = min(node->cursor_pos, node->shadow_cursor_pos); */
@@ -643,7 +663,7 @@ State* cmd_cut(MessageNode* node, InputEvent* event) {
     return NULL;
 }
 
-State* cmd_paste(MessageNode* node, InputEvent* event) {
+State* cmd_paste(MsgNode* node, InputEvent* event) {
     /* char* text_to_paste = pop_clipboard(); */
     /* if (text_to_paste) { */
     /*     cmd_insert(node, text_to_paste); */
@@ -653,7 +673,7 @@ State* cmd_paste(MessageNode* node, InputEvent* event) {
     return NULL;
 }
 
-State* cmd_toggle_cursor_shadow(MessageNode* node, InputEvent* event) {
+State* cmd_toggle_cursor_shadow(MsgNode* node, InputEvent* event) {
     int temp = node->cursor_pos;
     node->cursor_pos = node->shadow_cursor_pos;
     node->shadow_cursor_pos = temp;
@@ -662,9 +682,9 @@ State* cmd_toggle_cursor_shadow(MessageNode* node, InputEvent* event) {
 }
 
 
-State* cmd_undo(MessageNode* msgnode, InputEvent* event) {
+State* cmd_undo(MsgNode* msgnode, InputEvent* event) {
     if (undoStack == NULL) {
-        pushMessage(&messageList, "No more actions to undo");
+        pushMessage(&msgList, "No more actions to undo");
         // Если undoStack пуст, то ничего перерисовывать не надо
         return NULL;
     } else {
@@ -673,7 +693,7 @@ State* cmd_undo(MessageNode* msgnode, InputEvent* event) {
         State* prevState = popState(&undoStack);
 
         if (!prevState) {
-            pushMessage(&messageList, "Failed to pop state from undoStack");
+            pushMessage(&msgList, "Failed to pop state from undoStack");
             return NULL;
         } else {
 
@@ -688,7 +708,7 @@ State* cmd_undo(MessageNode* msgnode, InputEvent* event) {
                      prevState->forward.seq,
                      (int)utf8_strlen(prevState->forward.seq)
                 );
-            pushMessage(&messageList, logMsg);
+            pushMessage(&msgList, logMsg);
 
             if (prevState->forward.type == CMD) {
                 // undo for cmd_insert
@@ -710,9 +730,9 @@ State* cmd_undo(MessageNode* msgnode, InputEvent* event) {
     }
 }
 
-State* cmd_redo(MessageNode* msgnode, InputEvent* event) {
+State* cmd_redo(MsgNode* msgnode, InputEvent* event) {
     if (redoStack == NULL) {
-        pushMessage(&messageList, "No more actions to redo");
+        pushMessage(&msgList, "No more actions to redo");
         // Если redoStack пуст, то ничего перерисовывать не надо
         return NULL;
     } else {
@@ -721,7 +741,7 @@ State* cmd_redo(MessageNode* msgnode, InputEvent* event) {
         State* prevState = popState(&redoStack);
 
         if (!prevState) {
-            pushMessage(&messageList, "Failed to pop state from redoStack");
+            pushMessage(&msgList, "Failed to pop state from redoStack");
             return NULL;
         } else {
 
@@ -736,12 +756,12 @@ State* cmd_redo(MessageNode* msgnode, InputEvent* event) {
                      prevState->forward.seq,
                      (int)utf8_strlen(prevState->forward.seq)
                 );
-            pushMessage(&messageList, logMsg);
+            pushMessage(&msgList, logMsg);
 
             if (prevState->forward.type == CMD) {
                 // undo for cmd_insert
                 if (prevState->forward.cmdFn == cmd_insert) {
-                    // Применяем forward к messageList.current */
+                    // Применяем forward к msgList.current */
                     cmd_insert(msgnode, &prevState->forward);
                 }
             }

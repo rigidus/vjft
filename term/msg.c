@@ -2,17 +2,17 @@
 
 #include "msg.h"
 
-void initMessageList(MessageList* list) {
-    *list = (MessageList){0};
+void initMsgList(MsgList* list) {
+    *list = (MsgList){0};
 }
 
-void pushMessage(MessageList* list, const char* text) {
-    pthread_mutex_lock(&messageList_mutex);
+void pushMessage(MsgList* list, const char* text) {
+    pthread_mutex_lock(&msgList_mutex);
 
-    MessageNode* newNode = (MessageNode*)malloc(sizeof(MessageNode));
+    MsgNode* newNode = (MsgNode*)malloc(sizeof(MsgNode));
     if (newNode == NULL) {
         perror("Failed to allocate memory for new message node");
-        pthread_mutex_unlock(&messageList_mutex);
+        pthread_mutex_unlock(&msgList_mutex);
         exit(1);
     }
 
@@ -20,7 +20,7 @@ void pushMessage(MessageList* list, const char* text) {
     if (newNode->message == NULL) {
         free(newNode);
         perror("Failed to duplicate message string");
-        pthread_mutex_unlock(&messageList_mutex);
+        pthread_mutex_unlock(&msgList_mutex);
         return;
     }
 
@@ -43,13 +43,13 @@ void pushMessage(MessageList* list, const char* text) {
 
     list->size++;
 
-    pthread_mutex_unlock(&messageList_mutex);
+    pthread_mutex_unlock(&msgList_mutex);
 }
 
-void clearMessageList(MessageList* list) {
-    MessageNode* current = list->head;
+void clearMsgList(MsgList* list) {
+    MsgNode* current = list->head;
     while (current != NULL) {
-        MessageNode* temp = current;
+        MsgNode* temp = current;
         current = current->next;
         free(temp->message);  // Освобождение памяти выделенной под строку
         free(temp);           // Освобождение памяти выделенной под узел
@@ -60,18 +60,18 @@ void clearMessageList(MessageList* list) {
     list->size = 0;
 }
 
-void moveToNextMessage(MessageList* list) {
-    /* pthread_mutex_lock(&messageList_mutex); */
+void moveToNextMessage(MsgList* list) {
+    /* pthread_mutex_lock(&msgList_mutex); */
     if (list->current && list->current->next) {
         list->current = list->current->next;
     }
-    /* pthread_mutex_unlock(&messageList_mutex); */
+    /* pthread_mutex_unlock(&msgList_mutex); */
 }
 
-void moveToPreviousMessage(MessageList* list) {
-    /* pthread_mutex_lock(&messageList_mutex); */
+void moveToPreviousMessage(MsgList* list) {
+    /* pthread_mutex_lock(&msgList_mutex); */
     if (list->current && list->current->prev) {
         list->current = list->current->prev;
     }
-    /* pthread_mutex_unlock(&messageList_mutex); */
+    /* pthread_mutex_unlock(&msgList_mutex); */
 }

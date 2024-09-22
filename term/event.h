@@ -10,8 +10,8 @@
 #include "key.h"
 /* #include "cmd.h" */
 
-extern MessageList messageList;
-extern pthread_mutex_t messageList_mutex;
+extern MsgList msgList;
+extern pthread_mutex_t msgList_mutex;
 
 // Предварительное объявление структуры State
 typedef struct State State;
@@ -20,7 +20,7 @@ typedef struct State State;
 typedef struct InputEvent InputEvent;
 
 // Определение типа функции CmdFunc, который теперь знает о типе State и InputEvent
-typedef State* (*CmdFunc)(MessageNode*, InputEvent* event);
+typedef State* (*CmdFunc)(MsgNode*, InputEvent* event);
 
 // Типы Event-ов (нужны для отладочного вывода, после удалить)
 typedef enum {
@@ -81,7 +81,7 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
 
 
 // Функции работы с состояниями отмены/возврата
-State* createState(MessageNode* currentNode, InputEvent* event);
+State* createState(MsgNode* currentNode, InputEvent* event);
 void freeState(State* state);
 void pushState(StateStack** stack, State* state);
 State* popState(StateStack** stack);
@@ -93,9 +93,9 @@ void clearStack(StateStack** stack);
 void connect_to_server(const char* server_ip, int port);
 
 State* cmd_connect();
-State* cmd_enter(MessageNode* msg, InputEvent* event);
-State* cmd_alt_enter(MessageNode* msg, InputEvent* event);
-State* cmd_backspace(MessageNode* msg, InputEvent* event);
+State* cmd_enter(MsgNode* msg, InputEvent* event);
+State* cmd_alt_enter(MsgNode* msg, InputEvent* event);
+State* cmd_backspace(MsgNode* msg, InputEvent* event);
 State* cmd_prev_msg();
 State* cmd_next_msg();
 State* cmd_backward_char();
@@ -105,11 +105,11 @@ State* cmd_backward_word();
 State* cmd_to_end_of_line();
 State* cmd_to_beginning_of_line();
 State* cmd_insert();
-State* cmd_copy(MessageNode* node, InputEvent* event);
-State* cmd_cut(MessageNode* node, InputEvent* event);
-State* cmd_paste(MessageNode* node, InputEvent* event);
-State* cmd_toggle_cursor_shadow(MessageNode* node, InputEvent* event);
-State* cmd_undo(MessageNode* msg, InputEvent* event);
-State* cmd_redo(MessageNode* msg, InputEvent* event);
+State* cmd_copy(MsgNode* node, InputEvent* event);
+State* cmd_cut(MsgNode* node, InputEvent* event);
+State* cmd_paste(MsgNode* node, InputEvent* event);
+State* cmd_toggle_cursor_shadow(MsgNode* node, InputEvent* event);
+State* cmd_undo(MsgNode* msg, InputEvent* event);
+State* cmd_redo(MsgNode* msg, InputEvent* event);
 
 #endif
