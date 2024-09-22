@@ -38,12 +38,10 @@ typedef struct InputEvent {
 } InputEvent;
 
 // Полное определение структуры State,
-// которое уже может использовать CmdFunc и InputEvent
+// которое уже может использовать CmdFunc
 typedef struct State {
-    int cursor_pos;
-    int shadow_cursor_pos;
-    InputEvent forward;
-    /* InputEvent revert; */
+    CmdFunc cmdFn;
+    char* seq;
 } State;
 
 // Тип стека состояний для undo/redo

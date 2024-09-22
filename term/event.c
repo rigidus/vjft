@@ -130,7 +130,7 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
                 }
             } else {
                 // Это не cmd_redo или cmd_undo, а другая команда.
-                // Выполняем команду, применяя к msgList.current
+                // Выполняем команду, применяя к msgList.curr
                 // Получаем состояние или NULL, если в результате
                 // выполнения cmdFn состояние не было изменено
                 State* retState = event->cmdFn(msgList.curr, event);
@@ -178,21 +178,8 @@ State* createState(MsgNode* currentNode, InputEvent* event) {
     if (!currentNode) return NULL;
     State* state = malloc(sizeof(State));
     if (!state) return NULL;
-
-    // [TODO:gmm] Пока мы сохраняем полное состояние и обратное действие
-    state->cursor_pos = currentNode->cursor_pos;
-    state->shadow_cursor_pos = currentNode->shadow_cursor_pos;
-
-    if (event) {
-        if (event->type == CMD) {
-            if (event->cmdFn == cmd_insert) {
-                state->forward.type = event->type;
-                state->forward.cmdFn = event->cmdFn;
-                state->forward.seq = strdup(event->seq);
-            }
-        }
-    }
-
+    state->cmdFn = event->cmdFn;
+    state->seq = strdup(event->seq);
     return state;
 }
 
@@ -565,8 +552,8 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
         // то формируем новое состояние, которое будет возвращено
         currState = createState(msgnode, event);
     } else {
-        if ( (prevState->forward.cmdFn != cmd_insert)
-             || (utf8_char_length(prevState->forward.seq) > 5)
+        if ( (prevState->cmdFn != cmd_insert)
+             || (utf8_char_length(prevState->seq) > 5)
             ) {
             // Если предыдущее состояние не cmd_insert
             // или его длина больше 5, вернем его обратно
@@ -581,15 +568,15 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
             currState = prevState;
 
             // Вычислим длину insert-sequence в байтах
-            int insert_seq_len  = strlen(currState->forward.seq);
+            int insert_seq_len  = strlen(currState->seq);
             // Вычислим длину в байтах того что хотим добавить
             int event_seq_len = strlen(event->seq);
             // Получится общая длина + терминатор
             int new_seq_len = insert_seq_len + event_seq_len + 1;
 
-            // Реаллоцируем forward.seq в new_seq
+            // Реаллоцируем seq в new_seq
             char* new_seq =
-                realloc(currState->forward.seq, new_seq_len);
+                realloc(currState->seq, new_seq_len);
             if (new_seq == NULL) {
                 perror("Failed to reallocate memory");
                 exit(1);
@@ -602,9 +589,8 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
             strncpy(new_seq + insert_seq_len,
                     event->seq, event_seq_len);
 
-            // Записываем реаллоцированный forward.seq
-            // в currState
-            currState->forward.seq = new_seq;
+            // Записываем реаллоцированный seq в currState
+            currState->seq = new_seq;
 
             // Отладочный вывод
             /* char log[DBG_LOG_MSG_SIZE] = {0}; */
@@ -612,7 +598,7 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
             /*     log, sizeof(log), */
             /*     "insert_seq_len:%d event_seq_len:%d, new_seq_len:%d (%p -> %p) <%s>", */
             /*     insert_seq_len, event_seq_len, new_seq_len, */
-            /*     currState->forward.seq, new_seq, new_seq); */
+            /*     currState->seq, new_seq, new_seq); */
             /* pushMessage(&msgList, log); */
         }
     }
@@ -724,58 +710,55 @@ State* cmd_undo(MsgNode* msgnode, InputEvent* event) {
             snprintf(
                 logMsg,
                 sizeof(logMsg),
-                "cmd_undo: %s : %s - <%s> [%d]",
-                (prevState->forward.type == CMD) ? "CMD" : "unk_type",
-                (prevState->forward.cmdFn == cmd_insert)
+                "cmd_undo: %s - <%s> [%d]",
+                (prevState->cmdFn == cmd_insert)
                 ? "cmd_insert" : "unk_cmdFn",
-                prevState->forward.seq,
-                (int)utf8_strlen(prevState->forward.seq)
+                prevState->seq,
+                (int)utf8_strlen(prevState->seq)
                 );
             pushMessage(&msgList, logMsg);
 
-            if (prevState->forward.type == CMD) {
-                if (prevState->forward.cmdFn == cmd_insert) {
-                    // Вычисляем сколько utf-8 символов надо удалить
-                    int cnt_del = utf8_strlen(prevState->forward.seq);
-                    // Вычисляем сколько они занимают байт
-                    int ins_len = strlen(prevState->forward.seq);
+            if (prevState->cmdFn == cmd_insert) {
+                // Вычисляем сколько utf-8 символов надо удалить
+                int cnt_del = utf8_strlen(prevState->seq);
+                // Вычисляем сколько они занимают байт
+                int ins_len = strlen(prevState->seq);
 
-                    // Находим байтовую позицию символа под курсором
-                    int byte_offset =
-                        utf8_byte_offset(msgnode->message,
-                                         msgnode->cursor_pos);
+                // Находим байтовую позицию символа под курсором
+                int byte_offset =
+                    utf8_byte_offset(msgnode->message,
+                                     msgnode->cursor_pos);
 
-                    // Новая байтовая позиция будет меньше на
-                    // размер удаляемой строки в байтах
-                    int new_byte_offset = byte_offset - ins_len;
+                // Новая байтовая позиция будет меньше на
+                // размер удаляемой строки в байтах
+                int new_byte_offset = byte_offset - ins_len;
 
-                    // Если новая байтовая позиция меньше чем
-                    // начало строки - это сбой
-                    if (new_byte_offset < 0) {
-                        perror("Error calc undo insert");
-                        exit(1);
-                    }
-
-                    // Перемещаем правую часть строки на новую
-                    // байтовую позицию
-                    strcpy(msgnode->message + new_byte_offset,
-                           msgnode->message + byte_offset);
-                    // Реаллоцируем строку [TODO:gmm] segfault
-                    /* msgnode->message = */
-                    /*     realloc(msgnode->message, */
-                    /*             strlen(msgnode->message) */
-                    /*             - ins_len); */
-                    //
-
-                    // Перемещаем курсор на кол-во удаленных символов
-                    msgnode->cursor_pos -= cnt_del;
-
-                    // Перемещаем prevState в redoStack
-                    pushState(&redoStack, prevState);
-                } else {
-                    // Перемещаем prevState в redoStack
-                    pushState(&redoStack, prevState);
+                // Если новая байтовая позиция меньше чем
+                // начало строки - это сбой
+                if (new_byte_offset < 0) {
+                    perror("Error calc undo insert");
+                    exit(1);
                 }
+
+                // Перемещаем правую часть строки на новую
+                // байтовую позицию
+                strcpy(msgnode->message + new_byte_offset,
+                       msgnode->message + byte_offset);
+                // Реаллоцируем строку [TODO:gmm] segfault
+                /* msgnode->message = */
+                /*     realloc(msgnode->message, */
+                /*             strlen(msgnode->message) */
+                /*             - ins_len); */
+                //
+
+                // Перемещаем курсор на кол-во удаленных символов
+                msgnode->cursor_pos -= cnt_del;
+
+                // Перемещаем prevState в redoStack
+                pushState(&redoStack, prevState);
+            } else {
+                // Перемещаем prevState в redoStack
+                pushState(&redoStack, prevState);
             }
         }
 
@@ -798,28 +781,19 @@ State* cmd_redo(MsgNode* msgnode, InputEvent* event) {
             pushMessage(&msgList, "Failed to pop state from redoStack");
             return NULL;
         } else {
-
-            // Отладочный вывод
-            char logMsg[DBG_LOG_MSG_SIZE] = {0};
-            snprintf(logMsg,
-                     sizeof(logMsg),
-                     "cmd_undo: %s : %s - <%s> [%d]",
-                     (prevState->forward.type == CMD) ? "CMD" : "unk_type",
-                     (prevState->forward.cmdFn == cmd_insert)
-                     ? "cmd_insert" : "unk_cmdFn",
-                     prevState->forward.seq,
-                     (int)utf8_strlen(prevState->forward.seq)
-                );
-            pushMessage(&msgList, logMsg);
-
-            if (prevState->forward.type == CMD) {
-                // undo for cmd_insert
-                if (prevState->forward.cmdFn == cmd_insert) {
-                    // Применяем forward к msgList.current */
-                    cmd_insert(msgnode, &prevState->forward);
-                }
+            // [TODO:gmm] Надо завести набор парных функций
+            // undo/redo и искать обратную функцию в этом наборе
+            if (prevState->cmdFn == cmd_insert) {
+                // Создаем event
+                InputEvent* event = malloc(sizeof(InputEvent));
+                event->type = CMD;
+                event->cmdFn = prevState->cmdFn;
+                event->seq = strdup(prevState->seq);
+                // Применяем event к msgList.current */
+                cmd_insert(msgnode, event);
+            } else {
+                pushMessage(&msgList, "cmd_redo: unk_cmdFn");
             }
-
             // Перемещаем prevState в undoStack
             pushState(&undoStack, prevState);
         }

@@ -283,11 +283,9 @@ void displayUndoStates(StateStack* stateStack) {
             char stateDesc[128] = {0};
             // Форматирование описания состояния и добавление его в буфер
             snprintf(stateDesc, sizeof(stateDesc),
-                     "Pos: %d, Shad: %d, fwd: %s[%s]\n",
-                     state->cursor_pos,
-                     state->shadow_cursor_pos,
-                     sub_cmd_fn(state->forward.cmdFn),
-                     state->forward.seq
+                     "fwd: %s[%s]\n",
+                     sub_cmd_fn(state->cmdFn),
+                     state->seq
                 );
             strcat(undoStatesBuffer, stateDesc);
         }
