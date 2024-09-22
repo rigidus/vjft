@@ -18,7 +18,7 @@ typedef struct MsgNode {
 typedef struct {
     MsgNode* head;
     MsgNode* tail;
-    MsgNode* current;
+    MsgNode* curr;
     int size;
 } MsgList;
 

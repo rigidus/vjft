@@ -134,8 +134,6 @@ MsgNode* copyMsgNodes(MsgNode* node);
 void freeMsgNodes(MsgNode* node);
 
 
-/* keyboard */
-
 #define MAX_INPUT_BUFFER 40
 
 bool keyb () {
@@ -170,6 +168,7 @@ bool keyb () {
                 // Clear command stack after sending command
                 clearCtrlStack();
             } else {
+                pushMessage(&msgList, "123123123213");
                 // Command not found
                 enqueueEvent(&gInputEventQueue, &gEventQueue_mutex,
                              DBG, NULL, input_buffer);
@@ -284,8 +283,8 @@ void displayUndoStates(StateStack* stateStack) {
             char stateDesc[128] = {0};
             // Форматирование описания состояния и добавление его в буфер
             snprintf(stateDesc, sizeof(stateDesc),
-                     "Msg: %.20s... Pos: %d, Shad: %d, fwd: %s[%s]\n",
-                     state->message, state->cursor_pos,
+                     "Pos: %d, Shad: %d, fwd: %s[%s]\n",
+                     state->cursor_pos,
                      state->shadow_cursor_pos,
                      sub_cmd_fn(state->forward.cmdFn),
                      state->forward.seq
@@ -314,8 +313,8 @@ void reDraw() {
 
     // Вычисляем относительную позицию курсора в inputbuffer-е
     int rel_max_width = win_cols - margin*2;
-    calc_display_size(msgList.current->message, rel_max_width,
-                      msgList.current->cursor_pos,
+    calc_display_size(msgList.curr->message, rel_max_width,
+                      msgList.curr->cursor_pos,
                       &ib_need_cols, &ib_need_rows,
                       &ib_cursor_row, &ib_cursor_col);
 
@@ -331,7 +330,7 @@ void reDraw() {
     char mb_text[MAX_BUFFER] = {0};
     snprintf(mb_text, MAX_BUFFER,
              "cur_pos=%d\ncur_row=%d\ncur_col=%d\nib_need_rows=%d\nib_from_row=%d\n",
-             msgList.current->cursor_pos,
+             msgList.curr->cursor_pos,
              ib_cursor_row, ib_cursor_col, ib_need_rows, ib_from_row);
     appendToMiniBuffer(mb_text);
 
@@ -391,11 +390,11 @@ void reDraw() {
     // Определяем абсолютные координаты верхней строки
     int up = bottom + 1 - ib_need_rows;
     // Выводим
-    if (msgList.current) {
-        display_wrapped(msgList.current->message, margin, up,
+    if (msgList.curr) {
+        display_wrapped(msgList.curr->message, margin, up,
                         rel_max_width, ib_need_rows, ib_from_row,
-                        msgList.current->cursor_pos,
-                        msgList.current->shadow_cursor_pos);
+                        msgList.curr->cursor_pos,
+                        msgList.curr->shadow_cursor_pos);
     }
     drawHorizontalLine(win_cols, up-1, '-');
     // Возвращаем номер строки выше отображения inputbuffer

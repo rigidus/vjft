@@ -123,27 +123,28 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
                 // ничего делать с возвращенным состоянием
                 // (кроме проверки на NULL), они все сделают сами.
                 // Нужно только выполнить команду
-                if (event->cmdFn(msgList.current, event)) {
+                if (event->cmdFn(msgList.curr, event)) {
                     // Если возвращен не NULL, то cообщаем,
                     // что данные для отображения обновились
                     updated = true;
                 }
             } else {
                 // Это не cmd_redo или cmd_undo, а другая команда.
-                // Выполняем команду (применяем к текущему состоянию)
+                // Выполняем команду, применяя к msgList.current
                 // Получаем состояние или NULL, если в результате
                 // выполнения cmdFn состояние не было изменено
-                State* currentState =
-                    event->cmdFn(msgList.current, event);
+                State* retState = event->cmdFn(msgList.curr, event);
 
                 // Дальше все зависит от полученного состояния
-                if (!currentState) {
-                    // Если currentState - NULL, то это значит, что в
+                if (!retState) {
+                    // Если retState - NULL, то это значит, что в
                     // результате выполнения cmdFn ничего не поменялось
                     // - значит ничего не делаем
                 } else {
-                    // Если текущее состояние не NULL
-                    // Сообщаем что данные для отображения обновились
+                    // Если текущее состояние не NULL, помещаем его
+                    // в undo-стек
+                    pushState(&undoStack, retState);
+                    // и сообщаем что данные для отображения обновились
                     updated = true;
                 }
             }
@@ -158,7 +159,7 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
         // Пересоздать обработанное событие в очереди выполненных
         // событий, при этом event->seq дублируется, если необходимо,
         // внутри enqueueEvent(), поэтому здесь ниже его можно
-        // осовободить
+        // освободить
         enqueueEvent(&gHistoryEventQueue, &gHistoryQueue_mutex,
                      event->type, event->cmdFn, event->seq);
 
@@ -179,7 +180,6 @@ State* createState(MsgNode* currentNode, InputEvent* event) {
     if (!state) return NULL;
 
     // [TODO:gmm] Пока мы сохраняем полное состояние и обратное действие
-    state->message = strdup(currentNode->message);
     state->cursor_pos = currentNode->cursor_pos;
     state->shadow_cursor_pos = currentNode->shadow_cursor_pos;
 
@@ -201,7 +201,6 @@ State* createState(MsgNode* currentNode, InputEvent* event) {
 
 void freeState(State* state) {
     if (!state) return;
-    free(state->message);  // Освобождение строки сообщения
     free(state);
 }
 
@@ -294,7 +293,7 @@ State* cmd_alt_enter(MsgNode* msg, InputEvent* event) {
 
 State* cmd_enter(MsgNode* msg, InputEvent* event) {
     pushMessage(&msgList, "enter function");
-    if (msgList.current == NULL) {
+    if (msgList.curr == NULL) {
         pushMessage(&msgList, "cmd_enter_err: Нет сообщения для отправки");
         return NULL;
     }
@@ -335,7 +334,7 @@ State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
         utf8_byte_offset(msgnode->message, msgnode->cursor_pos);
 
     // Так как ранее мы проверили, что msgnode->cursor_pos не ноль,
-    // не может быть ситуации антипереполения, и проверять не нужно
+    // не может быть ситуации антипереполнения, и проверять не нужно
     int new_cursor_pos = msgnode->cursor_pos - 1;
 
     // Находим байтовую позицию предыдущего символа
@@ -370,10 +369,10 @@ State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
 
     // Теперь, когда у нас есть изменненная msgnode
     // мы можем создать State для undoStack
-    State* currentState = createState(msgnode, event);
+    State* currState = createState(msgnode, event);
 
     // Запишем в undo-стек текущее состояние
-    pushState(&undoStack, currentState);
+    pushState(&undoStack, currState);
 
     // Очистим redoStack, чтобы история не ветвилась
     clearStack(&redoStack);
@@ -555,16 +554,16 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
     // Смещение курсора (выполняется в utf8-символах)
     msgnode->cursor_pos += utf8_strlen(event->seq);
 
-    // Теперь, когда у нас есть изменненная msgnode
-    // мы можем создать State для undoStack
-    State* currentState = createState(msgnode, event);
+    // Указатель на последнее состояние в undo-стеке
+    // либо мы его создадим либо возьмем с вершины стека
+    State* currState = NULL;
 
-    // Пытаемся получить предыдущее состояние
+    // Пытаемся получить предыдущее состояние из undo-стека
     State* prevState = popState(&undoStack);
     if (!prevState) {
-        // Если предыдущее состояние не существует
-        // - мы должны только записать текущее состояние
-        pushState(&undoStack, currentState);
+        // Если не получилось получить предыдущее состояние
+        // то формируем новое состояние, которое будет возвращено
+        currState = createState(msgnode, event);
     } else {
         if ( (prevState->forward.cmdFn != cmd_insert)
              || (utf8_char_length(prevState->forward.seq) > 5)
@@ -572,20 +571,25 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
             // Если предыдущее состояние не cmd_insert
             // или его длина больше 5, вернем его обратно
             pushState(&undoStack, prevState);
-            //  и запишем сверху текущее состояние
-            pushState(&undoStack, currentState);
+            //  и сформируем для возврата новое состояние
+            currState = createState(msgnode, event);
         } else {
             // Иначе, если в undo-стеке существует предыдущее
             // состояние, которое тоже cmd_insert и в нем
-            // менее 5 символов - добавляем к предыдущему
-            // состоянию новые символы
-            int prev_seq_len  = strlen(prevState->forward.seq);
+            // менее 5 символов -  будем считать текущим
+            // состояние, которое мы взяли с вершины undo-стека
+            currState = prevState;
+
+            // Вычислим длину insert-sequence в байтах
+            int insert_seq_len  = strlen(currState->forward.seq);
+            // Вычислим длину в байтах того что хотим добавить
             int event_seq_len = strlen(event->seq);
-            int new_seq_len = prev_seq_len + event_seq_len + 1;
+            // Получится общая длина + терминатор
+            int new_seq_len = insert_seq_len + event_seq_len + 1;
 
             // Реаллоцируем forward.seq в new_seq
-            char* new_seq = realloc(prevState->forward.seq,
-                                    new_seq_len);
+            char* new_seq =
+                realloc(currState->forward.seq, new_seq_len);
             if (new_seq == NULL) {
                 perror("Failed to reallocate memory");
                 exit(1);
@@ -594,25 +598,22 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
             // Записываем завершающий нуль, на всякий
             memset(new_seq + new_seq_len - 2, 0, 1);
 
-            // Дописываем к new_seq новый event->seq
-            strncpy(new_seq + prev_seq_len,
+            // Дописываем к new_seq новый event->seq (в конец)
+            strncpy(new_seq + insert_seq_len,
                     event->seq, event_seq_len);
 
             // Записываем реаллоцированный forward.seq
-            prevState->forward.seq = new_seq;
-
-            /* prevState->revert.seq = new_seq; */
-            // Сохраняем обновленное событие в undoStack
-            pushState(&undoStack, prevState);
+            // в currState
+            currState->forward.seq = new_seq;
 
             // Отладочный вывод
-            char log[DBG_LOG_MSG_SIZE] = {0};
-            snprintf(
-                log, sizeof(log),
-                "prev_seq_len:%d event_seq_len:%d, new_seq_len:%d (%p -> %p) <%s>",
-                prev_seq_len, event_seq_len, new_seq_len,
-                prevState->forward.seq, new_seq, new_seq);
-            pushMessage(&msgList, log);
+            /* char log[DBG_LOG_MSG_SIZE] = {0}; */
+            /* snprintf( */
+            /*     log, sizeof(log), */
+            /*     "insert_seq_len:%d event_seq_len:%d, new_seq_len:%d (%p -> %p) <%s>", */
+            /*     insert_seq_len, event_seq_len, new_seq_len, */
+            /*     currState->forward.seq, new_seq, new_seq); */
+            /* pushMessage(&msgList, log); */
         }
     }
 
@@ -623,7 +624,7 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
     pthread_mutex_unlock(&lock);
 
     // Возвращаем State
-    return currentState;
+    return currState;
 }
 
 
@@ -708,10 +709,9 @@ State* cmd_toggle_cursor_shadow(MsgNode* node, InputEvent* event) {
 State* cmd_undo(MsgNode* msgnode, InputEvent* event) {
     if (undoStack == NULL) {
         pushMessage(&msgList, "No more actions to undo");
-        // Если undoStack пуст, то ничего перерисовывать не надо
+        // Если undo-стек пуст, то ничего делать не надо
         return NULL;
     } else {
-
         // Извлекаем последнее состояние из undoStack
         State* prevState = popState(&undoStack);
 
@@ -719,29 +719,57 @@ State* cmd_undo(MsgNode* msgnode, InputEvent* event) {
             pushMessage(&msgList, "Failed to pop state from undoStack");
             return NULL;
         } else {
-
             // Отладочный вывод
             char logMsg[DBG_LOG_MSG_SIZE] = {0};
-            snprintf(logMsg,
-                     sizeof(logMsg),
-                     "cmd_undo: %s : %s - <%s> [%d]",
-                     (prevState->forward.type == CMD) ? "CMD" : "unk_type",
-                     (prevState->forward.cmdFn == cmd_insert)
-                     ? "cmd_insert" : "unk_cmdFn",
-                     prevState->forward.seq,
-                     (int)utf8_strlen(prevState->forward.seq)
+            snprintf(
+                logMsg,
+                sizeof(logMsg),
+                "cmd_undo: %s : %s - <%s> [%d]",
+                (prevState->forward.type == CMD) ? "CMD" : "unk_type",
+                (prevState->forward.cmdFn == cmd_insert)
+                ? "cmd_insert" : "unk_cmdFn",
+                prevState->forward.seq,
+                (int)utf8_strlen(prevState->forward.seq)
                 );
             pushMessage(&msgList, logMsg);
 
             if (prevState->forward.type == CMD) {
-                // undo for cmd_insert
                 if (prevState->forward.cmdFn == cmd_insert) {
-                    // Вызываем cmd_backspace столько раз, сколько
-                    // символов записано в cmd_insert
-                    for (int i=0; i < strlen(prevState->forward.seq); i++) {
-                        // Второй параметр все равно не ниспользуется в cmd_backspace
-                        cmd_backspace(msgnode, NULL);
+                    // Вычисляем сколько utf-8 символов надо удалить
+                    int cnt_del = utf8_strlen(prevState->forward.seq);
+                    // Вычисляем сколько они занимают байт
+                    int ins_len = strlen(prevState->forward.seq);
+
+                    // Находим байтовую позицию символа под курсором
+                    int byte_offset =
+                        utf8_byte_offset(msgnode->message,
+                                         msgnode->cursor_pos);
+
+                    // Новая байтовая позиция будет меньше на
+                    // размер удаляемой строки в байтах
+                    int new_byte_offset = byte_offset - ins_len;
+
+                    // Если новая байтовая позиция меньше чем
+                    // начало строки - это сбой
+                    if (new_byte_offset < 0) {
+                        perror("Error calc undo insert");
+                        exit(1);
                     }
+
+                    // Перемещаем правую часть строки на новую
+                    // байтовую позицию
+                    strcpy(msgnode->message + new_byte_offset,
+                           msgnode->message + byte_offset);
+                    // Реаллоцируем строку [TODO:gmm] segfault
+                    /* msgnode->message = */
+                    /*     realloc(msgnode->message, */
+                    /*             strlen(msgnode->message) */
+                    /*             - ins_len); */
+                    //
+
+                    // Перемещаем курсор на кол-во удаленных символов
+                    msgnode->cursor_pos -= cnt_del;
+
                     // Перемещаем prevState в redoStack
                     pushState(&redoStack, prevState);
                 } else {
@@ -751,7 +779,7 @@ State* cmd_undo(MsgNode* msgnode, InputEvent* event) {
             }
         }
 
-        // Возвращаем состояние чтобы обновить отображение
+        // Возвращаем предыдущее состояние чтобы обновить отображение
         return prevState;
     }
 }

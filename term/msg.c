@@ -37,8 +37,8 @@ void pushMessage(MsgList* list, const char* text) {
 
     list->head = newNode;
 
-    if (list->current == NULL) {
-        list->current = newNode;
+    if (list->curr == NULL) {
+        list->curr = newNode;
     }
 
     list->size++;
@@ -56,22 +56,22 @@ void clearMsgList(MsgList* list) {
     }
     list->head = NULL;
     list->tail = NULL;
-    list->current = NULL;
+    list->curr = NULL;
     list->size = 0;
 }
 
 void moveToNextMessage(MsgList* list) {
     /* pthread_mutex_lock(&msgList_mutex); */
-    if (list->current && list->current->next) {
-        list->current = list->current->next;
+    if (list->curr && list->curr->next) {
+        list->curr = list->curr->next;
     }
     /* pthread_mutex_unlock(&msgList_mutex); */
 }
 
 void moveToPreviousMessage(MsgList* list) {
     /* pthread_mutex_lock(&msgList_mutex); */
-    if (list->current && list->current->prev) {
-        list->current = list->current->prev;
+    if (list->curr && list->curr->prev) {
+        list->curr = list->curr->prev;
     }
     /* pthread_mutex_unlock(&msgList_mutex); */
 }

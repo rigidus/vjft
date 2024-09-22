@@ -40,7 +40,6 @@ typedef struct InputEvent {
 // Полное определение структуры State,
 // которое уже может использовать CmdFunc и InputEvent
 typedef struct State {
-    char* message;
     int cursor_pos;
     int shadow_cursor_pos;
     InputEvent forward;
