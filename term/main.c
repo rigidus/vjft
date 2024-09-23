@@ -270,6 +270,8 @@ void displayUndoStates(StateStack* stateStack) {
     char* sub_cmd_fn(CmdFunc cmd_fn) {
         if (cmd_fn == cmd_insert) return "cmd_insert";
         if (cmd_fn == cmd_backspace) return "cmd_backspace";
+        if (cmd_fn == cmd_backward_char) return "cmd_backward_char";
+        if (cmd_fn == cmd_forward_char) return "cmd_forward_char";
         return  "cmd_notfound";
     }
 
@@ -283,10 +285,10 @@ void displayUndoStates(StateStack* stateStack) {
             char stateDesc[128] = {0};
             // Форматирование описания состояния и добавление его в буфер
             snprintf(stateDesc, sizeof(stateDesc),
-                     "fwd: %s[%s]\n",
+                     "fwd: %s[%s](%d)\n",
                      sub_cmd_fn(state->cmdFn),
-                     state->seq
-                );
+                     state->seq,
+                     state->cnt);
             strcat(undoStatesBuffer, stateDesc);
         }
         currentStateStack = currentStateStack->next;

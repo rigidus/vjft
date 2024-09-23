@@ -188,6 +188,7 @@ State* createState(MsgNode* msgnode, InputEvent* event) {
     } else {
         state->seq = NULL;
     }
+    state->cnt = 1;
     return state;
 }
 
@@ -383,17 +384,47 @@ State* cmd_backward_char(MsgNode* msgnode, InputEvent* event) {
         return NULL;
     }
 
+    // Если двигать назад уже некуда, то
+    // отпустим lock и вернемся
+    if (msgnode->cursor_pos == 0) {
+        pthread_mutex_unlock(&lock);
+        return NULL;
+    }
+
     // Перемещаем курсор
     if (msgnode->cursor_pos > 0) {
         msgnode->cursor_pos--;
     }
 
     // Теперь, когда у нас есть изменненная msgnode
-    // мы можем создать State для undoStack
-    State* currState = createState(msgnode, event);
+    // мы можем заняться State для undoStack.
 
-    // [TODO:gmm] Схлопывать несколько перемещений
-    // курсора в одно
+    // Указатель на последнее состояние в undo-стеке
+    // либо мы его создадим либо возьмем с вершины стека
+    State* currState = NULL;
+
+    // Пытаемся получить предыдущее состояние из undo-стека
+    State* prevState = popState(&undoStack);
+    if (!prevState) {
+        // Если не получилось получить предыдущее состояние
+        // то формируем новое состояние, которое будет возвращено
+        currState = createState(msgnode, event);
+    } else if (prevState->cmdFn != cmd_backward_char) {
+        // Если предыдущее состояние не cmd_backward_char,
+        // вернем его обратно
+        pushState(&undoStack, prevState);
+        // и сформируем для возврата новое состояние
+        currState = createState(msgnode, event);
+    } else {
+        // Иначе, если в undo-стеке существует предыдущее
+        // состояние, которое тоже cmd_backward_char - будем
+        // считать текущим состояние, которое мы взяли
+        // с вершины undo-стека
+        currState = prevState;
+
+        // Увеличим cnt
+        currState->cnt++;
+    }
 
     // Снимаем Lock
     pthread_mutex_unlock(&lock);
@@ -422,17 +453,41 @@ State* cmd_forward_char(MsgNode* msgnode, InputEvent* event) {
         return NULL;
     }
 
-    // >=, чтобы позволить курсору стоять на позиции нулевого символа
+    // Перемещаем курсор (">=", чтобы позволить курсору
+    // стоять на позиции нулевого терминирующего символа
     if (++msgnode->cursor_pos >= len) {
         msgnode->cursor_pos = len;
     }
 
     // Теперь, когда у нас есть изменненная msgnode
-    // мы можем создать State для undoStack
-    State* currState = createState(msgnode, event);
+    // мы можем  заняться State для undoStack.
 
-    // [TODO:gmm] Схлопывать несколько перемещений
-    // курсора в одно
+    // Указатель на последнее состояние в undo-стеке
+    // либо мы его создадим либо возьмем с вершины стека
+    State* currState = NULL;
+
+    // Пытаемся получить предыдущее состояние из undo-стека
+    State* prevState = popState(&undoStack);
+    if (!prevState) {
+        // Если не получилось получить предыдущее состояние
+        // то формируем новое состояние, которое будет возвращено
+        currState = createState(msgnode, event);
+    } else if (prevState->cmdFn != cmd_forward_char) {
+        // Если предыдущее состояние не cmd_backward_char,
+        // вернем его обратно
+        pushState(&undoStack, prevState);
+        // и сформируем для возврата новое состояние
+        currState = createState(msgnode, event);
+    } else {
+        // Иначе, если в undo-стеке существует предыдущее
+        // состояние, которое тоже cmd_forward_char - будем
+        // считать текущим состояние, которое мы взяли
+        // с вершины undo-стека
+        currState = prevState;
+
+        // Увеличим cnt
+        currState->cnt++;
+    }
 
     // Снимаем Lock
     pthread_mutex_unlock(&lock);
@@ -607,56 +662,53 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
         // Если не получилось получить предыдущее состояние
         // то формируем новое состояние, которое будет возвращено
         currState = createState(msgnode, event);
+    } else if ( (prevState->cmdFn != cmd_insert)
+                || (utf8_char_length(prevState->seq) > 5) ) {
+        // Если предыдущее состояние не cmd_insert
+        // или его длина больше 5, вернем его обратно
+        pushState(&undoStack, prevState);
+        //  и сформируем для возврата новое состояние
+        currState = createState(msgnode, event);
     } else {
-        if ( (prevState->cmdFn != cmd_insert)
-             || (utf8_char_length(prevState->seq) > 5)
-            ) {
-            // Если предыдущее состояние не cmd_insert
-            // или его длина больше 5, вернем его обратно
-            pushState(&undoStack, prevState);
-            //  и сформируем для возврата новое состояние
-            currState = createState(msgnode, event);
-        } else {
-            // Иначе, если в undo-стеке существует предыдущее
-            // состояние, которое тоже cmd_insert и в нем
-            // менее 5 символов -  будем считать текущим
-            // состояние, которое мы взяли с вершины undo-стека
-            currState = prevState;
+        // Иначе, если в undo-стеке существует предыдущее
+        // состояние, которое тоже cmd_insert и в нем
+        // менее 5 символов -  будем считать текущим
+        // состояние, которое мы взяли с вершины undo-стека
+        currState = prevState;
 
-            // Вычислим длину insert-sequence в байтах
-            int insert_seq_len  = strlen(currState->seq);
-            // Вычислим длину в байтах того что хотим добавить
-            int event_seq_len = strlen(event->seq);
-            // Получится общая длина + терминатор
-            int new_seq_len = insert_seq_len + event_seq_len + 1;
+        // Вычислим длину insert-sequence в байтах
+        int insert_seq_len  = strlen(currState->seq);
+        // Вычислим длину в байтах того что хотим добавить
+        int event_seq_len = strlen(event->seq);
+        // Получится общая длина + терминатор
+        int new_seq_len = insert_seq_len + event_seq_len + 1;
 
-            // Реаллоцируем seq в new_seq
-            char* new_seq =
-                realloc(currState->seq, new_seq_len);
-            if (new_seq == NULL) {
-                perror("Failed to reallocate memory");
-                exit(1);
-            }
-
-            // Записываем завершающий нуль, на всякий
-            memset(new_seq + new_seq_len - 2, 0, 1);
-
-            // Дописываем к new_seq новый event->seq (в конец)
-            strncpy(new_seq + insert_seq_len,
-                    event->seq, event_seq_len);
-
-            // Записываем реаллоцированный seq в currState
-            currState->seq = new_seq;
-
-            // Отладочный вывод
-            /* char log[DBG_LOG_MSG_SIZE] = {0}; */
-            /* snprintf( */
-            /*     log, sizeof(log), */
-            /*     "insert_seq_len:%d event_seq_len:%d, new_seq_len:%d (%p -> %p) <%s>", */
-            /*     insert_seq_len, event_seq_len, new_seq_len, */
-            /*     currState->seq, new_seq, new_seq); */
-            /* pushMessage(&msgList, log); */
+        // Реаллоцируем seq в new_seq
+        char* new_seq =
+            realloc(currState->seq, new_seq_len);
+        if (new_seq == NULL) {
+            perror("Failed to reallocate memory");
+            exit(1);
         }
+
+        // Записываем завершающий нуль, на всякий
+        memset(new_seq + new_seq_len - 2, 0, 1);
+
+        // Дописываем к new_seq новый event->seq (в конец)
+        strncpy(new_seq + insert_seq_len,
+                event->seq, event_seq_len);
+
+        // Записываем реаллоцированный seq в currState
+        currState->seq = new_seq;
+
+        // Отладочный вывод
+        /* char log[DBG_LOG_MSG_SIZE] = {0}; */
+        /* snprintf( */
+        /*     log, sizeof(log), */
+        /*     "insert_seq_len:%d event_seq_len:%d, new_seq_len:%d (%p -> %p) <%s>", */
+        /*     insert_seq_len, event_seq_len, new_seq_len, */
+        /*     currState->seq, new_seq, new_seq); */
+        /* pushMessage(&msgList, log); */
     }
 
     // Снимаем Lock

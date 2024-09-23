@@ -42,6 +42,7 @@ typedef struct InputEvent {
 typedef struct State {
     CmdFunc cmdFn;
     char* seq;
+    int cnt;
 } State;
 
 // Тип стека состояний для undo/redo
