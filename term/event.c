@@ -178,12 +178,16 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
 }
 
 
-State* createState(MsgNode* currentNode, InputEvent* event) {
-    if (!currentNode) return NULL;
+State* createState(MsgNode* msgnode, InputEvent* event) {
+    if (!msgnode) return NULL;
     State* state = malloc(sizeof(State));
     if (!state) return NULL;
     state->cmdFn = event->cmdFn;
-    state->seq = strdup(event->seq);
+    if (event->seq) {
+        state->seq = strdup(event->seq);
+    } else {
+        state->seq = NULL;
+    }
     return state;
 }
 
@@ -373,7 +377,7 @@ State* cmd_backward_char(MsgNode* msgnode, InputEvent* event) {
     pthread_mutex_lock(&lock);
 
     if ( (!msgnode) || (!msgnode->message)
-         || (msgnode->cursor_pos > 0) ) {
+         || (msgnode->cursor_pos == 0) ) {
         // Если с msgnode что-то не так,
         // отпустим lock и вернемся
         return NULL;
@@ -397,12 +401,43 @@ State* cmd_backward_char(MsgNode* msgnode, InputEvent* event) {
     return currState;
 }
 
-State* cmd_forward_char(MsgNode* node, InputEvent* event) {
-    // >=, чтобы позволить курсору стоять на позиции нулевого символа
-    int len = utf8_strlen(node->message);
-    if (++node->cursor_pos >= len) { node->cursor_pos = len; }
+State* cmd_forward_char(MsgNode* msgnode, InputEvent* event) {
+    // Lock
+    pthread_mutex_lock(&lock);
 
-    return NULL;
+    if ( (!msgnode) || (!msgnode->message) ) {
+        // Если с msgnode что-то не так,
+        // отпустим lock и вернемся
+        pthread_mutex_unlock(&lock);
+        return NULL;
+    }
+
+    // Вычислим максимальную позицию курсора
+    int len = utf8_strlen(msgnode->message);
+
+    // Если двигать вперед уже некуда, то
+    // отпустим lock и вернемся
+    if (msgnode->cursor_pos >= len) {
+        pthread_mutex_unlock(&lock);
+        return NULL;
+    }
+
+    // >=, чтобы позволить курсору стоять на позиции нулевого символа
+    if (++msgnode->cursor_pos >= len) {
+        msgnode->cursor_pos = len;
+    }
+
+    // Теперь, когда у нас есть изменненная msgnode
+    // мы можем создать State для undoStack
+    State* currState = createState(msgnode, event);
+
+    // [TODO:gmm] Схлопывать несколько перемещений
+    // курсора в одно
+
+    // Снимаем Lock
+    pthread_mutex_unlock(&lock);
+
+    return currState;
 }
 
 // Перемещение курсора вперед на одно слово
