@@ -144,6 +144,10 @@ bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
                     // Если текущее состояние не NULL, помещаем его
                     // в undo-стек
                     pushState(&undoStack, retState);
+
+                    // Очистим redoStack, чтобы история не ветвилась
+                    clearStack(&redoStack);
+
                     // и сообщаем что данные для отображения обновились
                     updated = true;
                 }
@@ -358,22 +362,39 @@ State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
     // мы можем создать State для undoStack
     State* currState = createState(msgnode, event);
 
-    // Запишем в undo-стек текущее состояние
-    pushState(&undoStack, currState);
+    // Снимаем Lock
+    pthread_mutex_unlock(&lock);
 
-    // Очистим redoStack, чтобы история не ветвилась
-    clearStack(&redoStack);
+    return currState;
+}
+
+State* cmd_backward_char(MsgNode* msgnode, InputEvent* event) {
+    // Lock
+    pthread_mutex_lock(&lock);
+
+    if ( (!msgnode) || (!msgnode->message)
+         || (msgnode->cursor_pos > 0) ) {
+        // Если с msgnode что-то не так,
+        // отпустим lock и вернемся
+        return NULL;
+    }
+
+    // Перемещаем курсор
+    if (msgnode->cursor_pos > 0) {
+        msgnode->cursor_pos--;
+    }
+
+    // Теперь, когда у нас есть изменненная msgnode
+    // мы можем создать State для undoStack
+    State* currState = createState(msgnode, event);
+
+    // [TODO:gmm] Схлопывать несколько перемещений
+    // курсора в одно
 
     // Снимаем Lock
     pthread_mutex_unlock(&lock);
 
-    return NULL;
-}
-
-State* cmd_backward_char(MsgNode* node, InputEvent* event) {
-    if (node->cursor_pos > 0) { node->cursor_pos--; }
-
-    return NULL;
+    return currState;
 }
 
 State* cmd_forward_char(MsgNode* node, InputEvent* event) {
@@ -602,9 +623,6 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
             /* pushMessage(&msgList, log); */
         }
     }
-
-    // Очистим redoStack, чтобы история не ветвилась
-    clearStack(&redoStack);
 
     // Снимаем Lock
     pthread_mutex_unlock(&lock);
