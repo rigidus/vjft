@@ -16,11 +16,6 @@ pthread_mutex_t gEventQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
 InputEvent* gHistoryEventQueue = NULL;
 pthread_mutex_t gHistoryQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-// Lock для операций с msgNode ([TODO:gmm] вероятно нужно
-// сделать для каждой msgNode свой Lock)
-pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-
-
 void enqueueEvent(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
                   EventType type, CmdFunc cmdFn, char* seq)
 {
@@ -321,11 +316,13 @@ State* cmd_enter(MsgNode* msg, InputEvent* event) {
     return NULL;
 }
 
+// [TODO:gmm] Мы можем делать вложенный undo если подменять
+// стеки объектом, который тоже содержит стек
+
+// [TODO:gmm] Функция для удаления символа справа от курсора
+
 // Функция для удаления символа слева от курсора
 State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
-    // Lock
-    pthread_mutex_lock(&lock);
-
     if ( (!msgnode) || (!msgnode->message)
          || (msgnode->cursor_pos == 0) ) {
         // Если с msgnode что-то не так,
@@ -395,16 +392,10 @@ State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
     // [TODO:gmm] Надо запоминать несколько удаляемых символов
     // которые могут быть разной длины, т.к. utf-8
 
-    // Снимаем Lock
-    pthread_mutex_unlock(&lock);
-
     return currState;
 }
 
 State* cmd_backward_char(MsgNode* msgnode, InputEvent* event) {
-    // Lock
-    pthread_mutex_lock(&lock);
-
     if ( (!msgnode) || (!msgnode->message)
          || (msgnode->cursor_pos == 0) ) {
         // Если с msgnode что-то не так,
@@ -412,10 +403,8 @@ State* cmd_backward_char(MsgNode* msgnode, InputEvent* event) {
         return NULL;
     }
 
-    // Если двигать назад уже некуда, то
-    // отпустим lock и вернемся
+    // Если двигать назад уже некуда, то вернемся
     if (msgnode->cursor_pos == 0) {
-        pthread_mutex_unlock(&lock);
         return NULL;
     }
 
@@ -465,30 +454,20 @@ State* cmd_backward_char(MsgNode* msgnode, InputEvent* event) {
         currState = createState(msgnode, event);
     }
 
-    // Снимаем Lock
-    pthread_mutex_unlock(&lock);
-
     return currState;
 }
 
 State* cmd_forward_char(MsgNode* msgnode, InputEvent* event) {
-    // Lock
-    pthread_mutex_lock(&lock);
-
     if ( (!msgnode) || (!msgnode->message) ) {
-        // Если с msgnode что-то не так,
-        // отпустим lock и вернемся
-        pthread_mutex_unlock(&lock);
+        // Если с msgnode что-то не так, то вернемся
         return NULL;
     }
 
     // Вычислим максимальную позицию курсора
     int len = utf8_strlen(msgnode->message);
 
-    // Если двигать вперед уже некуда, то
-    // отпустим lock и вернемся
+    // Если двигать вперед уже некуда, то вернемся
     if (msgnode->cursor_pos >= len) {
-        pthread_mutex_unlock(&lock);
         return NULL;
     }
 
@@ -539,9 +518,6 @@ State* cmd_forward_char(MsgNode* msgnode, InputEvent* event) {
         // и сформируем для возврата новое состояние
         currState = createState(msgnode, event);
     }
-
-    // Снимаем Lock
-    pthread_mutex_unlock(&lock);
 
     return currState;
 }
@@ -662,13 +638,8 @@ State* cmd_next_msg() {
 
 // Функция для вставки текста в позицию курсора
 State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
-    // Lock
-    pthread_mutex_lock(&lock);
-
     if (!msgnode || !msgnode->message) {
-        // Если с msgnode что-то не так,
-        // отпустим lock и вернемся
-        pthread_mutex_unlock(&lock);
+        // Если с msgnode что-то не так, то вернемся
         return NULL;
     }
 
@@ -761,9 +732,6 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
         /*     currState->seq, new_seq, new_seq); */
         /* pushMessage(&msgList, log); */
     }
-
-    // Снимаем Lock
-    pthread_mutex_unlock(&lock);
 
     // Возвращаем State
     return currState;
@@ -1001,8 +969,7 @@ State* cmd_redo(MsgNode* msgnode, InputEvent* event) {
                     prevState->cmdFn(msgnode, event);
                 }
             } else if (prevState->cmdFn == cmd_backspace) {
-                // [TODO:gmm] надо восстановить запомненный
-                // удаленный символ
+                // [TODO:gmm] восстановить запомненный удаленный символ
             } else {
                 pushMessage(&msgList, "cmd_redo: unk_cmdFn");
             }
