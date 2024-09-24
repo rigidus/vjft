@@ -375,6 +375,8 @@ State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
     // мы можем создать State для undoStack
     State* currState = createState(msgnode, event);
 
+    // [TODO:gmm] Надо запоминать удаляемый символ
+
     // Снимаем Lock
     pthread_mutex_unlock(&lock);
 
@@ -417,21 +419,32 @@ State* cmd_backward_char(MsgNode* msgnode, InputEvent* event) {
         // Если не получилось получить предыдущее состояние
         // то формируем новое состояние, которое будет возвращено
         currState = createState(msgnode, event);
-    } else if (prevState->cmdFn != cmd_backward_char) {
-        // Если предыдущее состояние не cmd_backward_char,
-        // вернем его обратно
+    } else if (prevState->cmdFn == cmd_backward_char) {
+        // Если предыдущее состояние такое же
+        // - будем считать текущим состояние, которое
+        // мы взяли с вершины undo-стека
+        currState = prevState;
+        // Увеличим cnt в текущем состоянии
+        currState->cnt++;
+    } else if (prevState->cmdFn == cmd_forward_char) {
+        if (prevState->cnt > 1) {
+            // И оно имеет несколько повторений
+            // - то уменьшим ему кол-во повторений
+            prevState->cnt--;
+            // и вернем его обратно
+            pushState(&undoStack, prevState);
+        } else {
+            // Если оно имеет 1 повтороение
+            // то просто не возвращаем его в undo стек
+            // и таким образом два состояния (текущее и предыдущее)
+            // рекомбинируются - т.е. мы ничего не делаем здесь
+        }
+    } else {
+        // Если предыдущее состояние какое-то другое
+        // - вернем его обратно
         pushState(&undoStack, prevState);
         // и сформируем для возврата новое состояние
         currState = createState(msgnode, event);
-    } else {
-        // Иначе, если в undo-стеке существует предыдущее
-        // состояние, которое тоже cmd_backward_char - будем
-        // считать текущим состояние, которое мы взяли
-        // с вершины undo-стека
-        currState = prevState;
-
-        // Увеличим cnt
-        currState->cnt++;
     }
 
     // Снимаем Lock
@@ -478,23 +491,35 @@ State* cmd_forward_char(MsgNode* msgnode, InputEvent* event) {
     State* prevState = popState(&undoStack);
     if (!prevState) {
         // Если не получилось получить предыдущее состояние
-        // то формируем новое состояние, которое будет возвращено
+        // то формируем новое состояние, которое и будет возвращено
         currState = createState(msgnode, event);
-    } else if (prevState->cmdFn != cmd_forward_char) {
-        // Если предыдущее состояние не cmd_backward_char,
-        // вернем его обратно
+    } else if (prevState->cmdFn == cmd_forward_char) {
+        // Если предыдущее состояние такое же
+        // - будем считать текущим состояние, которое
+        // мы взяли с вершины undo-стека
+        currState = prevState;
+        // Увеличим cnt в текущем состоянии
+        currState->cnt++;
+    } else if (prevState->cmdFn == cmd_backward_char) {
+        // Если предыдущее состояние - противоположное
+        if (prevState->cnt > 1) {
+            // И оно имеет несколько повторений
+            // - то уменьшим ему кол-во повторений
+            prevState->cnt--;
+            // и вернем его обратно
+            pushState(&undoStack, prevState);
+        } else {
+            // Если оно имеет 1 повтороение
+            // то просто не возвращаем его в undo стек
+            // и таким образом два состояния (текущее и предыдущее)
+            // рекомбинируются - т.е. мы ничего не делаем здесь
+        }
+    } else {
+        // Если предыдущее состояние какое-то другое
+        // - вернем его обратно
         pushState(&undoStack, prevState);
         // и сформируем для возврата новое состояние
         currState = createState(msgnode, event);
-    } else {
-        // Иначе, если в undo-стеке существует предыдущее
-        // состояние, которое тоже cmd_forward_char - будем
-        // считать текущим состояние, которое мы взяли
-        // с вершины undo-стека
-        currState = prevState;
-
-        // Увеличим cnt
-        currState->cnt++;
     }
 
     // Снимаем Lock
@@ -904,14 +929,28 @@ State* cmd_redo(MsgNode* msgnode, InputEvent* event) {
         } else {
             // [TODO:gmm] Надо завести набор парных функций
             // undo/redo и искать обратную функцию в этом наборе
-            if (prevState->cmdFn == cmd_insert) {
+            if ( (prevState->cmdFn == cmd_insert)
+                 || (prevState->cmdFn == cmd_backward_char)
+                 || (prevState->cmdFn == cmd_forward_char) ) {
                 // Создаем event
                 InputEvent* event = malloc(sizeof(InputEvent));
                 event->type = CMD;
                 event->cmdFn = prevState->cmdFn;
-                event->seq = strdup(prevState->seq);
-                // Применяем event к msgList.current */
-                cmd_insert(msgnode, event);
+                if (prevState->seq) {
+                    event->seq = strdup(prevState->seq);
+                } else {
+                    event->seq = NULL;
+                }
+                // Применяем event к msgList.current
+                // prevState->cnt раз.
+                // Возвращаемое значение не будет помещено в
+                // undo стек, т.к. это cmd_undo (особый случай)
+                for (int i=0; i < prevState->cnt; i++) {
+                    prevState->cmdFn(msgnode, event);
+                }
+            } else if (prevState->cmdFn == cmd_backspace) {
+                // [TODO:gmm] надо восстановить запомненный
+                // удаленный символ
             } else {
                 pushMessage(&msgList, "cmd_redo: unk_cmdFn");
             }
