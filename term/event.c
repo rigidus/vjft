@@ -345,10 +345,24 @@ State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
     int byte_offset_prev =
         utf8_byte_offset(msgnode->message, new_cursor_pos);
 
+    // Находим длину удаляемого
+    int del_len = byte_offset - byte_offset_prev;
+
+    // Выделяем память для удаляемого символа и нуль-терминатора
+    char* del = malloc(del_len + 1);
+    if (!del) {
+        perror("Failed to allocate memory for deleted");
+        return NULL;
+    }
+
+    // Копируем удаляемое в эту память
+    strncpy(del, msgnode->message + byte_offset_prev, del_len);
+
+    // Завершаем удаляемое нуль-терминатором
+    memset(del + del_len, 0, 1);
+
     // Вычисляем новую длину сообщения в байтах
-    int new_length =
-        strlen(msgnode->message)
-        - (byte_offset - byte_offset_prev) + 1;
+    int new_length = strlen(msgnode->message) - del_len + 1;
 
     // Выделяем память под новое сообщение
     char* new_message = malloc(new_length);
@@ -375,7 +389,11 @@ State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
     // мы можем создать State для undoStack
     State* currState = createState(msgnode, event);
 
-    // [TODO:gmm] Надо запоминать удаляемый символ
+    // Запоминить в состоянии удаляемый символ
+    currState->seq = del;
+
+    // [TODO:gmm] Надо запоминать несколько удаляемых символов
+    // которые могут быть разной длины, т.к. utf-8
 
     // Снимаем Lock
     pthread_mutex_unlock(&lock);
@@ -899,7 +917,41 @@ State* cmd_undo(MsgNode* msgnode, InputEvent* event) {
             // Перемещаем prevState в redoStack
             pushState(&redoStack, prevState);
         } else if (prevState->cmdFn == cmd_backward_char) {
-            msgnode->cursor_pos += prevState->cnt;
+            // Создаем event
+            InputEvent* event = malloc(sizeof(InputEvent));
+            event->type = CMD;
+            event->cmdFn = cmd_forward_char;
+            /* if (prevState->seq) { */
+            /*     event->seq = strdup(prevState->seq); */
+            /* } else { */
+                event->seq = NULL;
+            /* } */
+            // Применяем event к msgList.current
+            // prevState->cnt раз.
+            // Возвращаемое значение не будет помещено в
+            // undo стек, т.к. это cmd_undo (особый случай)
+            for (int i=0; i < prevState->cnt; i++) {
+                event->cmdFn(msgnode, event);
+            }
+            // Перемещаем prevState в redoStack
+            pushState(&redoStack, prevState);
+        } else if (prevState->cmdFn == cmd_forward_char) {
+            // Создаем event
+            InputEvent* event = malloc(sizeof(InputEvent));
+            event->type = CMD;
+            event->cmdFn = cmd_backward_char;
+            /* if (prevState->seq) { */
+            /*     event->seq = strdup(prevState->seq); */
+            /* } else { */
+            event->seq = NULL;
+            /* } */
+            // Применяем event к msgList.current
+            // prevState->cnt раз.
+            // Возвращаемое значение не будет помещено в
+            // undo стек, т.к. это cmd_undo (особый случай)
+            for (int i=0; i < prevState->cnt; i++) {
+                event->cmdFn(msgnode, event);
+            }
             // Перемещаем prevState в redoStack
             pushState(&redoStack, prevState);
         } else {
