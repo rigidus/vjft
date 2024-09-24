@@ -86,6 +86,8 @@ void pushState(StateStack** stack, State* state);
 State* popState(StateStack** stack);
 void clearStack(StateStack** stack);
 
+// Функция для отладочного отображения CmdFunc
+char* descr_cmd_fn(CmdFunc cmd_fn);
 
 // Команды
 

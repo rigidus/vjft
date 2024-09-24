@@ -266,15 +266,6 @@ void dispExEv () {
 // Undo/Redo
 
 void displayUndoStates(StateStack* stateStack) {
-    // Внутренняя функция для представляения cmdFn
-    char* sub_cmd_fn(CmdFunc cmd_fn) {
-        if (cmd_fn == cmd_insert) return "cmd_insert";
-        if (cmd_fn == cmd_backspace) return "cmd_backspace";
-        if (cmd_fn == cmd_backward_char) return "cmd_backward_char";
-        if (cmd_fn == cmd_forward_char) return "cmd_forward_char";
-        return  "cmd_notfound";
-    }
-
     char undoStatesBuffer[MAX_BUFFER / 2] = {0};
     strcat(undoStatesBuffer, "\n");
 
@@ -286,7 +277,7 @@ void displayUndoStates(StateStack* stateStack) {
             // Форматирование описания состояния и добавление его в буфер
             snprintf(stateDesc, sizeof(stateDesc),
                      "fwd: %s[%s](%d)\n",
-                     sub_cmd_fn(state->cmdFn),
+                     descr_cmd_fn(state->cmdFn),
                      state->seq,
                      state->cnt);
             strcat(undoStatesBuffer, stateDesc);

@@ -53,7 +53,13 @@ void enqueueEvent(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
     pthread_mutex_unlock(queueMutex);
 }
 
-
+char* descr_cmd_fn(CmdFunc cmd_fn) {
+    if (cmd_fn == cmd_insert) return "cmd_insert";
+    if (cmd_fn == cmd_backspace) return "cmd_backspace";
+    if (cmd_fn == cmd_backward_char) return "cmd_backward_char";
+    if (cmd_fn == cmd_forward_char) return "cmd_forward_char";
+    return  "cmd_notfound";
+}
 
 void convertToAsciiCodes(const char *input, char *output,
                          size_t outputSize)
@@ -245,6 +251,8 @@ void connect_to_server(const char* server_ip, int port) {
         sockfd = -1;
     }
 }
+
+
 
 State* cmd_connect(MsgNode* msg, InputEvent* event) {
     connect_to_server("127.0.0.1", 8888);
@@ -796,7 +804,6 @@ State* cmd_toggle_cursor_shadow(MsgNode* node, InputEvent* event) {
     return NULL;
 }
 
-
 State* cmd_undo(MsgNode* msgnode, InputEvent* event) {
     if (undoStack == NULL) {
         pushMessage(&msgList, "No more actions to undo");
@@ -809,62 +816,71 @@ State* cmd_undo(MsgNode* msgnode, InputEvent* event) {
         if (!prevState) {
             pushMessage(&msgList, "Failed to pop state from undoStack");
             return NULL;
-        } else {
-            // Отладочный вывод
-            char logMsg[DBG_LOG_MSG_SIZE] = {0};
-            snprintf(
-                logMsg,
-                sizeof(logMsg),
-                "cmd_undo: %s - <%s> [%d]",
-                (prevState->cmdFn == cmd_insert)
-                ? "cmd_insert" : "unk_cmdFn",
-                prevState->seq,
-                (int)utf8_strlen(prevState->seq)
-                );
-            pushMessage(&msgList, logMsg);
+        }
 
-            if (prevState->cmdFn == cmd_insert) {
-                // Вычисляем сколько utf-8 символов надо удалить
-                int cnt_del = utf8_strlen(prevState->seq);
-                // Вычисляем сколько они занимают байт
-                int ins_len = strlen(prevState->seq);
+        // Отладочный вывод
+        char logMsg[DBG_LOG_MSG_SIZE] = {0};
+        int len = 0;
+        if (prevState->seq) {
+            len = (int)utf8_strlen(prevState->seq);
+        }
+        snprintf(
+            logMsg,
+            sizeof(logMsg),
+            "cmd_undo: %s - <%s>(%d) [%d]",
+            descr_cmd_fn(prevState->cmdFn),
+            prevState->seq,
+            len,
+            prevState->cnt
+            );
+        pushMessage(&msgList, logMsg);
 
-                // Находим байтовую позицию символа под курсором
-                int byte_offset =
-                    utf8_byte_offset(msgnode->message,
-                                     msgnode->cursor_pos);
+        if (prevState->cmdFn == cmd_insert) {
+            // Вычисляем сколько utf-8 символов надо удалить
+            int cnt_del = utf8_strlen(prevState->seq);
+            // Вычисляем сколько они занимают байт
+            int ins_len = strlen(prevState->seq);
 
-                // Новая байтовая позиция будет меньше на
-                // размер удаляемой строки в байтах
-                int new_byte_offset = byte_offset - ins_len;
+            // Находим байтовую позицию символа под курсором
+            int byte_offset =
+                utf8_byte_offset(msgnode->message,
+                                 msgnode->cursor_pos);
 
-                // Если новая байтовая позиция меньше чем
-                // начало строки - это сбой
-                if (new_byte_offset < 0) {
-                    perror("Error calc undo insert");
-                    exit(1);
-                }
+            // Новая байтовая позиция будет меньше на
+            // размер удаляемой строки в байтах
+            int new_byte_offset = byte_offset - ins_len;
 
-                // Перемещаем правую часть строки на новую
-                // байтовую позицию
-                strcpy(msgnode->message + new_byte_offset,
-                       msgnode->message + byte_offset);
-                // Реаллоцируем строку [TODO:gmm] segfault
-                /* msgnode->message = */
-                /*     realloc(msgnode->message, */
-                /*             strlen(msgnode->message) */
-                /*             - ins_len); */
-                //
-
-                // Перемещаем курсор на кол-во удаленных символов
-                msgnode->cursor_pos -= cnt_del;
-
-                // Перемещаем prevState в redoStack
-                pushState(&redoStack, prevState);
-            } else {
-                // Перемещаем prevState в redoStack
-                pushState(&redoStack, prevState);
+            // Если новая байтовая позиция меньше чем
+            // начало строки - это сбой
+            if (new_byte_offset < 0) {
+                perror("Error calc undo insert");
+                exit(1);
             }
+
+            // Перемещаем правую часть строки на новую
+            // байтовую позицию
+            strcpy(msgnode->message + new_byte_offset,
+                   msgnode->message + byte_offset);
+            // Реаллоцируем строку [TODO:gmm] segfault
+            /* msgnode->message = */
+            /*     realloc(msgnode->message, */
+            /*             strlen(msgnode->message) */
+            /*             - ins_len); */
+            //
+
+            // Перемещаем курсор на кол-во удаленных символов
+            msgnode->cursor_pos -= cnt_del;
+
+            // Перемещаем prevState в redoStack
+            pushState(&redoStack, prevState);
+        } else if (prevState->cmdFn == cmd_backward_char) {
+            msgnode->cursor_pos += prevState->cnt;
+            // Перемещаем prevState в redoStack
+            pushState(&redoStack, prevState);
+        } else {
+            // ...
+            // Перемещаем prevState в redoStack
+            pushState(&redoStack, prevState);
         }
 
         // Возвращаем предыдущее состояние чтобы обновить отображение
