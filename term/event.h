@@ -23,15 +23,12 @@ typedef struct InputEvent InputEvent;
 // знает о типе State и InputEvent
 typedef State* (*CmdFunc)(MsgNode*, InputEvent* event);
 
-// Типы Event-ов (нужны для отладочного вывода, после удалить)
-typedef enum {
-    DBG,
-    CMD
-} EventType;
+// [TODO:gmm] Типы Event-ов нужны для отладочного вывода, после удалить
+typedef enum { DBG, CMD } EventType;
 
 // Полное определение структуры InputEvent
 typedef struct InputEvent {
-    EventType type;
+    EventType type; // [TODO:gmm] удалить после отладки
     CmdFunc cmdFn;
     char* seq;
     struct InputEvent* next;
@@ -112,5 +109,15 @@ State* cmd_paste(MsgNode* node, InputEvent* event);
 State* cmd_toggle_cursor_shadow(MsgNode* node, InputEvent* event);
 State* cmd_undo(MsgNode* msg, InputEvent* event);
 State* cmd_redo(MsgNode* msg, InputEvent* event);
+
+
+typedef struct {
+    CmdFunc redo_cmd;
+    CmdFunc undo_cmd;
+} CmdPair;
+
+extern CmdPair comp_cmds[];
+
+CmdFunc get_comp_cmd (CmdFunc cmd);
 
 #endif

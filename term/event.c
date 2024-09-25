@@ -815,204 +815,153 @@ State* cmd_toggle_cursor_shadow(MsgNode* node, InputEvent* event) {
     return NULL;
 }
 
+State* cmd_uninsert(MsgNode* msgnode, InputEvent* event) {
+    // Вычисляем сколько utf-8 символов надо удалить
+    int cnt_del = utf8_strlen(event->seq);
+
+    // Вычисляем сколько они занимают байт
+    int ins_len = strlen(event->seq);
+
+    // Находим байтовую позицию символа под курсором
+    int byte_offset =
+        utf8_byte_offset(msgnode->message, msgnode->cursor_pos);
+
+    // Новая байтовая позиция будет меньше на
+    // размер удаляемой строки в байтах
+    int new_byte_offset = byte_offset - ins_len;
+
+    // Если новая байтовая позиция меньше чем
+    // начало строки - это сбой
+    if (new_byte_offset < 0) {
+        perror("Error calc undo insert");
+        exit(1);
+    }
+
+    // Перемещаем правую часть строки на новую
+    // байтовую позицию
+    strcpy(msgnode->message + new_byte_offset,
+           msgnode->message + byte_offset);
+    // Реаллоцируем строку [TODO:gmm] segfault
+    /* msgnode->message = */
+    /*     realloc(msgnode->message, */
+    /*             strlen(msgnode->message) */
+    /*             - ins_len); */
+    //
+
+    // Перемещаем курсор на кол-во удаленных символов
+    msgnode->cursor_pos -= cnt_del;
+
+    return NULL;
+}
+
 State* cmd_undo(MsgNode* msgnode, InputEvent* event) {
     if (undoStack == NULL) {
         pushMessage(&msgList, "No more actions to undo");
-        // Если undo-стек пуст, то ничего делать не надо
         return NULL;
-    } else {
-        // Извлекаем последнее состояние из undoStack
-        State* prevState = popState(&undoStack);
-
-        if (!prevState) {
-            pushMessage(&msgList, "Failed to pop state from undoStack");
-            return NULL;
-        }
-
-        // Отладочный вывод
-        char logMsg[DBG_LOG_MSG_SIZE] = {0};
-        int len = 0;
-        if (prevState->seq) {
-            len = (int)utf8_strlen(prevState->seq);
-        }
-        snprintf(
-            logMsg,
-            sizeof(logMsg),
-            "cmd_undo: %s - <%s>(%d) [%d]",
-            descr_cmd_fn(prevState->cmdFn),
-            prevState->seq,
-            len,
-            prevState->cnt
-            );
-        pushMessage(&msgList, logMsg);
-
-        if (prevState->cmdFn == cmd_insert) {
-            // Вычисляем сколько utf-8 символов надо удалить
-            int cnt_del = utf8_strlen(prevState->seq);
-            // Вычисляем сколько они занимают байт
-            int ins_len = strlen(prevState->seq);
-
-            // Находим байтовую позицию символа под курсором
-            int byte_offset =
-                utf8_byte_offset(msgnode->message,
-                                 msgnode->cursor_pos);
-
-            // Новая байтовая позиция будет меньше на
-            // размер удаляемой строки в байтах
-            int new_byte_offset = byte_offset - ins_len;
-
-            // Если новая байтовая позиция меньше чем
-            // начало строки - это сбой
-            if (new_byte_offset < 0) {
-                perror("Error calc undo insert");
-                exit(1);
-            }
-
-            // Перемещаем правую часть строки на новую
-            // байтовую позицию
-            strcpy(msgnode->message + new_byte_offset,
-                   msgnode->message + byte_offset);
-            // Реаллоцируем строку [TODO:gmm] segfault
-            /* msgnode->message = */
-            /*     realloc(msgnode->message, */
-            /*             strlen(msgnode->message) */
-            /*             - ins_len); */
-            //
-
-            // Перемещаем курсор на кол-во удаленных символов
-            msgnode->cursor_pos -= cnt_del;
-
-            // Перемещаем prevState в redoStack
-            pushState(&redoStack, prevState);
-        } else if (prevState->cmdFn == cmd_backward_char) {
-            // Создаем event
-            InputEvent* event = malloc(sizeof(InputEvent));
-            event->type = CMD;
-            event->cmdFn = cmd_forward_char;
-            /* if (prevState->seq) { */
-            /*     event->seq = strdup(prevState->seq); */
-            /* } else { */
-                event->seq = NULL;
-            /* } */
-            // Применяем event к msgList.current
-            // prevState->cnt раз.
-            // Возвращаемое значение не будет помещено в
-            // undo стек, т.к. это cmd_undo (особый случай)
-            for (int i=0; i < prevState->cnt; i++) {
-                event->cmdFn(msgnode, event);
-            }
-            // Перемещаем prevState в redoStack
-            pushState(&redoStack, prevState);
-        } else if (prevState->cmdFn == cmd_forward_char) {
-            // Создаем event
-            InputEvent* event = malloc(sizeof(InputEvent));
-            event->type = CMD;
-            event->cmdFn = cmd_backward_char;
-            if (prevState->seq) {
-                event->seq = strdup(prevState->seq);
-            /* } else { */
-            /* event->seq = NULL; */
-            }
-            // Применяем event к msgList.current
-            // prevState->cnt раз.
-            // Возвращаемое значение не будет помещено в
-            // undo стек, т.к. это cmd_undo (особый случай)
-            /* for (int i=0; i < prevState->cnt; i++) { */
-                event->cmdFn(msgnode, event);
-            /* } */
-            // Перемещаем prevState в redoStack
-            pushState(&redoStack, prevState);
-        } else if (prevState->cmdFn == cmd_backspace) {
-            // Восстановить запомненный удаленный символ
-            // Создаем event
-            InputEvent* event = malloc(sizeof(InputEvent));
-            event->type = CMD;
-            event->cmdFn = cmd_insert;
-            if (prevState->seq) {
-                event->seq = strdup(prevState->seq);
-            } else {
-                event->seq = NULL;
-            }
-            // Применяем event к msgList.current
-            // prevState->cnt раз.
-            // Возвращаемое значение не будет помещено в
-            // undo стек, т.к. это cmd_undo (особый случай)
-            /* for (int i=0; i < prevState->cnt; i++) { */
-                event->cmdFn(msgnode, event);
-            /* } */
-            // Перемещаем prevState в redoStack
-            pushState(&redoStack, prevState);
-        } else {
-            // ...
-            // Перемещаем prevState в redoStack
-            pushState(&redoStack, prevState);
-        }
-
-        // Возвращаем предыдущее состояние чтобы обновить отображение
-        return prevState;
     }
+
+    // Pop the last state from the undo stack
+    State* prevState = popState(&undoStack);
+    if (!prevState) {
+        pushMessage(&msgList, "Failed to pop state from undoStack");
+        return NULL;
+    }
+
+    // Отладочный вывод
+    char logMsg[DBG_LOG_MSG_SIZE] = {0};
+    int len = (prevState->seq) ? (int)utf8_strlen(prevState->seq) : 0;
+    snprintf(logMsg, sizeof(logMsg),
+             "cmd_undo: %s - <%s>(%d) [%d]",
+             descr_cmd_fn(prevState->cmdFn),
+             prevState->seq, len, prevState->cnt);
+    pushMessage(&msgList, logMsg);
+
+    // Get the complementary command
+    CmdFunc undoCmd = get_comp_cmd(prevState->cmdFn);
+    if (undoCmd == NULL) {
+        pushMessage(&msgList, "No complementary cmd found for undo");
+        // Push the state back onto undo stack
+        pushState(&undoStack, prevState);
+        return NULL;
+    }
+
+    // Create a new event to apply the undo command
+    InputEvent undoEvent = {
+        .type = CMD,
+        .cmdFn = undoCmd,
+        .seq = prevState->seq ? strdup(prevState->seq) : NULL,
+        .next = NULL
+    };
+
+    // Apply the undo command
+    for (int i = 0; i < prevState->cnt; i++) {
+        undoCmd(msgnode, &undoEvent);
+    }
+
+    // Перемещаем prevState в redoStack
+    pushState(&redoStack, prevState);
+
+    // Clean up
+    if (undoEvent.seq) free(undoEvent.seq);
+
+    // Return the prevState to indicate the state has changed
+    return prevState;
 }
 
 State* cmd_redo(MsgNode* msgnode, InputEvent* event) {
     if (redoStack == NULL) {
         pushMessage(&msgList, "No more actions to redo");
-        // Если redoStack пуст, то ничего перерисовывать не надо
         return NULL;
-    } else {
-
-        // Извлекаем состояние из redoStack
-        State* prevState = popState(&redoStack);
-
-        if (!prevState) {
-            pushMessage(&msgList, "Failed to pop state from redoStack");
-            return NULL;
-        } else {
-            // [TODO:gmm] Надо завести набор парных функций
-            // undo/redo и искать обратную функцию в этом наборе
-            if ( (prevState->cmdFn == cmd_insert)
-                 || (prevState->cmdFn == cmd_backward_char)
-                 || (prevState->cmdFn == cmd_forward_char) ) {
-                // Создаем event
-                InputEvent* event = malloc(sizeof(InputEvent));
-                event->type = CMD;
-                event->cmdFn = prevState->cmdFn;
-                if (prevState->seq) {
-                    event->seq = strdup(prevState->seq);
-                } else {
-                    event->seq = NULL;
-                }
-                // Применяем event к msgList.current
-                // prevState->cnt раз.
-                // Возвращаемое значение не будет помещено в
-                // undo стек, т.к. это cmd_undo (особый случай)
-                for (int i=0; i < prevState->cnt; i++) {
-                    prevState->cmdFn(msgnode, event);
-                }
-            } else if (prevState->cmdFn == cmd_backspace) {
-                // Создаем event
-                InputEvent* event = malloc(sizeof(InputEvent));
-                event->type = CMD;
-                event->cmdFn = prevState->cmdFn;
-                if (prevState->seq) {
-                    event->seq = strdup(prevState->seq);
-                } else {
-                    event->seq = NULL;
-                }
-                // Применяем event к msgList.current
-                // prevState->cnt раз.
-                // Возвращаемое значение не будет помещено в
-                // undo стек, т.к. это cmd_undo (особый случай)
-                for (int i=0; i < prevState->cnt; i++) {
-                    prevState->cmdFn(msgnode, event);
-                }
-            } else {
-                pushMessage(&msgList, "cmd_redo: unk_cmdFn");
-            }
-            // Перемещаем prevState в undoStack
-            pushState(&undoStack, prevState);
-        }
-
-        // Возвращаем состояние чтобы обновить отображение
-        return prevState;
     }
+
+    // Pop the last state from the redo stack
+    State* nextState = popState(&redoStack);
+    if (!nextState) {
+        pushMessage(&msgList, "Failed to pop state from redoStack");
+        return NULL;
+    }
+
+    // The command to reapply is the original command
+    CmdFunc redoCmd = nextState->cmdFn;
+
+    // Create a new event to apply the redo command
+    InputEvent redoEvent = {
+        .type = CMD,
+        .cmdFn = redoCmd,
+        .seq = nextState->seq ? strdup(nextState->seq) : NULL,
+        .next = NULL
+    };
+
+    // Apply the redo command
+    for (int i = 0; i < nextState->cnt; i++) {
+        redoCmd(msgnode, &redoEvent);
+    }
+
+    // Push the next state back onto the undo stack
+    pushState(&undoStack, nextState);
+
+    // Clean up
+    if (redoEvent.seq) free(redoEvent.seq);
+
+    // Return the nextState to indicate the state has changed
+    return nextState;
+}
+
+
+CmdPair comp_cmds[] = {
+    { cmd_insert,         cmd_uninsert },
+    { cmd_backspace,      cmd_insert },
+    { cmd_forward_char,   cmd_backward_char },
+    { cmd_backward_char,  cmd_forward_char },
+    // ...
+};
+
+CmdFunc get_comp_cmd (CmdFunc cmd) {
+    for (int i = 0; i < (sizeof(comp_cmds) / sizeof(CmdPair)); i++) {
+        if (comp_cmds[i].redo_cmd == cmd) {
+            return comp_cmds[i].undo_cmd;
+        }
+    }
+    // If no complementary command is found, return NULL
+    return NULL;
 }
