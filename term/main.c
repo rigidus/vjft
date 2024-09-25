@@ -189,9 +189,9 @@ bool keyb () {
 // Функция для получения строкового представления события
 char* getEventDescription(InputEvent* event) {
     static char desc[256];
-    const char* typeName = (event->type == DBG) ? "Dbg" : "Cmd";
-    const char* cmdName = event->cmdFn ? "Fn" : "No";
-    snprintf(desc, sizeof(desc), "[%s:%s|Dat:%s]", typeName, cmdName, event->seq ? event->seq : "NoDat");
+    snprintf(desc, sizeof(desc), "(%s «%s»)",
+             descr_cmd_fn(event->cmdFn),
+             event->seq ? event->seq : "");
     return desc;
 }
 
@@ -276,7 +276,7 @@ void displayUndoStates(StateStack* stateStack) {
             char stateDesc[128] = {0};
             // Форматирование описания состояния и добавление его в буфер
             snprintf(stateDesc, sizeof(stateDesc),
-                     "fwd: %s[%s](%d)\n",
+                     "(%s «%s» %d)\n",
                      descr_cmd_fn(state->cmdFn),
                      state->seq,
                      state->cnt);
@@ -304,7 +304,7 @@ void reDraw() {
 
     // Вычисляем относительную позицию курсора в inputbuffer-е
     int rel_max_width = win_cols - margin*2;
-    calc_display_size(msgList.curr->message, rel_max_width,
+    calc_display_size(msgList.curr->text, rel_max_width,
                       msgList.curr->cursor_pos,
                       &ib_need_cols, &ib_need_rows,
                       &ib_cursor_row, &ib_cursor_col);
@@ -382,7 +382,7 @@ void reDraw() {
     int up = bottom + 1 - ib_need_rows;
     // Выводим
     if (msgList.curr) {
-        display_wrapped(msgList.curr->message, margin, up,
+        display_wrapped(msgList.curr->text, margin, up,
                         rel_max_width, ib_need_rows, ib_from_row,
                         msgList.curr->cursor_pos,
                         msgList.curr->shadow_cursor_pos);
@@ -405,17 +405,17 @@ void reDraw() {
 
     while (current && ob_bottom > 0) {
         int needCols = 0, needRows = 0, cursorRow = 0, cursorCol = 0;
-        calc_display_size(current->message, maxWidth, 0,
+        calc_display_size(current->text, maxWidth, 0,
                           &needCols, &needRows, &cursorRow, &cursorCol);
 
         if (needRows <= ob_bottom) {
-            display_wrapped(current->message, margin,
+            display_wrapped(current->text, margin,
                             ob_bottom - needRows,
                             maxWidth, needRows, 0, -1, -1);
             // обновляем начальную точку для следующего сообщения
             ob_bottom -= needRows+1;
         } else {
-            display_wrapped(current->message, margin, 0,
+            display_wrapped(current->text, margin, 0,
                             maxWidth, ob_bottom,
                             needRows - ob_bottom, -1, -1);
             ob_bottom = 0; // заполнили доступное пространство
@@ -438,7 +438,7 @@ MsgNode* copyMsgNodes(MsgNode* node) {
 
     MsgNode* newNode = malloc(sizeof(MsgNode));
     if (!newNode) return NULL;
-    newNode->message = strdup(node->message);
+    newNode->text = strdup(node->text);
     newNode->cursor_pos = node->cursor_pos;
     newNode->shadow_cursor_pos = node->shadow_cursor_pos;
     newNode->next = copyMsgNodes(node->next);
@@ -453,7 +453,7 @@ MsgNode* copyMsgNodes(MsgNode* node) {
 void freeMsgNodes(MsgNode* node) {
     if (!node) return;
     freeMsgNodes(node->next);
-    free(node->message);
+    free(node->text);
     free(node);
 }
 

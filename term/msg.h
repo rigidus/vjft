@@ -8,7 +8,7 @@
 #include <pthread.h>
 
 typedef struct MsgNode {
-    char* message;
+    char* text;
     struct MsgNode* prev;
     struct MsgNode* next;
     int cursor_pos;

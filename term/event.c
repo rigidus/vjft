@@ -53,6 +53,8 @@ char* descr_cmd_fn(CmdFunc cmd_fn) {
     if (cmd_fn == cmd_backspace) return "cmd_backspace";
     if (cmd_fn == cmd_backward_char) return "cmd_backward_char";
     if (cmd_fn == cmd_forward_char) return "cmd_forward_char";
+    if (cmd_fn == cmd_undo) return "cmd_undo";
+    if (cmd_fn == cmd_redo) return "cmd_redo";
     return  "cmd_notfound";
 }
 
@@ -194,7 +196,7 @@ State* createState(MsgNode* msgnode, InputEvent* event) {
 }
 
 
-/* // State Stakes */
+// State Stakes */
 
 void freeState(State* state) {
     if (!state) return;
@@ -255,63 +257,64 @@ State* cmd_connect(MsgNode* msg, InputEvent* event) {
     return NULL;
 }
 
-State* cmd_alt_enter(MsgNode* msg, InputEvent* event) {
-    /* pushMessage(&msgList, "ALT enter function"); */
-    if (!msg || !msg->message) return NULL;
+State* cmd_alt_enter(MsgNode* msgnode, InputEvent* event) {
+    /* /\* pushMessage(&msgList, "ALT enter function"); *\/ */
+    /* if (!msgnode || !msgnode->text) return NULL; */
 
-    // Вычисляем byte_offset, используя текущую позицию курсора
-    int byte_offset = utf8_byte_offset(msg->message, msg->cursor_pos);
+    /* // Вычисляем byte_offset, используя текущую позицию курсора */
+    /* int byte_offset = */
+    /*     utf8_byte_offset(msgnode->text, msgnode->cursor_pos); */
 
-    // Выделяем новую память для сообщения
-    // +2 для новой строки и нуль-терминатора
-    char* new_message = malloc(strlen(msg->message) + 2);
-    if (!new_message) {
-        perror("Failed to allocate memory for new message");
-        return NULL;
-    }
+    /* // Выделяем новую память для сообщения */
+    /* // +2 для новой строки и нуль-терминатора */
+    /* char* new_message = malloc(strlen(msgnode->text) + 2); */
+    /* if (!new_message) { */
+    /*     perror("Failed to allocate memory for new message"); */
+    /*     return NULL; */
+    /* } */
 
-    // Копируем часть сообщения до позиции курсора
-    strncpy(new_message, msg->message, byte_offset);
-    new_message[byte_offset] = '\n';  // Вставляем символ новой строки
+    /* // Копируем часть сообщения до позиции курсора */
+    /* strncpy(new_message, msgnode->text, byte_offset); */
+    /* new_message[byte_offset] = '\n';  // Вставляем символ новой строки */
 
-    // Копируем оставшуюся часть сообщения
-    strcpy(new_message + byte_offset + 1, msg->message + byte_offset);
+    /* // Копируем оставшуюся часть сообщения */
+    /* strcpy(new_message + byte_offset + 1, msgnode->text + byte_offset); */
 
-    // Освобождаем старое сообщение и обновляем указатель
-    free(msg->message);
-    msg->message = new_message;
+    /* // Освобождаем старое сообщение и обновляем указатель */
+    /* free(msgnode->text); */
+    /* msgnode->text = new_message; */
 
-    // Перемещаем курсор на следующий символ после '\n'
-    msg->cursor_pos++;
+    /* // Перемещаем курсор на следующий символ после '\n' */
+    /* msgnode->cursor_pos++; */
 
-    // При необходимости обновляем UI или логику отображения
-    // ...
+    /* // При необходимости обновляем UI или логику отображения */
+    /* // ... */
 
     return NULL;
 }
 
 State* cmd_enter(MsgNode* msg, InputEvent* event) {
-    pushMessage(&msgList, "enter function");
-    if (msgList.curr == NULL) {
-        pushMessage(&msgList, "cmd_enter_err: Нет сообщения для отправки");
-        return NULL;
-    }
-    const char* text = msg->message;
-    if (text == NULL || strlen(text) == 0) {
-        pushMessage(&msgList, "cmd_enter_err: Текущее сообщение пусто");
-        return NULL;
-    }
-    if (sockfd <= 0) {
-        pushMessage(&msgList, "cmd_enter_err: Нет соединения");
-        return NULL;
-    }
+    /* pushMessage(&msgList, "enter function"); */
+    /* if (msgList.curr == NULL) { */
+    /*     pushMessage(&msgList, "cmd_enter_err: Нет сообщения для отправки"); */
+    /*     return NULL; */
+    /* } */
+    /* const char* text = msgnode->text; */
+    /* if (text == NULL || strlen(text) == 0) { */
+    /*     pushMessage(&msgList, "cmd_enter_err: Текущее сообщение пусто"); */
+    /*     return NULL; */
+    /* } */
+    /* if (sockfd <= 0) { */
+    /*     pushMessage(&msgList, "cmd_enter_err: Нет соединения"); */
+    /*     return NULL; */
+    /* } */
 
-    ssize_t bytes_sent = send(sockfd, text, strlen(text), 0);
-    if (bytes_sent < 0) {
-        pushMessage(&msgList, "cmd_enter_err: Ошибка при отправке сообщения");
-    } else {
-        pushMessage(&msgList, "cmd_enter: отправлено успешно");
-    }
+    /* ssize_t bytes_sent = send(sockfd, text, strlen(text), 0); */
+    /* if (bytes_sent < 0) { */
+    /*     pushMessage(&msgList, "cmd_enter_err: Ошибка при отправке сообщения"); */
+    /* } else { */
+    /*     pushMessage(&msgList, "cmd_enter: отправлено успешно"); */
+    /* } */
 
     return NULL;
 }
@@ -323,80 +326,130 @@ State* cmd_enter(MsgNode* msg, InputEvent* event) {
 
 // Функция для удаления символа слева от курсора
 State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
-    if ( (!msgnode) || (!msgnode->message)
+    if ( (!msgnode) || (!msgnode->text)
          || (msgnode->cursor_pos == 0) ) {
-        // Если с msgnode что-то не так,
-        // отпустим lock и вернемся
         return NULL;
     }
 
     // Находим байтовую позицию текущего и предыдущего UTF-8 символов
     int byte_offset =
-        utf8_byte_offset(msgnode->message, msgnode->cursor_pos);
+        utf8_byte_offset(msgnode->text, msgnode->cursor_pos);
 
-    // Так как ранее мы проверили, что msgnode->cursor_pos не ноль,
-    // не может быть ситуации антипереполнения, и проверять не нужно
+    // Так как ранее мы проверили, что msgnode->cursor_pos
+    // не ноль, мы не можем получить отрицательную позицию
+    // курсора здесь, поэтому не делаем никаких проверок
     int new_cursor_pos = msgnode->cursor_pos - 1;
 
     // Находим байтовую позицию предыдущего символа
     int byte_offset_prev =
-        utf8_byte_offset(msgnode->message, new_cursor_pos);
+        utf8_byte_offset(msgnode->text, new_cursor_pos);
 
-    // Находим длину удаляемого
+    // Находим длину удаляемого символа в байтах
     int del_len = byte_offset - byte_offset_prev;
 
-    // Выделяем память для удаляемого символа и нуль-терминатора
-    char* del = malloc(del_len + 1);
-    if (!del) {
-        perror("Failed to allocate memory for deleted");
-        return NULL;
+    // Указатель на последнее состояние в undo-стеке
+    // либо мы его создадим либо возьмем с вершины стека
+    // оно также служит нам флагом - если мы работаем
+    // с состоянием из стека оно не будет NULL
+    State* currState = NULL;
+
+    // Здесь будет указатель на удаляемое
+    char* del = NULL;
+
+    // Пытаемся получить предыдущее состояние из undo-стека
+    State* prevState = popState(&undoStack);
+    if ( (prevState)
+         && (prevState->cmdFn == cmd_backspace)
+        ) {
+        // Если предыдущее состояние существует и его команда
+        // такая же, которую мы сейчас выполняем, то будем
+        // присоединять удаляемое к предыдущему состоянию
+        currState = prevState;
+
+        // Определяем, сколько байт содержит currState->seq
+        int old_len = strlen(currState->seq);
+
+        // Реаллоцируем currState->seq чтобы вместить туда
+        // новое удаляемое и нуль-терминатор
+        del = realloc(currState->seq, old_len + del_len + 1);
+
+        // Сдвигаем содержимое currState->seq вправо на del_len
+        strncpy(currState->seq + del_len, currState->seq, old_len);
+
+        // Дописываем в начало del удаляемое
+        strncpy(del, msgnode->text + byte_offset_prev, del_len);
+
+        // Завершаем удаляемое нуль-терминатором
+        memset(del + old_len + del_len, 0, 1);
+
+        // Обновляем currState->seq
+        currState->seq = del;
+
+    } else {
+        /* // Предыдущее состояние нам не подходит, */
+        /* // вернем его обратно. currState сейчас NULL */
+        pushState(&undoStack, prevState);
+
+        // :::: Формирование строки, содержащей удаляемое
+
+        // Выделяем память для удаляемого символа и нуль-терминатора
+        del = malloc(del_len + 1);
+        if (!del) {
+            perror("Failed to allocate memory for deleted");
+            return NULL;
+        }
+
+        // Копируем удаляемое в эту память
+        strncpy(del, msgnode->text + byte_offset_prev, del_len);
+
+        // Завершаем удаляемое нуль-терминатором
+        memset(del + del_len, 0, 1);
     }
 
-    // Копируем удаляемое в эту память
-    strncpy(del, msgnode->message + byte_offset_prev, del_len);
+    // :::: Изменение msgnode
 
-    // Завершаем удаляемое нуль-терминатором
-    memset(del + del_len, 0, 1);
+    // Вычисляем новую длину text в байтах
+    int new_len = strlen(msgnode->text) - del_len + 1;
 
-    // Вычисляем новую длину сообщения в байтах
-    int new_length = strlen(msgnode->message) - del_len + 1;
-
-    // Выделяем память под новое сообщение
-    char* new_message = malloc(new_length);
-    if (!new_message) {
+    // Выделяем память под новый text
+    char* new_text = malloc(new_len);
+    if (!new_text) {
         perror("Не удалось выделить память");
         return NULL;
     }
 
     // Копирование части строки до предыдущего символа
-    strncpy(new_message, msgnode->message, byte_offset_prev);
+    strncpy(new_text, msgnode->text, byte_offset_prev);
 
     // Копирование части строки после текущего символа
-    strcpy(new_message + byte_offset_prev,
-           msgnode->message + byte_offset);
+    strcpy(new_text + byte_offset_prev,
+           msgnode->text + byte_offset);
 
-    // Освобождаем старое сообщение и присваиваем новое
-    free(msgnode->message);
-    msgnode->message = new_message;
+    // Освобождаем старый text и присваиваем новый
+    free(msgnode->text);
+    msgnode->text = new_text;
 
     // Обновляем позицию курсора
     msgnode->cursor_pos = new_cursor_pos;
 
-    // Теперь, когда у нас есть изменненная msgnode
-    // мы можем создать State для undoStack
-    State* currState = createState(msgnode, event);
+    // :::: Создание нового элемента undoStack
 
-    // Запоминить в состоянии удаляемый символ
-    currState->seq = del;
+    if (!currState) {
+        // Мы здесь, если не работали с состоянием из undo стека
+        // Теперь, когда у нас есть измененная msgnode
+        // мы можем создать State для undoStack
+        currState = createState(msgnode, event);
 
-    // [TODO:gmm] Надо запоминать несколько удаляемых символов
-    // которые могут быть разной длины, т.к. utf-8
+        // Запоминить в его seq удаляемый символ
+        currState->seq = del;
+    }
 
+    // Вернуть currState
     return currState;
 }
 
 State* cmd_backward_char(MsgNode* msgnode, InputEvent* event) {
-    if ( (!msgnode) || (!msgnode->message)
+    if ( (!msgnode) || (!msgnode->text)
          || (msgnode->cursor_pos == 0) ) {
         // Если с msgnode что-то не так,
         // отпустим lock и вернемся
@@ -458,13 +511,13 @@ State* cmd_backward_char(MsgNode* msgnode, InputEvent* event) {
 }
 
 State* cmd_forward_char(MsgNode* msgnode, InputEvent* event) {
-    if ( (!msgnode) || (!msgnode->message) ) {
+    if ( (!msgnode) || (!msgnode->text) ) {
         // Если с msgnode что-то не так, то вернемся
         return NULL;
     }
 
     // Вычислим максимальную позицию курсора
-    int len = utf8_strlen(msgnode->message);
+    int len = utf8_strlen(msgnode->text);
 
     // Если двигать вперед уже некуда, то вернемся
     if (msgnode->cursor_pos >= len) {
@@ -523,103 +576,104 @@ State* cmd_forward_char(MsgNode* msgnode, InputEvent* event) {
 }
 
 // Перемещение курсора вперед на одно слово
-State* cmd_forward_word(MsgNode* node, InputEvent* event) {
-    int len = utf8_strlen(node->message);  // Длина строки в байтах
+State* cmd_forward_word(MsgNode* msgnode, InputEvent* event) {
+    /* int len = utf8_strlen(node->text);  // Длина строки в байтах */
 
-    // Смещение в байтах от начала строки до курсора
-    int byte_offset = utf8_byte_offset(node->message, node->cursor_pos);
+    /* // Смещение в байтах от начала строки до курсора */
+    /* int byte_offset = utf8_byte_offset(node->message, node->cursor_pos); */
 
-    // Пропуск пробелов (если курсор находится на пробеле)
-    while (byte_offset < len && isspace((unsigned char)node->message[byte_offset]))
-    {
-        byte_offset = utf8_next_char(node->message, byte_offset);
-        node->cursor_pos++;
-    }
+    /* // Пропуск пробелов (если курсор находится на пробеле) */
+    /* while (byte_offset < len && isspace((unsigned char)node->message[byte_offset])) */
+    /* { */
+    /*     byte_offset = utf8_next_char(node->message, byte_offset); */
+    /*     node->cursor_pos++; */
+    /* } */
 
-    // Перемещение вперед до конца слова
-    while (byte_offset < len && !isspace((unsigned char)node->message[byte_offset]))
-    {
-        byte_offset = utf8_next_char(node->message, byte_offset);
-        node->cursor_pos++;
-    }
+    /* // Перемещение вперед до конца слова */
+    /* while (byte_offset < len && !isspace((unsigned char)node->message[byte_offset])) */
+    /* { */
+    /*     byte_offset = utf8_next_char(node->message, byte_offset); */
+    /*     node->cursor_pos++; */
+    /* } */
 
     return NULL;
 }
 
 // Перемещение курсора назад на одно слово
-State* cmd_backward_word(MsgNode* node, InputEvent* event) {
-    if (node->cursor_pos == 0) return NULL;  // Если курсор уже в начале, ничего не делаем
+State* cmd_backward_word(MsgNode* msgnode, InputEvent* event) {
+    /* if (node->cursor_pos == 0) return NULL;  // Если курсор уже в начале, ничего не делаем */
 
-    // Смещение в байтах от начала строки до курсора
-    int byte_offset = utf8_byte_offset(node->message, node->cursor_pos);
+    /* // Смещение в байтах от начала строки до курсора */
+    /* int byte_offset = utf8_byte_offset(node->text, node->cursor_pos); */
 
-    // Пропуск пробелов, если курсор находится на пробеле
-    while (byte_offset > 0) {
-        int prev_offset = utf8_prev_char(node->message, byte_offset);
-        if (!isspace((unsigned char)node->message[prev_offset])) {
-            break;
-        }
-        byte_offset = prev_offset;
-        node->cursor_pos--;
-    }
+    /* // Пропуск пробелов, если курсор находится на пробеле */
+    /* while (byte_offset > 0) { */
+    /*     int prev_offset = utf8_prev_char(node->text, byte_offset); */
+    /*     if (!isspace((unsigned char)node->message[prev_offset])) { */
+    /*         break; */
+    /*     } */
+    /*     byte_offset = prev_offset; */
+    /*     node->cursor_pos--; */
+    /* } */
 
-    // Перемещение назад до начала предыдущего слова
-    while (byte_offset > 0) {
-        int prev_offset = utf8_prev_char(node->message, byte_offset);
-        if (isspace((unsigned char)node->message[prev_offset])) {
-            break;
-        }
-        byte_offset = prev_offset;
-        node->cursor_pos--;
-    }
+    /* // Перемещение назад до начала предыдущего слова */
+    /* while (byte_offset > 0) { */
+    /*     int prev_offset = utf8_prev_char(node->message, byte_offset); */
+    /*     if (isspace((unsigned char)node->message[prev_offset])) { */
+    /*         break; */
+    /*     } */
+    /*     byte_offset = prev_offset; */
+    /*     node->cursor_pos--; */
+    /* } */
 
     return NULL;
 }
 
-State* cmd_to_beginning_of_line(MsgNode* node, InputEvent* event) {
-    // Если курсор уже в начале текста, ничего не делаем
-    if (node->cursor_pos == 0) return NULL;
+State* cmd_to_beginning_of_line(MsgNode* msgnode, InputEvent* event) {
+/*     // Если курсор уже в начале текста, ничего не делаем */
+/*     if (node->cursor_pos == 0) return NULL; */
 
-    // Смещение в байтах от начала строки до курсора
-    int byte_offset = utf8_byte_offset(node->message, node->cursor_pos);
+/*     // Смещение в байтах от начала строки до курсора */
+/*     int byte_offset = */
+/*         utf8_byte_offset(msgnode->text, node->cursor_pos); */
 
-    // Движемся назад, пока не найдем начало строки или начало текста
-    while (byte_offset > 0) {
-        int prev_offset = utf8_prev_char(node->message, byte_offset);
-        if (node->message[prev_offset] == '\n') {
-            // Переходим на следующий символ после \n
-            byte_offset = utf8_next_char(node->message, prev_offset);
-            node->cursor_pos = utf8_strlen(node->message);
-            return  NULL;
-        }
-        byte_offset = prev_offset;
-        node->cursor_pos--;
-    }
-    // Если достигли начала текста, устанавливаем курсор на позицию 0
-    node->cursor_pos = 0;
+/*     // Движемся назад, пока не найдем начало строки или начало текста */
+/*     while (byte_offset > 0) { */
+/*         int prev_offset = utf8_prev_char(node->message, byte_offset); */
+/*         if (node->message[prev_offset] == '\n') { */
+/*             // Переходим на следующий символ после \n */
+/*             byte_offset = utf8_next_char(node->message, prev_offset); */
+/*             node->cursor_pos = utf8_strlen(node->message); */
+/*             return  NULL; */
+/*         } */
+/*         byte_offset = prev_offset; */
+/*         node->cursor_pos--; */
+/*     } */
+/*     // Если достигли начала текста, устанавливаем курсор на позицию 0 */
+/*     node->cursor_pos = 0; */
 
     return NULL;
 }
 
 State* cmd_to_end_of_line(MsgNode* node, InputEvent* event) {
-    // Длина строки в байтах
-    int len = strlen(node->message);
+/*     // Длина строки в байтах */
+/*     int len = strlen(node->message); */
 
-    // Смещение в байтах от начала строки до курсора
-    int byte_offset = utf8_byte_offset(node->message, node->cursor_pos);
+/*     // Смещение в байтах от начала строки до курсора */
+/*     int byte_offset = utf8_byte_offset(node->message, node->cursor_pos); */
 
-    // Движемся вперед, пока не найдем конец строки или конец текста
-    while (byte_offset < len) {
-        if (node->message[byte_offset] == '\n') {
-            node->cursor_pos = utf8_char_index(node->message, byte_offset);
-            return NULL;
-        }
-        byte_offset = utf8_next_char(node->message, byte_offset);
-        node->cursor_pos++;
-    }
+/*     // Движемся вперед, пока не найдем конец строки или конец текста */
+/*     while (byte_offset < len) { */
+/*         if (node->message[byte_offset] == '\n') { */
+/*             node->cursor_pos = utf8_char_index(node->message, byte_offset); */
+/*             return NULL; */
+/*         } */
+/*         byte_offset = utf8_next_char(node->message, byte_offset); */
+/*         node->cursor_pos++; */
+/*     } */
 
-    // Если достигли конца текста
-    node->cursor_pos = utf8_char_index(node->message, len);
+/*     // Если достигли конца текста */
+/*     node->cursor_pos = utf8_char_index(node->message, len); */
 
     return NULL;
 }
@@ -638,38 +692,36 @@ State* cmd_next_msg() {
 
 // Функция для вставки текста в позицию курсора
 State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
-    if (!msgnode || !msgnode->message) {
-        // Если с msgnode что-то не так, то вернемся
+    if (!msgnode || !msgnode->text) {
         return NULL;
     }
 
     // Байтовое смещение позиции курсора
     int byte_offset =
-        utf8_byte_offset(msgnode->message, msgnode->cursor_pos);
+        utf8_byte_offset(msgnode->text, msgnode->cursor_pos);
 
-    // Длина вставляемой последовательности
+    // Длина вставляемой последовательности в байтах
     int insert_len = strlen(event->seq);
 
     // Реаллоцируем message
-    char* new_message =
-        realloc(msgnode->message,
-                strlen(msgnode->message) + insert_len + 1);
-    if (new_message == NULL) {
-        // Тут Lock можно не отпускать, все равно выходим
+    char* new_text =
+        realloc(msgnode->text,
+                strlen(msgnode->text) + insert_len + 1);
+    if (new_text == NULL) {
         perror("Failed to reallocate memory");
         exit(1);
     }
 
     // Обновляем указатель на message в msgnode
-    msgnode->message = new_message;
+    msgnode->text = new_text;
 
     // Сдвиг части строки справа от курсора вправо на insert_len
-    memmove(msgnode->message + byte_offset + insert_len, // dest
-            msgnode->message + byte_offset,              // src
-            strlen(msgnode->message) - byte_offset + 1); // size_t
+    memmove(msgnode->text + byte_offset + insert_len, // dest
+            msgnode->text + byte_offset,              // src
+            strlen(msgnode->text) - byte_offset + 1); // size_t
 
     // Вставка event->seq в позицию курсора
-    memcpy(msgnode->message + byte_offset, event->seq, insert_len);
+    memcpy(msgnode->text + byte_offset, event->seq, insert_len);
 
     // Смещение курсора (выполняется в utf8-символах)
     msgnode->cursor_pos += utf8_strlen(event->seq);
@@ -723,14 +775,17 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
         // Записываем реаллоцированный seq в currState
         currState->seq = new_seq;
 
-        // Отладочный вывод
-        /* char log[DBG_LOG_MSG_SIZE] = {0}; */
-        /* snprintf( */
-        /*     log, sizeof(log), */
-        /*     "insert_seq_len:%d event_seq_len:%d, new_seq_len:%d (%p -> %p) <%s>", */
-        /*     insert_seq_len, event_seq_len, new_seq_len, */
-        /*     currState->seq, new_seq, new_seq); */
-        /* pushMessage(&msgList, log); */
+        // Для красоты записываем длину
+        /* currState->cnt = utf8_strlen(new_seq); */
+
+        /* Отладочный вывод */
+        char log[DBG_LOG_MSG_SIZE] = {0};
+        snprintf(
+            log, sizeof(log),
+            "insert_seq_len:%d event_seq_len:%d, new_seq_len:%d (%p -> %p) <%s>",
+            insert_seq_len, event_seq_len, new_seq_len,
+            currState->seq, new_seq, new_seq);
+        pushMessage(&msgList, log);
     }
 
     // Возвращаем State
@@ -765,17 +820,17 @@ char* pop_clipboard() {
 }
 
 State* cmd_copy(MsgNode* node, InputEvent* event) {
-    int start = min(node->cursor_pos, node->shadow_cursor_pos);
-    int end = max(node->cursor_pos, node->shadow_cursor_pos);
+    /* int start = min(node->cursor_pos, node->shadow_cursor_pos); */
+    /* int end = max(node->cursor_pos, node->shadow_cursor_pos); */
 
-    int start_byte = utf8_byte_offset(node->message, start);
-    int end_byte = utf8_byte_offset(node->message, end);
+    /* int start_byte = utf8_byte_offset(msgnode->text, start); */
+    /* int end_byte = utf8_byte_offset(msgnode->text, end); */
 
-    if (start_byte != end_byte) {
-        char* text_to_copy = strndup(node->message + start_byte, end_byte - start_byte);
-        push_clipboard(text_to_copy);
-        free(text_to_copy);
-    }
+    /* if (start_byte != end_byte) { */
+    /*     char* text_to_copy = strndup(msgnode->text + start_byte, end_byte - start_byte); */
+    /*     push_clipboard(text_to_copy); */
+    /*     free(text_to_copy); */
+    /* } */
 
     return NULL;
 }
@@ -824,7 +879,7 @@ State* cmd_uninsert(MsgNode* msgnode, InputEvent* event) {
 
     // Находим байтовую позицию символа под курсором
     int byte_offset =
-        utf8_byte_offset(msgnode->message, msgnode->cursor_pos);
+        utf8_byte_offset(msgnode->text, msgnode->cursor_pos);
 
     // Новая байтовая позиция будет меньше на
     // размер удаляемой строки в байтах
@@ -839,8 +894,8 @@ State* cmd_uninsert(MsgNode* msgnode, InputEvent* event) {
 
     // Перемещаем правую часть строки на новую
     // байтовую позицию
-    strcpy(msgnode->message + new_byte_offset,
-           msgnode->message + byte_offset);
+    strcpy(msgnode->text + new_byte_offset,
+           msgnode->text + byte_offset);
     // Реаллоцируем строку [TODO:gmm] segfault
     /* msgnode->message = */
     /*     realloc(msgnode->message, */
@@ -921,20 +976,17 @@ State* cmd_redo(MsgNode* msgnode, InputEvent* event) {
         return NULL;
     }
 
-    // The command to reapply is the original command
-    CmdFunc redoCmd = nextState->cmdFn;
-
     // Create a new event to apply the redo command
     InputEvent redoEvent = {
         .type = CMD,
-        .cmdFn = redoCmd,
+        .cmdFn = nextState->cmdFn,
         .seq = nextState->seq ? strdup(nextState->seq) : NULL,
         .next = NULL
     };
 
     // Apply the redo command
     for (int i = 0; i < nextState->cnt; i++) {
-        redoCmd(msgnode, &redoEvent);
+        nextState->cmdFn(msgnode, &redoEvent);
     }
 
     // Push the next state back onto the undo stack
@@ -963,5 +1015,9 @@ CmdFunc get_comp_cmd (CmdFunc cmd) {
         }
     }
     // If no complementary command is found, return NULL
+    return NULL;
+}
+
+State* cmd_stub(MsgNode* msg, InputEvent* event) {
     return NULL;
 }

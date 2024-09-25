@@ -175,14 +175,14 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
 }
 
 
-int display_message(MsgNode* message, int x, int y,
+int display_message(MsgNode* msgnode, int x, int y,
                     int max_width, int max_height) {
-    if (message == NULL || message->message == NULL) {
+    if (msgnode == NULL || msgnode->text == NULL) {
         return 0;
     }
 
     int needed_cols, needed_rows, cursor_row, cursor_col;
-    calc_display_size(message->message, max_width, 0,
+    calc_display_size(msgnode->text, max_width, 0,
                       &needed_cols, &needed_rows,
                       &cursor_row, &cursor_col);
 
@@ -190,9 +190,9 @@ int display_message(MsgNode* message, int x, int y,
         (needed_rows > max_height) ? needed_rows - max_height : 0;
     int actual_rows = min(needed_rows, max_height);
 
-    display_wrapped(message->message, x, y, max_width,
+    display_wrapped(msgnode->text, x, y, max_width,
                     actual_rows, display_start_row,
-                    message->cursor_pos, message->shadow_cursor_pos);
+                    msgnode->cursor_pos, msgnode->shadow_cursor_pos);
 
     return actual_rows;
 }

@@ -90,6 +90,7 @@ char* descr_cmd_fn(CmdFunc cmd_fn);
 
 void connect_to_server(const char* server_ip, int port);
 
+State* cmd_stub(MsgNode* msg, InputEvent* event);
 State* cmd_connect();
 State* cmd_enter(MsgNode* msg, InputEvent* event);
 State* cmd_alt_enter(MsgNode* msg, InputEvent* event);

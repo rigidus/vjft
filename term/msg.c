@@ -16,8 +16,8 @@ void pushMessage(MsgList* list, const char* text) {
         exit(1);
     }
 
-    newNode->message = strdup(text);
-    if (newNode->message == NULL) {
+    newNode->text = strdup(text);
+    if (newNode->text == NULL) {
         free(newNode);
         perror("Failed to duplicate message string");
         pthread_mutex_unlock(&msgList_mutex);
@@ -51,8 +51,8 @@ void clearMsgList(MsgList* list) {
     while (current != NULL) {
         MsgNode* temp = current;
         current = current->next;
-        free(temp->message);  // Освобождение памяти выделенной под строку
-        free(temp);           // Освобождение памяти выделенной под узел
+        free(temp->text); // Освобождение памяти выделенной под строку
+        free(temp);       // Освобождение памяти выделенной под узел
     }
     list->head = NULL;
     list->tail = NULL;
