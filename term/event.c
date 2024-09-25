@@ -908,18 +908,38 @@ State* cmd_undo(MsgNode* msgnode, InputEvent* event) {
             InputEvent* event = malloc(sizeof(InputEvent));
             event->type = CMD;
             event->cmdFn = cmd_backward_char;
-            /* if (prevState->seq) { */
-            /*     event->seq = strdup(prevState->seq); */
+            if (prevState->seq) {
+                event->seq = strdup(prevState->seq);
             /* } else { */
-            event->seq = NULL;
-            /* } */
+            /* event->seq = NULL; */
+            }
             // Применяем event к msgList.current
             // prevState->cnt раз.
             // Возвращаемое значение не будет помещено в
             // undo стек, т.к. это cmd_undo (особый случай)
-            for (int i=0; i < prevState->cnt; i++) {
+            /* for (int i=0; i < prevState->cnt; i++) { */
                 event->cmdFn(msgnode, event);
+            /* } */
+            // Перемещаем prevState в redoStack
+            pushState(&redoStack, prevState);
+        } else if (prevState->cmdFn == cmd_backspace) {
+            // Восстановить запомненный удаленный символ
+            // Создаем event
+            InputEvent* event = malloc(sizeof(InputEvent));
+            event->type = CMD;
+            event->cmdFn = cmd_insert;
+            if (prevState->seq) {
+                event->seq = strdup(prevState->seq);
+            } else {
+                event->seq = NULL;
             }
+            // Применяем event к msgList.current
+            // prevState->cnt раз.
+            // Возвращаемое значение не будет помещено в
+            // undo стек, т.к. это cmd_undo (особый случай)
+            /* for (int i=0; i < prevState->cnt; i++) { */
+                event->cmdFn(msgnode, event);
+            /* } */
             // Перемещаем prevState в redoStack
             pushState(&redoStack, prevState);
         } else {
@@ -969,7 +989,22 @@ State* cmd_redo(MsgNode* msgnode, InputEvent* event) {
                     prevState->cmdFn(msgnode, event);
                 }
             } else if (prevState->cmdFn == cmd_backspace) {
-                // [TODO:gmm] восстановить запомненный удаленный символ
+                // Создаем event
+                InputEvent* event = malloc(sizeof(InputEvent));
+                event->type = CMD;
+                event->cmdFn = prevState->cmdFn;
+                if (prevState->seq) {
+                    event->seq = strdup(prevState->seq);
+                } else {
+                    event->seq = NULL;
+                }
+                // Применяем event к msgList.current
+                // prevState->cnt раз.
+                // Возвращаемое значение не будет помещено в
+                // undo стек, т.к. это cmd_undo (особый случай)
+                for (int i=0; i < prevState->cnt; i++) {
+                    prevState->cmdFn(msgnode, event);
+                }
             } else {
                 pushMessage(&msgList, "cmd_redo: unk_cmdFn");
             }
