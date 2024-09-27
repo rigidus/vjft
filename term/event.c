@@ -324,21 +324,32 @@ State* cmd_enter(MsgNode* msg, InputEvent* event) {
 
 // [TODO:gmm] Функция для удаления символа справа от курсора
 
-// Функция для удаления символа слева от курсора
+// Функция для удаления символов слева от курсора
 State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
-    if ( (!msgnode) || (!msgnode->text)
-         || (msgnode->cursor_pos == 0) ) {
+    if ( (!msgnode) || (!msgnode->text) ) {
         return NULL;
+    }
+
+    // В случае, если эта функция вызывается из cmd_redo
+    // она может удалять более чем один символ. Информация
+    // об этом сохраняется в event->seq, поэтому мы можем
+    // определить сколько символов надо удалять
+    int cnt_del;
+    if (event->seq) {
+        cnt_del= utf8_strlen(event->seq);
+    } else {
+        cnt_del = 1;
     }
 
     // Находим байтовую позицию текущего и предыдущего UTF-8 символов
     int byte_offset =
         utf8_byte_offset(msgnode->text, msgnode->cursor_pos);
 
-    // Так как ранее мы проверили, что msgnode->cursor_pos
-    // не ноль, мы не можем получить отрицательную позицию
-    // курсора здесь, поэтому не делаем никаких проверок
-    int new_cursor_pos = msgnode->cursor_pos - 1;
+    // Вычисляем новую позицию курсора
+    int new_cursor_pos = msgnode->cursor_pos - cnt_del;
+    if (new_cursor_pos < 0) {
+        new_cursor_pos = 0;
+    }
 
     // Находим байтовую позицию предыдущего символа
     int byte_offset_prev =
@@ -993,7 +1004,7 @@ State* cmd_redo(MsgNode* msgnode, InputEvent* event) {
     pushState(&undoStack, nextState);
 
     // Clean up
-    if (redoEvent.seq) free(redoEvent.seq);
+    if (redoEvent.seq) { free(redoEvent.seq); }
 
     // Return the nextState to indicate the state has changed
     return nextState;
