@@ -13,6 +13,7 @@
 #include "kbd.h"
 #include "event.h"
 #include "mbuf.h"
+#include "history.h"
 
 #define MAX_BUFFER 1024
 
@@ -187,17 +188,6 @@ bool keyb () {
 }
 
 
-// Функция для получения строкового представления события
-char* getEventDescription(InputEvent* event) {
-    static char desc[256];
-    snprintf(desc, sizeof(desc), "(%s «%s»)",
-             descr_cmd_fn(event->cmdFn),
-             event->seq ? event->seq : "");
-    return desc;
-}
-
-
-
 // Формируем отображение CtrlStack
 void dispCtrlStack() {
     char buffer[MAX_BUFFER / 2] = {0};
@@ -220,20 +210,6 @@ void dispCtrlStack() {
     }
     appendToMiniBuffer(ptr);
 }
-
-// Формируем отображение gHistoryEventQueue
-void dispExEv () {
-    char gHistoryEventQueue_buffer[MAX_BUFFER / 2] = {0};
-    strcat(gHistoryEventQueue_buffer, "\nHistory: ");
-    InputEvent* currentEvent = gHistoryEventQueue;
-    while (currentEvent != NULL) {
-        strcat(gHistoryEventQueue_buffer, getEventDescription(currentEvent));
-        strcat(gHistoryEventQueue_buffer, " ");
-        currentEvent = currentEvent->next;
-    }
-    appendToMiniBuffer(gHistoryEventQueue_buffer);
-}
-
 
 // Undo/Redo
 
@@ -299,7 +275,7 @@ void reDraw() {
 
     dispCtrlStack();
 
-    dispExEv();
+    dispExEv(gHistoryEventQueue);
 
     displayUndoStates(undoStack);
     displayUndoStates(redoStack);
