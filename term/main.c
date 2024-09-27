@@ -12,13 +12,14 @@
 #include "iface.h"
 #include "kbd.h"
 #include "event.h"
+#include "mbuf.h"
 
 #define MAX_BUFFER 1024
 
 extern StateStack* undoStack;
 extern StateStack* redoStack;
 
-char miniBuffer[MAX_BUFFER] = {0};
+/* char miniBuffer[MAX_BUFFER] = {0}; */
 
 void drawHorizontalLine(int cols, int y, char sym);
 
@@ -197,35 +198,6 @@ char* getEventDescription(InputEvent* event) {
 
 
 
-#define MINI_BUFFER_SIZE 1024  // Размер минибуфера
-
-char miniBuffer[MINI_BUFFER_SIZE];  // Объявляем минибуфер
-
-/**
- * Добавляет текст в минибуфер.
- * @param text Текст для добавления.
- */
-void appendToMiniBuffer(const char* text) {
-    if (!text) return;  // Проверка на NULL
-
-    // Убеждаемся, что в минибуфере есть место для новой строки
-    int current_length = strlen(miniBuffer);
-    // -1 для нуль-терминатора
-    int available_space = MINI_BUFFER_SIZE - current_length - 1;
-
-    if (available_space > 0) {
-        strncat(miniBuffer, text, available_space);
-    }
-}
-
-/**
- * Очищает минибуфер.
- */
-void clearMiniBuffer() {
-    memset(miniBuffer, 0, MINI_BUFFER_SIZE);
-}
-
-
 // Формируем отображение CtrlStack
 void dispCtrlStack() {
     char buffer[MAX_BUFFER / 2] = {0};
@@ -336,7 +308,7 @@ void reDraw() {
     int mb_need_cols = 0, mb_need_rows = 0,
         mb_cursor_row = 0, mb_cursor_col = 0;
     int mb_width = win_cols-2;
-    calc_display_size(miniBuffer, mb_width, 0, &mb_need_cols,
+    calc_display_size(miniBuffer.buffer, mb_width, 0, &mb_need_cols,
                       &mb_need_rows,
                       &mb_cursor_row, &mb_cursor_col);
 
@@ -348,7 +320,7 @@ void reDraw() {
     }
     int mb_from_row = 0;
     int mb_up = win_rows + 1 - mb_need_rows + mb_from_row;
-    display_wrapped(miniBuffer, 2, mb_up, mb_width, mb_need_rows,
+    display_wrapped(miniBuffer.buffer, 2, mb_up, mb_width, mb_need_rows,
                     mb_from_row, -1, -1);
     drawHorizontalLine(win_cols, mb_up-1, '=');
     int bottom = mb_up-2;
