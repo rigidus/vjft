@@ -55,6 +55,8 @@ char* descr_cmd_fn(CmdFunc cmd_fn) {
     if (cmd_fn == cmd_forward_char) return "cmd_forward_char";
     if (cmd_fn == cmd_undo) return "cmd_undo";
     if (cmd_fn == cmd_redo) return "cmd_redo";
+    if (cmd_fn == cmd_to_beginning_of_line) return "cmd_to_beginning_of_line";
+    if (cmd_fn == cmd_to_end_of_line) return "cmd_to_end_of_line";
     return  "cmd_notfound";
 }
 
@@ -462,12 +464,11 @@ State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
 State* cmd_backward_char(MsgNode* msgnode, InputEvent* event) {
     if ( (!msgnode) || (!msgnode->text)
          || (msgnode->cursor_pos == 0) ) {
-        // Если с msgnode что-то не так,
-        // отпустим lock и вернемся
+        // Если с msgnode что-то не так, то вернемся
         return NULL;
     }
 
-    // Если двигать назад уже некуда, то вернемся
+    // Если двигать влево уже некуда, то вернемся
     if (msgnode->cursor_pos == 0) {
         return NULL;
     }
@@ -640,53 +641,175 @@ State* cmd_backward_word(MsgNode* msgnode, InputEvent* event) {
     return NULL;
 }
 
+char* int_to_hex(int value) {
+    // Максимум 8 шестнадцатеричных цифр + нуль-терминатор
+    int size = sizeof(value) * 2 + 1;
+    char* hex = (char*)malloc(size);
+    if (!hex) {
+        // Не удалось выделить память
+        return NULL;
+    }
+
+    // Указатель на конец строки
+    char* p = hex + size - 1;
+    *p = '\0'; // Завершаем строку нулём
+
+    // Обрабатываем число, чтобы перевести его
+    // в шестнадцатеричный вид
+    // Работаем с беззнаковой версией, чтобы поддержать
+    // отрицательные числа
+    unsigned int num = (unsigned int)value;
+    do {
+        int digit = num & 0xF; // Получаем последние 4 бита
+        // Преобразуем в символ и записываем в строку
+        *--p = (digit < 10) ? '0' + digit : 'A' + digit - 10;
+        num >>= 4; // Сдвигаем число на 4 бита вправо
+    } while (num); // Повторяем, пока число не станет нулём
+
+    // Переместим строку в начало буфера, если есть ведущие нули
+    if (p != hex) {
+        char* start = hex;
+        // Копируем валидные символы
+        while (*p) *start++ = *p++;
+        *start = '\0'; // Нуль-терминатор в конец
+    }
+
+    // Возвращаем результат
+    return hex;
+}
+
+
+int hex_to_int(const char* hex) {
+    int result = 0; // Инициализация результата
+    if (hex == NULL) return 0; // Проверка на NULL
+
+    for (const char* p = hex; *p; p++) {
+        char c = *p;
+        result <<= 4;
+
+        if (c >= '0' && c <= '9') {
+            result += c - '0';
+        } else if (c >= 'a' && c <= 'f') {
+            result += c - 'a' + 10;
+        } else if (c >= 'A' && c <= 'F') {
+            result += c - 'A' + 10;
+        } else {
+            // В случае недопустимого символа, возвращаем 0
+            return 0;
+        }
+    }
+
+    return result; // Возвращаем конечное значение
+}
+
 State* cmd_to_beginning_of_line(MsgNode* msgnode, InputEvent* event) {
-/*     // Если курсор уже в начале текста, ничего не делаем */
-/*     if (node->cursor_pos == 0) return NULL; */
+    if ( (!msgnode) || (!msgnode->text) ) {
+        // Если с msgnode что-то не так, то вернемся
+        return NULL;
+    }
 
-/*     // Смещение в байтах от начала строки до курсора */
-/*     int byte_offset = */
-/*         utf8_byte_offset(msgnode->text, node->cursor_pos); */
+    // Если двигать влево уже некуда, то вернемся
+    if (msgnode->cursor_pos == 0) {
+        return NULL;
+    }
 
-/*     // Движемся назад, пока не найдем начало строки или начало текста */
-/*     while (byte_offset > 0) { */
-/*         int prev_offset = utf8_prev_char(node->message, byte_offset); */
-/*         if (node->message[prev_offset] == '\n') { */
-/*             // Переходим на следующий символ после \n */
-/*             byte_offset = utf8_next_char(node->message, prev_offset); */
-/*             node->cursor_pos = utf8_strlen(node->message); */
-/*             return  NULL; */
-/*         } */
-/*         byte_offset = prev_offset; */
-/*         node->cursor_pos--; */
-/*     } */
-/*     // Если достигли начала текста, устанавливаем курсор на позицию 0 */
-/*     node->cursor_pos = 0; */
+    // Делаем из msgnode->cursor_pos строку,
+    // которую позже запишем в currState->seq
+    char* seq = int_to_hex(msgnode->cursor_pos);
+
+    // Создаем State
+    State* currState = createState(msgnode, event);
+
+    // Записываем в него старую позицию курсора
+    currState->seq = seq;
+
+    // Смещение в байтах от начала строки до курсора
+    int byte_offset =
+        utf8_byte_offset(msgnode->text, msgnode->cursor_pos);
+
+    // Движемся назад, пока не найдем начало строки или начало текста
+    while (byte_offset > 0) {
+        int prev_offset = utf8_prev_char(msgnode->text, byte_offset);
+        if (msgnode->text[prev_offset] == '\n') {
+            // Переходим на следующий символ после '\n'
+            byte_offset = utf8_next_char(msgnode->text, prev_offset);
+            msgnode->cursor_pos = utf8_strlen(msgnode->text);
+            return currState;
+        }
+        byte_offset = prev_offset;
+        msgnode->cursor_pos--;
+    }
+    // Если достигли начала текста, устанавливаем курсор на позицию 0
+    msgnode->cursor_pos = 0;
+
+    return currState;
+}
+
+State* cmd_get_back_to_line_pos(MsgNode* msgnode, InputEvent* event) {
+    if (!msgnode || !msgnode->text) {
+        // Если с msgnode что-то не так, то вернемся
+        return NULL;
+    }
+
+    // seq хранит старую позицию курсора в шестнадцатеричном виде
+    int old_cursor_pos = hex_to_int(event->seq);
+
+    // Проверка на выход за пределы допустимого
+    if ( (old_cursor_pos < 0)
+         || (old_cursor_pos > utf8_strlen(msgnode->text)) ) {
+        return NULL;
+    }
+
+    // Восстанавливаем старую позицию курсора
+    msgnode->cursor_pos = old_cursor_pos;
 
     return NULL;
 }
 
-State* cmd_to_end_of_line(MsgNode* node, InputEvent* event) {
-/*     // Длина строки в байтах */
-/*     int len = strlen(node->message); */
 
-/*     // Смещение в байтах от начала строки до курсора */
-/*     int byte_offset = utf8_byte_offset(node->message, node->cursor_pos); */
+State* cmd_to_end_of_line(MsgNode* msgnode, InputEvent* event) {
+    if ( (!msgnode) || (!msgnode->text) ) {
+        // Если с msgnode что-то не так, то вернемся
+        return NULL;
+    }
 
-/*     // Движемся вперед, пока не найдем конец строки или конец текста */
-/*     while (byte_offset < len) { */
-/*         if (node->message[byte_offset] == '\n') { */
-/*             node->cursor_pos = utf8_char_index(node->message, byte_offset); */
-/*             return NULL; */
-/*         } */
-/*         byte_offset = utf8_next_char(node->message, byte_offset); */
-/*         node->cursor_pos++; */
-/*     } */
+    // Если двигать вправо уже некуда, то вернемся
+    if (msgnode->cursor_pos >= utf8_strlen(msgnode->text)) {
+        return NULL;
+    }
 
-/*     // Если достигли конца текста */
-/*     node->cursor_pos = utf8_char_index(node->message, len); */
+    // Делаем из msgnode->cursor_pos строку,
+    // которую позже запишем в currState->seq
+    char* seq = int_to_hex(msgnode->cursor_pos);
 
-    return NULL;
+    // Создаем State
+    State* currState = createState(msgnode, event);
+
+    // Записываем в него старую позицию курсора
+    currState->seq = seq;
+
+    // Длина строки в байтах
+    int len = strlen(msgnode->text);
+
+    // Смещение в байтах от начала строки до курсора
+    int byte_offset =
+        utf8_byte_offset(msgnode->text, msgnode->cursor_pos);
+
+    // Движемся вперед, пока не найдем конец строки или конец текста
+    while (byte_offset < len) {
+        if (msgnode->text[byte_offset] == '\n') {
+            msgnode->cursor_pos =
+                utf8_char_index(msgnode->text, byte_offset);
+            return currState;
+        }
+        byte_offset = utf8_next_char(msgnode->text, byte_offset);
+        msgnode->cursor_pos++;
+    }
+
+    // Если достигли конца текста
+    msgnode->cursor_pos = utf8_char_index(msgnode->text, len);
+
+    return currState;
 }
 
 State* cmd_prev_msg() {
@@ -933,19 +1056,17 @@ State* cmd_undo(MsgNode* msgnode, InputEvent* event) {
         return NULL;
     }
 
-    // Отладочный вывод
-    char logMsg[DBG_LOG_MSG_SIZE] = {0};
-    int len = (prevState->seq) ? (int)utf8_strlen(prevState->seq) : 0;
-    snprintf(logMsg, sizeof(logMsg),
-             "cmd_undo: %s - <%s>(%d) [%d]",
-             descr_cmd_fn(prevState->cmdFn),
-             prevState->seq, len, prevState->cnt);
-    pushMessage(&msgList, logMsg);
-
     // Get the complementary command
     CmdFunc undoCmd = get_comp_cmd(prevState->cmdFn);
     if (undoCmd == NULL) {
-        pushMessage(&msgList, "No complementary cmd found for undo");
+        char undoMsg[DBG_LOG_MSG_SIZE] = {0};
+        int len =
+            (prevState->seq) ? (int)utf8_strlen(prevState->seq) : 0;
+        snprintf(undoMsg, sizeof(undoMsg),
+                 "Undo: No complementary found for %s <%s>(%d) [%d]",
+                 descr_cmd_fn(prevState->cmdFn),
+                 prevState->seq, len, prevState->cnt);
+        pushMessage(&msgList, undoMsg);
         // Push the state back onto undo stack
         pushState(&undoStack, prevState);
         return NULL;
@@ -1012,10 +1133,12 @@ State* cmd_redo(MsgNode* msgnode, InputEvent* event) {
 
 
 CmdPair comp_cmds[] = {
-    { cmd_insert,         cmd_uninsert },
-    { cmd_backspace,      cmd_insert },
-    { cmd_forward_char,   cmd_backward_char },
-    { cmd_backward_char,  cmd_forward_char },
+    { cmd_insert,                cmd_uninsert },
+    { cmd_backspace,             cmd_insert },
+    { cmd_forward_char,          cmd_backward_char },
+    { cmd_backward_char,         cmd_forward_char },
+    { cmd_to_beginning_of_line,  cmd_get_back_to_line_pos },
+    { cmd_to_end_of_line,        cmd_get_back_to_line_pos },
     // ...
 };
 
