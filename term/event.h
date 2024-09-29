@@ -90,6 +90,9 @@ char* descr_cmd_fn(CmdFunc cmd_fn);
 
 void connect_to_server(const char* server_ip, int port);
 
+char* int_to_hex(int value);
+int hex_to_int(const char* hex);
+
 State* cmd_stub(MsgNode* msg, InputEvent* event);
 State* cmd_connect();
 State* cmd_enter(MsgNode* msg, InputEvent* event);

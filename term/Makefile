@@ -46,6 +46,9 @@ gpt:
 	./gpt.pl main.c
 	gedit output.c
 
+etags:
+	find . -name "*.[chCH]" -print | etags -
+
 # Очистка
 clean:
 	rm -f $(TARGET) $(OBJECTS) $(M4_HEADERS)
