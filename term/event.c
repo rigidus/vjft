@@ -1,7 +1,6 @@
 // event.c
 
 #include "event.h"
-#include <string.h>
 
 MsgList msgList = {0};
 pthread_mutex_t msgList_mutex = PTHREAD_MUTEX_INITIALIZER;
