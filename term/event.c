@@ -16,12 +16,15 @@ pthread_mutex_t gEventQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
 InputEvent* gHistoryEventQueue = NULL;
 pthread_mutex_t gHistoryQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void enqueueEvent(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
+void enqueueEvent(InputEvent** eventQueue,
+				  pthread_mutex_t* queueMutex,
                   EventType type, CmdFunc cmdFn, char* seq)
 {
     pthread_mutex_lock(queueMutex);
 
-    InputEvent* newEvent = (InputEvent*)malloc(sizeof(InputEvent));
+    InputEvent* newEvent =
+		(InputEvent*)malloc(sizeof(InputEvent));
+
     if (newEvent == NULL) {
         perror("Failed to allocate memory for a new event");
         pthread_mutex_unlock(queueMutex);
@@ -390,10 +393,6 @@ State* cmd_enter(MsgNode* msg, InputEvent* event) {
 
 // Функция для удаления символов слева от курсора
 State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
-    if ( (!msgnode) || (!msgnode->text) ) {
-        return NULL;
-    }
-
     // В случае, если эта функция вызывается из cmd_redo
     // она может удалять более чем один символ. Информация
     // об этом сохраняется в event->seq, поэтому мы можем
@@ -524,12 +523,6 @@ State* cmd_backspace(MsgNode* msgnode, InputEvent* event) {
 }
 
 State* cmd_backward_char(MsgNode* msgnode, InputEvent* event) {
-    if ( (!msgnode) || (!msgnode->text)
-         || (msgnode->cursor_pos == 0) ) {
-        // Если с msgnode что-то не так, то вернемся
-        return NULL;
-    }
-
     // Если двигать влево уже некуда, то вернемся
     if (msgnode->cursor_pos == 0) {
         return NULL;
@@ -585,11 +578,6 @@ State* cmd_backward_char(MsgNode* msgnode, InputEvent* event) {
 }
 
 State* cmd_forward_char(MsgNode* msgnode, InputEvent* event) {
-    if ( (!msgnode) || (!msgnode->text) ) {
-        // Если с msgnode что-то не так, то вернемся
-        return NULL;
-    }
-
     // Вычислим максимальную позицию курсора
     int len = utf8_strlen(msgnode->text);
 
@@ -777,11 +765,6 @@ State* cmd_to_beginning_of_line(MsgNode* msgnode, InputEvent* event) {
 }
 
 State* cmd_get_back_to_line_pos(MsgNode* msgnode, InputEvent* event) {
-    if (!msgnode || !msgnode->text) {
-        // Если с msgnode что-то не так, то вернемся
-        return NULL;
-    }
-
     // seq хранит старую позицию курсора в шестнадцатеричном виде
     int old_cursor_pos = hex_to_int(event->seq);
 
@@ -799,11 +782,6 @@ State* cmd_get_back_to_line_pos(MsgNode* msgnode, InputEvent* event) {
 
 
 State* cmd_to_end_of_line(MsgNode* msgnode, InputEvent* event) {
-    if ( (!msgnode) || (!msgnode->text) ) {
-        // Если с msgnode что-то не так, то вернемся
-        return NULL;
-    }
-
     // Если двигать вправо уже некуда, то вернемся
     if (msgnode->cursor_pos >= utf8_strlen(msgnode->text)) {
         return NULL;
@@ -844,23 +822,19 @@ State* cmd_to_end_of_line(MsgNode* msgnode, InputEvent* event) {
 }
 
 State* cmd_prev_msg() {
-    moveToPreviousMessage(&msgList);
+    /* moveToPreviousMessage(&msgList); */
 
     return NULL;
 }
 
 State* cmd_next_msg() {
-    moveToNextMessage(&msgList);
+    /* moveToNextMessage(&msgList); */
 
     return NULL;
 }
 
 // Функция для вставки текста в позицию курсора
 State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
-    if (!msgnode || !msgnode->text) {
-        return NULL;
-    }
-
     // Байтовое смещение позиции курсора
     int byte_offset =
         utf8_byte_offset(msgnode->text, msgnode->cursor_pos);
