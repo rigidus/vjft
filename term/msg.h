@@ -2,17 +2,14 @@
 #ifndef MSG_H
 #define MSG_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <pthread.h>
+#include "all_libs.h"
 
 typedef struct MsgNode {
     char* text;
     struct MsgNode* prev;
     struct MsgNode* next;
     int cursor_pos;
-    int shadow_cursor_pos;
+    int marker_pos;
 } MsgNode;
 
 typedef struct {

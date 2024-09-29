@@ -60,7 +60,8 @@ extern InputEvent* gHistoryEventQueue;
 extern pthread_mutex_t gHistoryQueue_mutex;
 
 // Добавлятель в очередь
-void enqueueEvent(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
+void enqueueEvent(InputEvent** eventQueue,
+				  pthread_mutex_t* queueMutex,
                   EventType type, CmdFunc cmdFn, char* seq);
 
 
@@ -71,7 +72,8 @@ void convertToAsciiCodes(const char *input, char *output,
                          size_t outputSize);
 
 // Процессор событий
-bool processEvents(InputEvent** eventQueue, pthread_mutex_t* queueMutex,
+bool processEvents(InputEvent** eventQueue,
+				   pthread_mutex_t* queueMutex,
                    char* input, int* input_size,
                    int* log_window_start, int rows);
 
@@ -110,7 +112,7 @@ State* cmd_insert();
 State* cmd_copy(MsgNode* node, InputEvent* event);
 State* cmd_cut(MsgNode* node, InputEvent* event);
 State* cmd_paste(MsgNode* node, InputEvent* event);
-State* cmd_toggle_cursor_shadow(MsgNode* node, InputEvent* event);
+State* cmd_toggle_cursor(MsgNode* node, InputEvent* event);
 State* cmd_undo(MsgNode* msg, InputEvent* event);
 State* cmd_redo(MsgNode* msg, InputEvent* event);
 

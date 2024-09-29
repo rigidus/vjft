@@ -58,10 +58,12 @@ char* descr_cmd_fn(CmdFunc cmd_fn) {
     if (cmd_fn == cmd_forward_char) return "cmd_forward_char";
     if (cmd_fn == cmd_undo) return "cmd_undo";
     if (cmd_fn == cmd_redo) return "cmd_redo";
-    if (cmd_fn == cmd_to_beginning_of_line) return "cmd_to_beginning_of_line";
+    if (cmd_fn == cmd_to_beginning_of_line)
+		return "cmd_to_beginning_of_line";
     if (cmd_fn == cmd_to_end_of_line) return "cmd_to_end_of_line";
     if (cmd_fn == cmd_backward_word) return "cmd_backward_word";
 	if (cmd_fn == cmd_forward_word) return "cmd_forward_word";
+	if (cmd_fn == cmd_toggle_cursor) return "cmd_toggle_cursor";
     return  "cmd_notfound";
 }
 
@@ -111,7 +113,8 @@ bool processEvents(InputEvent** eventQueue,
                 char asciiCodes[ASCII_CODES_BUF_SIZE] = {0};
                 convertToAsciiCodes(event->seq, asciiCodes,
                                     ASCII_CODES_BUF_SIZE);
-                Key key = identify_key(event->seq, strlen(event->seq));
+                Key key = identify_key(event->seq,
+									   strlen(event->seq));
                 char logMsg[DBG_LOG_MSG_SIZE] = {0};
                 snprintf(logMsg, sizeof(logMsg),
                          "[DBG]: %s, [%s]\n",
@@ -149,8 +152,8 @@ bool processEvents(InputEvent** eventQueue,
                 // Дальше все зависит от полученного состояния
                 if (!retState) {
                     // Если retState - NULL, то это значит, что в
-                    // результате выполнения cmdFn ничего не поменялось
-                    // - значит ничего не делаем
+                    // результате выполнения cmdFn ничего не
+					// поменялось - значит ничего не делаем
                 } else {
                     // Если текущее состояние не NULL, помещаем его
                     // в undo-стек
@@ -159,7 +162,8 @@ bool processEvents(InputEvent** eventQueue,
                     // Очистим redoStack, чтобы история не ветвилась
                     clearStack(&redoStack);
 
-                    // и сообщаем что данные для отображения обновились
+                    // и сообщаем что данные для отображения
+					// обновились
                     updated = true;
                 }
             }
@@ -639,22 +643,16 @@ State* cmd_forward_char(MsgNode* msgnode, InputEvent* event) {
 
 // Перемещение курсора вперед на одно слово
 State* cmd_forward_word(MsgNode* msgnode, InputEvent* event) {
-    int len = utf8_strlen(msgnode->text);  // Длина строки в utf-8 символах
+    // Длина строки в utf-8 символах
+    int len = utf8_strlen(msgnode->text);
 
 	if (msgnode->cursor_pos == len) {
         // Если курсор уже в конце строки, ничего не делаем
         return NULL;
     }
 
-    // Делаем из msgnode->cursor_pos строку,
-    // которую позже запишем в currState->seq
-    char* seq = int_to_hex(msgnode->cursor_pos);
-
-	// Создаем State
-    State* currState = createState(msgnode, event);
-
-    // Записываем в него старую позицию курсора
-    currState->seq = seq;
+	// Запоминаем старую позицию курсора
+	int old_cursor_pos = msgnode->cursor_pos;
 
     // Смещение в байтах от начала строки до курсора
     int byte_offset =
@@ -679,6 +677,43 @@ State* cmd_forward_word(MsgNode* msgnode, InputEvent* event) {
         msgnode->cursor_pos++;
     }
 
+	// Окей, мы переместили курсор, теперь займемся State
+
+	// Указатель на последнее состояние в undo-стеке
+    // либо мы его создадим, либо возьмем с вершины стека
+    State* currState = NULL;
+
+	// Пытаемся получить предыдущее состояние из undo-стека
+    State* prevState = popState(&undoStack);
+    if (!prevState) {
+        // Если не получилось получить предыдущее состояние
+        // то формируем новое состояние, которое будет возвращено
+        currState = createState(msgnode, event);
+
+		// Записываем в состояние него старую позицию курсора
+		// в виде строки
+		currState->seq = int_to_hex(old_cursor_pos);
+	} else if ( (prevState->cmdFn != cmd_forward_word) ) {
+		// Если предыдущее состояние не cmd_forward_word,
+		// вернем его обратно
+		pushState(&undoStack, prevState);
+
+        // и сформируем для возврата новое состояние
+        currState = createState(msgnode, event);
+
+		// Записываем в состояние него старую позицию курсора
+		// в виде строки
+		currState->seq = int_to_hex(old_cursor_pos);
+	} else {
+		// Иначе, если в undo-стеке существует предыдущее
+        // состояние, которое тоже cmd_backward_word.
+		// Так как мы извлекли предыдущее состояние, то
+		// приравняв его к currState  мы можем возвратить
+		// его обратно, только увеличив cnt
+        currState = prevState;
+		currState->cnt++;
+	}
+
     return currState;
 }
 
@@ -689,15 +724,8 @@ State* cmd_backward_word(MsgNode* msgnode, InputEvent* event) {
         return NULL;
     }
 
-    // Делаем из msgnode->cursor_pos строку,
-    // которую позже запишем в currState->seq
-    char* seq = int_to_hex(msgnode->cursor_pos);
-
-    // Создаем State
-    State* currState = createState(msgnode, event);
-
-    // Записываем в него старую позицию курсора
-    currState->seq = seq;
+	// Запоминаем старую позицию курсора
+	int old_cursor_pos = msgnode->cursor_pos;
 
     // Смещение в байтах от начала строки до курсора
     int byte_offset =
@@ -722,6 +750,44 @@ State* cmd_backward_word(MsgNode* msgnode, InputEvent* event) {
         byte_offset = prev_offset;
         msgnode->cursor_pos--;
     }
+
+	// Окей, мы переместили курсор, теперь займемся State
+
+	// Указатель на последнее состояние в undo-стеке
+    // либо мы его создадим, либо возьмем с вершины стека
+    State* currState = NULL;
+
+	// Пытаемся получить предыдущее состояние из undo-стека
+    State* prevState = popState(&undoStack);
+    if (!prevState) {
+        // Если не получилось получить предыдущее состояние
+        // то формируем новое состояние, которое будет возвращено
+        currState = createState(msgnode, event);
+
+		// Записываем в состояние него старую позицию курсора
+		// в виде строки
+		currState->seq = int_to_hex(old_cursor_pos);
+
+	} else if ( (prevState->cmdFn != cmd_backward_word) ) {
+		// Если предыдущее состояние не cmd_backward_word,
+		// вернем его обратно
+		pushState(&undoStack, prevState);
+
+        // и сформируем для возврата новое состояние
+        currState = createState(msgnode, event);
+
+		// Записываем в состояние него старую позицию курсора
+		// в виде строки
+		currState->seq = int_to_hex(old_cursor_pos);
+	} else {
+		// Иначе, если в undo-стеке существует предыдущее
+        // состояние, которое тоже cmd_backward_word.
+		// Так как мы извлекли предыдущее состояние, то
+		// приравняв его к currState  мы можем возвратить
+		// его обратно, только увеличив cnt
+        currState = prevState;
+		currState->cnt++;
+	}
 
     return currState;
 }
@@ -866,7 +932,7 @@ State* cmd_insert(MsgNode* msgnode, InputEvent* event) {
     msgnode->cursor_pos += utf8_strlen(event->seq);
 
     // Указатель на последнее состояние в undo-стеке
-    // либо мы его создадим либо возьмем с вершины стека
+    // либо мы его создадим, либо возьмем с вершины стека
     State* currState = NULL;
 
     // Пытаемся получить предыдущее состояние из undo-стека
@@ -947,8 +1013,8 @@ char* pop_clipboard() {
 }
 
 State* cmd_copy(MsgNode* node, InputEvent* event) {
-    /* int start = min(node->cursor_pos, node->shadow_cursor_pos); */
-    /* int end = max(node->cursor_pos, node->shadow_cursor_pos); */
+    /* int start = min(node->cursor_pos, node->marker_pos); */
+    /* int end = max(node->cursor_pos, node->marker_pos); */
 
     /* int start_byte = utf8_byte_offset(msgnode->text, start); */
     /* int end_byte = utf8_byte_offset(msgnode->text, end); */
@@ -965,8 +1031,8 @@ State* cmd_copy(MsgNode* node, InputEvent* event) {
 State* cmd_cut(MsgNode* node, InputEvent* event) {
     /* cmd_copy(node, param); // Сначала копируем текст */
 
-    /* int start = min(node->cursor_pos, node->shadow_cursor_pos); */
-    /* int end = max(node->cursor_pos, node->shadow_cursor_pos); */
+    /* int start = min(node->cursor_pos, node->marker_pos); */
+    /* int end = max(node->cursor_pos, node->marker_pos); */
 
     /* int start_byte = utf8_byte_offset(node->message, start); */
     /* int end_byte = utf8_byte_offset(node->message, end); */
@@ -974,7 +1040,7 @@ State* cmd_cut(MsgNode* node, InputEvent* event) {
     /* memmove(node->message + start_byte, node->message + end_byte, */
     /*         strlen(node->message) - end_byte + 1); */
     /* node->cursor_pos = start; */
-    /* node->shadow_cursor_pos = start; */
+    /* node->marker_pos = start; */
 
     return NULL;
 }
@@ -989,12 +1055,41 @@ State* cmd_paste(MsgNode* node, InputEvent* event) {
     return NULL;
 }
 
-State* cmd_toggle_cursor_shadow(MsgNode* node, InputEvent* event) {
-    int temp = node->cursor_pos;
-    node->cursor_pos = node->shadow_cursor_pos;
-    node->shadow_cursor_pos = temp;
+State* cmd_toggle_cursor(MsgNode* msgnode, InputEvent* event) {
+    int temp = msgnode->cursor_pos;
+    msgnode->cursor_pos = msgnode->marker_pos;
+    msgnode->marker_pos = temp;
 
-    return NULL;
+	// Окей, мы переместили курсор, теперь займемся State
+
+	// Указатель на последнее состояние в undo-стеке
+    // либо мы его создадим, либо возьмем с вершины стека
+    State* currState = NULL;
+
+	// Пытаемся получить предыдущее состояние из undo-стека
+    State* prevState = popState(&undoStack);
+    if (!prevState) {
+        // Если не получилось получить предыдущее состояние
+        // то формируем новое состояние, которое будет возвращено
+        currState = createState(msgnode, event);
+	} else if ( (prevState->cmdFn != cmd_toggle_cursor) ) {
+		// Если предыдущее состояние не cmd_toggle_cursor,
+		// вернем его обратно
+		pushState(&undoStack, prevState);
+
+        // и сформируем для возврата новое состояние
+        currState = createState(msgnode, event);
+	} else {
+		// Иначе, если в undo-стеке существует предыдущее
+        // состояние, которое тоже cmd_toggle_cursor.
+		// Так как мы извлекли предыдущее состояние, то
+		// приравняв его к currState  мы можем возвратить
+		// его обратно, только увеличив cnt
+        currState = prevState;
+		currState->cnt++;
+	}
+
+    return currState;
 }
 
 State* cmd_uninsert(MsgNode* msgnode, InputEvent* event) {
@@ -1134,7 +1229,7 @@ CmdPair comp_cmds[] = {
     { cmd_to_end_of_line,        cmd_get_back_to_line_pos },
     { cmd_backward_word,         cmd_get_back_to_line_pos },
 	{ cmd_forward_word,          cmd_get_back_to_line_pos },
-
+	{ cmd_toggle_cursor,         cmd_toggle_cursor },
     // ...
 };
 

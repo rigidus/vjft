@@ -3,15 +3,15 @@
 #include "iface.h"
 
 /**
-   Подсчитывает сколько строк и столбцов необходимо для вывода текста
-   в текстовое окно максималальной ширины max_width и в какой из этих
-   строк будет расположен курсор
+   Подсчитывает сколько строк и столбцов необходимо для
+   вывода текста в текстовое окно максималальной ширины
+   max_width и в какой из этих строк будет расположен курсор
 */
-void calc_display_size(const char* text, int max_width, int cursor_pos,
+void calc_display_size(const char* text, int max_width,
+					   int cursor_pos,
                        int* need_cols, int* need_rows,
-                       int* cursor_row, int* cursor_col)
-{
-    int cur_text_pos = -1; // Текущий индекс выводимого символа строки
+                       int* cursor_row, int* cursor_col) {
+    int cur_text_pos = -1; // Текущий индекс выводимого символа
     int cur_row = 1; // Текущая строка, она же счетчик строк
     int cur_col = 0; // Длина текущей строки
     int max_col = 0; // Максимальная найденная длина строки
@@ -20,15 +20,18 @@ void calc_display_size(const char* text, int max_width, int cursor_pos,
         size_t char_len = utf8_char_length(p);
 
         cur_text_pos++; // Увеличение текущей позиции в тексте
-        if (cur_text_pos == cursor_pos) { // Дошли до позиции курсора?
-            *cursor_row = cur_row;        // Вернуть текущую строку
-            *cursor_col = cur_col;        // Вернуть текущий столбец
+        if (cur_text_pos == cursor_pos) {
+			// Дошли до позиции курсора?
+            *cursor_row = cur_row; // Вернуть текущую строку
+            *cursor_col = cur_col; // Вернуть текущий столбец
         }
 
         cur_col++; // Увеличение позиции в текущей строке
-        // Если эта строка длиннее чем все ранее встреченные
+
         if (cur_col > max_col) {
-            max_col = cur_col; // Обновить максимальную длину строки
+			// Если эта строка длиннее чем ранее встреченные
+			// Обновить максимальную длину строки
+            max_col = cur_col;
         }
 
         // Символ переноса строки или правая граница?
@@ -80,13 +83,13 @@ void reset_highlight_color() {
 void display_wrapped(const char* text, int abs_x, int abs_y,
                      int rel_max_width, int rel_max_rows,
                      int from_row, int cursor_pos,
-                     int shadow_cursor_pos)
+                     int marker_pos)
 {
     int cur_pos   = 0; // Текущий индекс символа в строке
     int rel_row   = 0;  // Текущая строка, она же счётчик строк
     int rel_col   = 0;  // Текущий столбец
-    int sel_start = min(cursor_pos, shadow_cursor_pos);
-    int sel_end   = max(cursor_pos, shadow_cursor_pos);
+    int sel_start = min(cursor_pos, marker_pos);
+    int sel_end   = max(cursor_pos, marker_pos);
     bool is_highlighted = false; // Флаг выделения
 
     bool is_not_skipped_row() {
@@ -94,8 +97,10 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
     }
 
     void fullfiller () {
-        if (is_not_skipped_row()) { // Если мы не пропускаем
-            while (rel_col < rel_max_width) { // Пока не правая граница
+        if (is_not_skipped_row()) {
+            // Если мы не пропускаем
+			// Пока не правая граница
+            while (rel_col < rel_max_width) {
                 putchar(FILLER); // Заполняем
                 rel_col++; // Увеличиваем счётчик длины строки
             }
@@ -116,7 +121,8 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
     for (const char* p = text; ; ) {
         size_t char_len = utf8_char_length(p);
 
-        // Проверяем, нужно ли изменить цвет фона для этого символа
+        // Проверяем, нужно ли изменить цвет фона
+		// для этого символа
         if (cur_pos >= sel_start && cur_pos < sel_end) {
             if (!is_highlighted) {
                 set_highlight_color();
@@ -129,7 +135,8 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
             }
         }
 
-        // Если текущая строка достигает максимальной ширины отображения
+        // Если текущая строка достигает максимальной
+		// ширины отображения
         if (rel_col >= rel_max_width) {
             inc_rel_row();
         }
@@ -139,7 +146,8 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
             break;  // Прекращаем вывод
         }
 
-        if (*p == '\n') {  // Если текущий символ - перевод строки
+        if (*p == '\n') {
+            // Если текущий символ - перевод строки
             fullfiller();  // Заполняем оставшееся филлером
             inc_rel_row(); // Переходим на следующую строку
             p += char_len; // Переходим к следующему символу
@@ -147,18 +155,23 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
         } else {
             if (*p == '\0') {
                 // Если текущий символ - завершающий нулевой байт
-                if (is_not_skipped_row()) { // Если мы не пропускаем
-                    fputs("⍿", stdout); // Выводим символ END_OF_TEXT
+                if (is_not_skipped_row()) {
+                    // Если мы не пропускаем
+					// Выводим символ END_OF_TEXT
+                    fputs("⍿", stdout);
                 }
-                if (is_highlighted) { // Убираем выделение если оно есть
+                if (is_highlighted) {
+                    // Убираем выделение если оно есть
                     reset_highlight_color();
                 }
                 // выходим из цикла
                 break;
             } else {
                 // Обычный печатаемый символ
-                if (is_not_skipped_row()) { // Если мы не пропускаем
-                    fwrite(p, 1, char_len, stdout); // Выводим UTF8-символ
+                if (is_not_skipped_row()) {
+                    // Если мы не пропускаем
+					// Выводим UTF8-символ
+                    fwrite(p, 1, char_len, stdout);
                 }
             }
             rel_col++; // Увеличиваем счётчик длины строки
@@ -168,7 +181,8 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
     }
 
 
-    // Заполнение оставшейся части строки до конца, если необходимо
+    // Заполнение оставшейся части строки до конца,
+	// если необходимо
     if (rel_col != 0) {
         fullfiller();
     }
@@ -187,12 +201,13 @@ int display_message(MsgNode* msgnode, int x, int y,
                       &cursor_row, &cursor_col);
 
     int display_start_row =
-        (needed_rows > max_height) ? needed_rows - max_height : 0;
+        (needed_rows > max_height) ?
+		needed_rows - max_height : 0;
     int actual_rows = min(needed_rows, max_height);
 
     display_wrapped(msgnode->text, x, y, max_width,
                     actual_rows, display_start_row,
-                    msgnode->cursor_pos, msgnode->shadow_cursor_pos);
+                    msgnode->cursor_pos, msgnode->marker_pos);
 
     return actual_rows;
 }

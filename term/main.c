@@ -75,7 +75,7 @@ KeyMap keyCommands[] = {
     KEY_COMMAND("CMD_COPY", cmd_copy, NULL, KEY_ALT_W)
     KEY_COMMAND("CMD_CUT", cmd_cut, NULL, KEY_CTRL_W)
     KEY_COMMAND("CMD_PASTE", cmd_paste, NULL, KEY_CTRL_Y)
-    KEY_COMMAND("CMD_TOGGLE_CURSOR_SHADOW", cmd_toggle_cursor_shadow, NULL, KEY_CTRL_T)
+    KEY_COMMAND("CMD_TOGGLE_CURSOR", cmd_toggle_cursor, NULL, KEY_CTRL_T)
     KEY_COMMAND("CMD_UNDO", cmd_undo, NULL, KEY_CTRL_BACKSPACE)
     KEY_COMMAND("CMD_REDO", cmd_redo, NULL, KEY_ALT_BACKSPACE)
 };
@@ -112,7 +112,8 @@ bool matchesCombo(Key* combo, int length) {
         current = current->next;
     }
     /* pushMessage(&msgList, strdup("ALMOST_MATCH")); */
-    return current == NULL; // Убедимся, что в стеке нет лишних клавиш
+	// Убедимся, что в стеке нет лишних клавиш
+    return current == NULL;
 }
 
 const KeyMap* findCommandByKey() {
@@ -132,8 +133,8 @@ const KeyMap* findCommandByKey() {
 }
 
 
-MsgNode* copyMsgNodes(MsgNode* node);
-void freeMsgNodes(MsgNode* node);
+MsgNode* copyMsgNodes(MsgNode* msgnode);
+void freeMsgNodes(MsgNode* msgnode);
 
 
 #define MAX_INPUT_BUFFER 40
@@ -165,14 +166,16 @@ bool keyb () {
                 /*          strdup(cmd->cmdName)); */
                 /* pushMessage(&msgList, strdup(fc_text)); */
                 // DBG  OFF
-                enqueueEvent(&gInputEventQueue, &gEventQueue_mutex,
+                enqueueEvent(&gInputEventQueue,
+							 &gEventQueue_mutex,
                              CMD, cmd->cmdFunc, cmd->param);
                 // Clear command stack after sending command
                 clearCtrlStack();
             } else {
-                pushMessage(&msgList, "123123123213");
+                pushMessage(&msgList, "keyb: cmd not found");
                 // Command not found
-                enqueueEvent(&gInputEventQueue, &gEventQueue_mutex,
+                enqueueEvent(&gInputEventQueue,
+							 &gEventQueue_mutex,
                              DBG, NULL, input_buffer);
             }
         }
@@ -191,7 +194,8 @@ bool keyb () {
 // Формируем отображение CtrlStack
 void dispCtrlStack() {
     char buffer[MAX_BUFFER / 2] = {0};
-    char *ptr = buffer + sizeof(buffer) - 1;  // Указатель на конец буфера
+	// Указатель на конец буфера
+    char *ptr = buffer + sizeof(buffer) - 1;
     *ptr = '\0';  // Завершающий нуль-символ
 
     CtrlStack* selt = ctrlStack;
@@ -199,9 +203,11 @@ void dispCtrlStack() {
         while (selt) {
             const char* tmp = key_to_str(selt->key);
             int len = strlen(tmp);
-            ptr -= len; // Сдвиг указателя назад на длину строки ключа
+			// Сдвиг указателя назад на длину строки ключа
+            ptr -= len;
             memcpy(ptr, tmp, len); // Копирование строки в буфер
-            // Добавляем пробел между элементами, если это не первый элемент
+            // Добавляем пробел между элементами, если это
+			// не первый элемент
             *(--ptr) = ' ';
             // Следующий элемент стека
             selt = selt->next;
@@ -260,17 +266,19 @@ void reDraw() {
     // Очищаем экран
     clearScreen();
 
-    // МИНИБУФЕР ::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    // МИНИБУФЕР ::::::::::::::::::::::::::::::::::::::::::::
 
     clearMiniBuffer();
 
-    // Формируем текст для минибуфера с позицией курсора в строке inputBuffer-a
-    // относительной позицией в строке и столбце минибуфера
+    // Формируем текст для минибуфера с позицией курсора
+	// в строке inputBuffer-a относительной позицией в
+	// строке и столбце минибуфера
     char mb_text[MAX_BUFFER] = {0};
     snprintf(mb_text, MAX_BUFFER,
              "cur_pos=%d\ncur_row=%d\ncur_col=%d\nib_need_rows=%d\nib_from_row=%d\n",
-             msgList.curr->cursor_pos,
-             ib_cursor_row, ib_cursor_col, ib_need_rows, ib_from_row);
+             msgList.curr->cursor_pos, ib_cursor_row,
+			 ib_cursor_col, ib_need_rows,
+			 ib_from_row);
     appendToMiniBuffer(mb_text);
 
     dispCtrlStack();
@@ -284,33 +292,35 @@ void reDraw() {
     int mb_need_cols = 0, mb_need_rows = 0,
         mb_cursor_row = 0, mb_cursor_col = 0;
     int mb_width = win_cols-2;
-    calc_display_size(miniBuffer.buffer, mb_width, 0, &mb_need_cols,
-                      &mb_need_rows,
+    calc_display_size(miniBuffer.buffer, mb_width, 0,
+					  &mb_need_cols, &mb_need_rows,
                       &mb_cursor_row, &mb_cursor_col);
 
-    // Когда я вывожу что-то в минибуфер я хочу чтобы при большом
-    // выводе он показывал только первые 10 строк
+    // Когда я вывожу что-то в минибуфер я хочу чтобы
+	// при большом выводе он показывал только первые 10 строк
     int max_minibuffer_rows = 30;
     if (mb_need_rows > max_minibuffer_rows)  {
         mb_need_rows = max_minibuffer_rows;
     }
     int mb_from_row = 0;
     int mb_up = win_rows + 1 - mb_need_rows + mb_from_row;
-    display_wrapped(miniBuffer.buffer, 2, mb_up, mb_width, mb_need_rows,
+    display_wrapped(miniBuffer.buffer, 2, mb_up,
+					mb_width, mb_need_rows,
                     mb_from_row, -1, -1);
     drawHorizontalLine(win_cols, mb_up-1, '=');
     int bottom = mb_up-2;
 
-    // INPUTBUFFER :::::::::::::::::::::::::::::::::::::::::::::::::::::
+    // INPUTBUFFER ::::::::::::::::::::::::::::::::::::::::::
 
-    // Область вывода может быть максимум половиной от оставшейся высоты
+    // Область вывода может быть максимум половиной
+	// от оставшейся высоты
     int max_ib_rows = bottom / 2;
 
     // Если содержимое больше чем область вывода
     if (ib_need_rows > max_ib_rows)  {
         // Тогда надо вывести область где курсор, при этом:
-        // Если порядковый номер строки, на которой находится курсор,
-        // меньше, чем размер области вывода
+        // Если порядковый номер строки, на которой находится
+		// курсор, меньше, чем размер области вывода
         if (ib_cursor_row <= max_ib_rows) {
             // ..то надо выводить с первой строки
             ib_from_row = 0;
@@ -331,9 +341,10 @@ void reDraw() {
     // Выводим
     if (msgList.curr) {
         display_wrapped(msgList.curr->text, margin, up,
-                        rel_max_width, ib_need_rows, ib_from_row,
+                        rel_max_width, ib_need_rows,
+						ib_from_row,
                         msgList.curr->cursor_pos,
-                        msgList.curr->shadow_cursor_pos);
+                        msgList.curr->marker_pos);
     }
     drawHorizontalLine(win_cols, up-1, '-');
     // Возвращаем номер строки выше отображения inputbuffer
@@ -344,23 +355,29 @@ void reDraw() {
     int outputBufferAvailableLines = bottom - 1;
 
     int ob_bottom = outputBufferAvailableLines;
-    int maxWidth = win_cols - 2 * margin; // максимальная ширина текста
-
-    MsgNode* current = msgList.tail; // начинаем с последнего элемента
+	// максимальная ширина текста
+    int maxWidth = win_cols - 2 * margin;
+    // начинаем с последнего элемента
+    MsgNode* current = msgList.tail;
     if (current) {
-        current = current->prev; // пропускаем последнее сообщение
+		// пропускаем последнее сообщение
+        current = current->prev;
     }
 
     while (current && ob_bottom > 0) {
-        int needCols = 0, needRows = 0, cursorRow = 0, cursorCol = 0;
+        int needCols = 0, needRows = 0,
+			cursorRow = 0, cursorCol = 0;
+
         calc_display_size(current->text, maxWidth, 0,
-                          &needCols, &needRows, &cursorRow, &cursorCol);
+                          &needCols, &needRows,
+						  &cursorRow, &cursorCol);
 
         if (needRows <= ob_bottom) {
             display_wrapped(current->text, margin,
                             ob_bottom - needRows,
                             maxWidth, needRows, 0, -1, -1);
-            // обновляем начальную точку для следующего сообщения
+            // обновляем начальную точку для
+			// следующего сообщения
             ob_bottom -= needRows+1;
         } else {
             display_wrapped(current->text, margin, 0,
@@ -368,7 +385,8 @@ void reDraw() {
                             needRows - ob_bottom, -1, -1);
             ob_bottom = 0; // заполнили доступное пространство
         }
-        current = current->prev; // переходим к предыдущему сообщению
+		// переходим к предыдущему сообщению
+        current = current->prev;
     }
 
     // Flush
@@ -381,15 +399,15 @@ void reDraw() {
 }
 
 // Функции для копирования и очистки узлов списка сообщений
-MsgNode* copyMsgNodes(MsgNode* node) {
-    if (!node) return NULL;
+MsgNode* copyMsgNodes(MsgNode* msgnode) {
+    if (!msgnode) return NULL;
 
     MsgNode* newNode = malloc(sizeof(MsgNode));
     if (!newNode) return NULL;
-    newNode->text = strdup(node->text);
-    newNode->cursor_pos = node->cursor_pos;
-    newNode->shadow_cursor_pos = node->shadow_cursor_pos;
-    newNode->next = copyMsgNodes(node->next);
+    newNode->text = strdup(msgnode->text);
+    newNode->cursor_pos = msgnode->cursor_pos;
+    newNode->marker_pos = msgnode->marker_pos;
+    newNode->next = copyMsgNodes(msgnode->next);
 
     if (newNode->next) {
         newNode->next->prev = newNode;
@@ -398,11 +416,11 @@ MsgNode* copyMsgNodes(MsgNode* node) {
     return newNode;
 }
 
-void freeMsgNodes(MsgNode* node) {
-    if (!node) return;
-    freeMsgNodes(node->next);
-    free(node->text);
-    free(node);
+void freeMsgNodes(MsgNode* msgnode) {
+    if (!msgnode) return;
+    freeMsgNodes(msgnode->next);
+    free(msgnode->text);
+    free(msgnode);
 }
 
 
@@ -412,7 +430,8 @@ State* peekState(const StateStack* stack) {
     if (!stack) {
         return NULL;  // Возвращаем NULL, если стек пуст
     }
-    return stack->state;  // Возвращаем состояние на вершине стека
+	// Возвращаем состояние на вершине стека
+    return stack->state;
 }
 
 // Инициализация состояния
@@ -491,12 +510,13 @@ int main() {
                     if (sig_winch_raised) {
                         // Обновляем размеры окна
                         upd_win_size();
-                        // Устанавливаем флаг необходимости перерисовки
+                        // Устанавливаем флаг перерисовки
                         need_redraw = true;
                         // Сбрасываем флаг сигнала
                         sig_winch_raised =  false;
                     }
-                    // Сейчас мы должны сразу перейти к отображению..
+                    // Сейчас мы должны сразу перейти
+					// к отображению..
                 } else {
                     // Ошибка, которая не является EINTR
                     perror("select failed");

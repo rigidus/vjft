@@ -34,7 +34,7 @@ void calc_display_size(const char* text, int max_width, int cursor_pos,
 void display_wrapped(const char* text, int abs_x, int abs_y,
                      int rel_max_width, int rel_max_rows,
                      int from_row, int cursor_pos,
-                     int shadow_cursor_pos);
+                     int marker_pos);
 
 int display_message(MsgNode* message, int x, int y,
                     int max_width, int max_height);
