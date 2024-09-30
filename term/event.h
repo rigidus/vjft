@@ -99,16 +99,19 @@ State* cmd_stub(MsgNode* msg, InputEvent* event);
 State* cmd_connect();
 State* cmd_enter(MsgNode* msg, InputEvent* event);
 State* cmd_alt_enter(MsgNode* msg, InputEvent* event);
+
+State* cmd_backward_char(MsgNode* node, InputEvent* event);
+State* cmd_forward_char(MsgNode* node, InputEvent* event);
+State* cmd_forward_word(MsgNode* node, InputEvent* event);
+State* cmd_backward_word(MsgNode* node, InputEvent* event);
+State* cmd_to_end_of_line(MsgNode* node, InputEvent* event);
+State* cmd_to_beginning_of_line(MsgNode* node, InputEvent* event);
+State* cmd_insert(MsgNode* node, InputEvent* event);
 State* cmd_backspace(MsgNode* msg, InputEvent* event);
+
 State* cmd_prev_msg();
 State* cmd_next_msg();
-State* cmd_backward_char();
-State* cmd_forward_char();
-State* cmd_forward_word();
-State* cmd_backward_word();
-State* cmd_to_end_of_line();
-State* cmd_to_beginning_of_line();
-State* cmd_insert();
+
 State* cmd_copy(MsgNode* node, InputEvent* event);
 State* cmd_cut(MsgNode* node, InputEvent* event);
 State* cmd_paste(MsgNode* node, InputEvent* event);
