@@ -7,8 +7,8 @@ MsgList msgList = {0};
 pthread_mutex_t msgList_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Стеки undo и redo
-StateStack* undoStack = NULL;
-StateStack* redoStack = NULL;
+ActionStackElt* undoStack = NULL;
+ActionStackElt* redoStack = NULL;
 
 // Очереди
 InputEvent* gInputEventQueue = NULL;
@@ -121,8 +121,7 @@ void convertToAsciiCodes(const char *input, char *output,
 bool processEvents(InputEvent** eventQueue,
                    pthread_mutex_t* queueMutex,
                    char* input, int* input_size,
-                   int* log_window_start, int rows)
-{
+                   int* log_window_start, int rows) {
     pthread_mutex_lock(queueMutex);
     bool updated= false;
     while (*eventQueue) {
@@ -155,9 +154,10 @@ bool processEvents(InputEvent** eventQueue,
                 pushMessage(&msgList, logMsg);
             } else if ( (event->cmdFn == cmd_undo)
                         || (event->cmdFn == cmd_redo) ) {
-                // Итак, это cmd_redo или cmd_undo - для них не нужно
-                // ничего делать с возвращенным состоянием
-                // (кроме проверки на NULL), они все сделают сами.
+                // Итак, это cmd_redo или cmd_undo -
+                // для них не нужно ничего делать с
+                // возвращаемым,  кроме проверки на NULL),
+                // они все сделают сами.
                 // Нужно только выполнить команду
                 if (event->cmdFn(msgList.curr, event)) {
                     // Если возвращен не NULL, то cообщаем,
@@ -167,19 +167,19 @@ bool processEvents(InputEvent** eventQueue,
             } else {
                 // Это не cmd_redo или cmd_undo, а другая команда.
                 // Выполняем команду, применяя к msgList.curr
-                // Получаем состояние или NULL, если в результате
-                // выполнения cmdFn состояние не было изменено
-                State* retState = event->cmdFn(msgList.curr, event);
+                // Получаем Action или NULL, если в результате
+                // выполнения cmdFn ничего не было изменено
+                Action* retAction = event->cmdFn(msgList.curr, event);
 
-                // Дальше все зависит от полученного состояния
-                if (!retState) {
-                    // Если retState - NULL, то это значит, что в
+                // Дальше все зависит от полученного экшена
+                if (!retAction) {
+                    // Если retAction - NULL, то это значит, что в
                     // результате выполнения cmdFn ничего не
                     // поменялось - значит ничего не делаем
                 } else {
-                    // Если текущее состояние не NULL, помещаем его
+                    // Если текущий Action не NULL, помещаем его
                     // в undo-стек
-                    pushState(&undoStack, retState);
+                    pushAction(&undoStack, retAction);
 
                     // Очистим redoStack, чтобы история не ветвилась
                     clearStack(&redoStack);
@@ -198,16 +198,16 @@ bool processEvents(InputEvent** eventQueue,
         } // endswitch
 
         // Пересоздать обработанное событие в очереди выполненных
-        // событий, при этом event->seq дублируется, если необходимо,
-        // внутри enqueueEvent(), поэтому здесь ниже его можно
-        // освободить
+        // событий. При этом event->seq будет дублирован с помощью
+        // strdup() при добавлении в очередь. Поэтому сразу после
+        // добавления можно освободить его, а затем и event.
         enqueueEvent(&gHistoryEventQueue, &gHistoryQueue_mutex,
                      event->type, event->cmdFn, event->seq);
-
-        // Освободить событие
+        // Освободить seq
         if (event->seq != NULL) {
             free(event->seq);
         }
+        // Освободить event
         free(event);
     }
     pthread_mutex_unlock(queueMutex);
@@ -215,49 +215,55 @@ bool processEvents(InputEvent** eventQueue,
 }
 
 
-State* createState(MsgNode* node, InputEvent* event) {
+Action* createAction(MsgNode* node, InputEvent* event) {
     if (!node) return NULL;
-    State* state = malloc(sizeof(State));
-    if (!state) return NULL;
-    state->cmdFn = event->cmdFn;
+    Action* act = malloc(sizeof(Action));
+    if (!act) return NULL;
+    act->cmdFn = event->cmdFn;
+    act->seq = NULL;
     if (event->seq) {
-        state->seq = strdup(event->seq);
-    } else {
-        state->seq = NULL;
+        act->seq = strdup(event->seq);
+        if (!act->seq) {
+            perror("Failed to allocate memory in createAction");
+            exit(1);
+        }
     }
-    state->cnt = 1;
-    return state;
+    act->cnt = 1;
+    return act;
 }
 
 
-// State Stakes */
+// Action Stakes */
 
-void freeState(State* state) {
-    if (!state) return;
-    free(state);
+void freeAction(Action* act) {
+    if (!act) return;
+    free(act);
 }
 
-void pushState(StateStack** stack, State* state) {
-    StateStack* newElement = malloc(sizeof(StateStack));
-    if (!newElement) return;
-    newElement->state = state;
-    newElement->next = *stack;
-    *stack = newElement;
+void pushAction(ActionStackElt** stack, Action* act) {
+    ActionStackElt* newElt = malloc(sizeof(ActionStackElt));
+    if (!newElt) {
+        perror("Failed to allocate memory in pushAction");
+        exit(1);
+    }
+    newElt->act = act;
+    newElt->next = *stack;
+    *stack = newElt;
 }
 
-State* popState(StateStack** stack) {
+Action* popAction(ActionStackElt** stack) {
     if (!*stack) return NULL;
-    StateStack* topElement = *stack;
-    State* state = topElement->state;
-    *stack = topElement->next;
-    free(topElement);
-    return state;
+    ActionStackElt* topElt = *stack;
+    Action* act = topElt->act;
+    *stack = topElt->next;
+    free(topElt);
+    return act;
 }
 
-void clearStack(StateStack** stack) {
+void clearStack(ActionStackElt** stack) {
     while (*stack) {
-        State* state = popState(stack);
-        freeState(state);
+        Action* act = popAction(stack);
+        freeAction(act);
     }
 }
 
@@ -345,42 +351,43 @@ int hex_to_int(const char* hex) {
 }
 
 
-// Общая функция для управления состояниями и командами
-State* manageState(MsgNode* node, InputEvent* event,
-                   State* (*action)(MsgNode*, InputEvent*),
-                   void (*updatePosition)(MsgNode*, InputEvent*)) {
-    // Пытаемся получить предыдущее состояние из undo-стека
-    State* prevState = popState(&undoStack);
-    State* newState = NULL;
+// Общая функция для управления экшеном и командами
+Action* mngAct(MsgNode* node, InputEvent* event,
+               Action* (*action)(MsgNode*, InputEvent*),
+               void (*updateFn)(MsgNode*, InputEvent*)) {
+    // Пытаемся получить предыдущий экшн из undo-стека
+    Action* prevAction = popAction(&undoStack);
+    Action* newAction = NULL;
 
-    if (prevState && prevState->cmdFn == action) {
-        // Если предыдущее состояние подходит, используем его
-        newState = prevState;
-        newState->cnt++;
+    if (prevAction && prevAction->cmdFn == action) {
+        // Если предыдущий экшн подходит, используем его
+        newAction = prevAction;
+        newAction->cnt++;
     } else {
-        // Иначе создаем новое состояние и возвращаем
-        // предыдущее на место
-        pushState(&undoStack, prevState);
-        newState = createState(node, event);
-        newState->cnt = 1;
+        // Иначе возвращаем предыдущий экшн обратно
+        // в стек undo и создаем новый экшн, который
+        // будет позже тоже записан в этот стек
+        pushAction(&undoStack, prevAction);
+        newAction = createAction(node, event);
+        newAction->cnt = 1;
     }
 
-    // Вызов специфической функции для изменения состояния
-    if (updatePosition) {
-        updatePosition(node, event);
+    // Вызов специфической функции для изменения ноды
+    if (updateFn) {
+        updateFn(node, event);
     }
 
-    return newState;
+    return newAction;
 }
 
 
-State* cmd_connect(MsgNode* msg, InputEvent* event) {
+Action* cmd_connect(MsgNode* msg, InputEvent* event) {
     connect_to_server("127.0.0.1", 8888);
 
     return NULL;
 }
 
-State* cmd_alt_enter(MsgNode* node, InputEvent* event) {
+Action* cmd_alt_enter(MsgNode* node, InputEvent* event) {
     /* /\* pushMessage(&msgList, "ALT enter function"); *\/ */
     /* if (!msgnode || !node->text) return NULL; */
 
@@ -416,7 +423,7 @@ State* cmd_alt_enter(MsgNode* node, InputEvent* event) {
     return NULL;
 }
 
-State* cmd_enter(MsgNode* msg, InputEvent* event) {
+Action* cmd_enter(MsgNode* msg, InputEvent* event) {
     /* pushMessage(&msgList, "enter function"); */
     /* if (msgList.curr == NULL) { */
     /*     pushMessage(&msgList, "cmd_enter_err: Нет сообщения для отправки"); */
@@ -451,14 +458,14 @@ void upd_backward_char(MsgNode* node, InputEvent* event) {
     }
 }
 
-State* cmd_backward_char(MsgNode* node, InputEvent* event) {
+Action* cmd_backward_char(MsgNode* node, InputEvent* event) {
     // Если двигать влево уже некуда, то вернемся
     if (node->cursor_pos == 0) {
         return NULL;
     }
 
-    return manageState(node, event, cmd_backward_char,
-                       upd_backward_char);
+    return mngAct(node, event, cmd_backward_char,
+                  upd_backward_char);
 }
 
 void upd_forward_char(MsgNode* node, InputEvent* event) {
@@ -472,14 +479,14 @@ void upd_forward_char(MsgNode* node, InputEvent* event) {
     }
 }
 
-State* cmd_forward_char(MsgNode* node, InputEvent* event) {
+Action* cmd_forward_char(MsgNode* node, InputEvent* event) {
     // Если двигать вправо уже некуда, то вернемся
     if (node->cursor_pos >= utf8_strlen(node->text)) {
         return NULL;
     }
 
-    return manageState(node, event, cmd_forward_char,
-                       upd_forward_char);
+    return mngAct(node, event, cmd_forward_char,
+                  upd_forward_char);
 }
 
 void upd_forward_word(MsgNode* node, InputEvent* event) {
@@ -509,14 +516,14 @@ void upd_forward_word(MsgNode* node, InputEvent* event) {
 }
 
 // Перемещение курсора вперед на одно слово
-State* cmd_forward_word(MsgNode* node, InputEvent* event) {
+Action* cmd_forward_word(MsgNode* node, InputEvent* event) {
     // Если курсор уже в конце строки, то вернемся
     if (node->cursor_pos == utf8_strlen(node->text)) {
         return NULL;
     }
 
-    return manageState(node, event, cmd_forward_word,
-                       upd_forward_word);
+    return mngAct(node, event, cmd_forward_word,
+                  upd_forward_word);
 }
 
 void upd_backward_word(MsgNode* node, InputEvent* event) {
@@ -544,7 +551,7 @@ void upd_backward_word(MsgNode* node, InputEvent* event) {
 }
 
 // Перемещение курсора назад на одно слово
-State* cmd_backward_word(MsgNode* node, InputEvent* event) {
+Action* cmd_backward_word(MsgNode* node, InputEvent* event) {
     // Если курсор уже в начале строки, ничего не делаем
     if (node->cursor_pos == 0) {
         return NULL;
@@ -553,18 +560,18 @@ State* cmd_backward_word(MsgNode* node, InputEvent* event) {
     // Запоминаем старую позицию курсора
     int old_cursor_pos = node->cursor_pos;
 
-    State* newState =
-        manageState(node, event, cmd_backward_word,
-                    upd_backward_word);
+    Action* newAction =
+        mngAct(node, event, cmd_backward_word,
+               upd_backward_word);
 
-    if (newState->cnt == 1) {
-        // Если в результате мы имеем новое состояние
-        // а не взяли предыдущее, то записываем в него
+    if (newAction->cnt == 1) {
+        // Если в результате мы имеем новый экшн
+        // а не взяли предыдущий, то записываем в него
         // старую позицию курсора в виде строки
-        newState->seq = int_to_hex(old_cursor_pos);
+        newAction->seq = int_to_hex(old_cursor_pos);
     }
 
-    return newState;
+    return newAction;
 }
 
 void upd_to_beginning_of_line(MsgNode* node, InputEvent* event) {
@@ -589,27 +596,27 @@ void upd_to_beginning_of_line(MsgNode* node, InputEvent* event) {
     node->cursor_pos = 0;
 }
 
-State* cmd_to_beginning_of_line(MsgNode* node, InputEvent* event) {
+Action* cmd_to_beginning_of_line(MsgNode* node, InputEvent* event) {
     // Если двигать влево уже некуда, то вернемся
     if (node->cursor_pos == 0) {
         return NULL;
     }
 
     // Делаем из node->cursor_pos строку,
-    // которую позже запишем в newState->seq
+    // которую позже запишем в newAction->seq
     char* seq = int_to_hex(node->cursor_pos);
 
-    State* newState =
-        manageState(node, event, cmd_to_beginning_of_line,
-                    upd_to_beginning_of_line);
+    Action* newAction =
+        mngAct(node, event, cmd_to_beginning_of_line,
+               upd_to_beginning_of_line);
 
     // Записываем в него старую позицию курсора
-    newState->seq = seq;
+    newAction->seq = seq;
 
-    return newState;
+    return newAction;
 }
 
-State* cmd_get_back_to_line_pos(MsgNode* node, InputEvent* event) {
+Action* cmd_get_back_to_line_pos(MsgNode* node, InputEvent* event) {
     // seq хранит старую позицию курсора
     // в шестнадцатеричном виде, поэтому декодируем
     int old_cursor_pos = hex_to_int(event->seq);
@@ -649,24 +656,24 @@ void upd_to_end_of_line(MsgNode* node, InputEvent* event) {
     node->cursor_pos = utf8_char_index(node->text, len);
 }
 
-State* cmd_to_end_of_line(MsgNode* node, InputEvent* event) {
+Action* cmd_to_end_of_line(MsgNode* node, InputEvent* event) {
     // Если двигать вправо уже некуда, то вернемся
     if (node->cursor_pos >= utf8_strlen(node->text)) {
         return NULL;
     }
 
     // Делаем из node->cursor_pos строку,
-    // которую позже запишем в newState->seq
+    // которую позже запишем в newAction->seq
     char* seq = int_to_hex(node->cursor_pos);
 
-    State* newState =
-        manageState(node, event, cmd_to_end_of_line,
-                    upd_to_end_of_line);
+    Action* newAction =
+        mngAct(node, event, cmd_to_end_of_line,
+               upd_to_end_of_line);
 
     // Записываем в него старую позицию курсора
-    newState->seq = seq;
+    newAction->seq = seq;
 
-    return newState;
+    return newAction;
 }
 
 void upd_insert(MsgNode* node, InputEvent* event) {
@@ -713,26 +720,26 @@ void upd_insert(MsgNode* node, InputEvent* event) {
 }
 
 // Функция для вставки текста в позицию курсора
-State* cmd_insert(MsgNode* node, InputEvent* event) {
-    State* newState =
-        manageState(node, event, cmd_insert,
-                    upd_insert);
+Action* cmd_insert(MsgNode* node, InputEvent* event) {
+    Action* newAction =
+        mngAct(node, event, cmd_insert,
+               upd_insert);
 
-    if (newState->cnt > 1) {
-        // Если мы тут, значит используется старое состояние
+    if (newAction->cnt > 1) {
+        // Если мы тут, значит используется старый экшн
         // из стека и теперь мы должны его скорректировать.
         // Сначала, вернем к единице cnt.
-        newState->cnt = 1;
-        // Потом допишем event->seq к newState->seq:
+        newAction->cnt = 1;
+        // Потом допишем event->seq к newAction->seq:
         // Вычислим длину insert-sequence в байтах
-        int insert_seq_len  = strlen(newState->seq);
+        int insert_seq_len  = strlen(newAction->seq);
         // Вычислим длину в байтах того что хотим добавить
         int event_seq_len = strlen(event->seq);
         // Получится общая длина + терминатор
         int new_seq_len = insert_seq_len + event_seq_len + 1;
         // Реаллоцируем seq в new_seq
         char* new_seq =
-            realloc(newState->seq, new_seq_len);
+            realloc(newAction->seq, new_seq_len);
         if (new_seq == NULL) {
             perror("Failed to reallocate memory in cmd_insert");
             exit(1);
@@ -742,14 +749,14 @@ State* cmd_insert(MsgNode* node, InputEvent* event) {
         // Дописываем к new_seq новый event->seq (в конец)
         strncpy(new_seq + insert_seq_len,
                 event->seq, event_seq_len);
-        // Записываем реаллоцированный seq в newState
-        newState->seq = new_seq;
+        // Записываем реаллоцированный seq в newAction
+        newAction->seq = new_seq;
     }
 
-    return newState;
+    return newAction;
 }
 
-State* cmd_uninsert(MsgNode* node, InputEvent* event) {
+Action* cmd_uninsert(MsgNode* node, InputEvent* event) {
     // Вычисляем сколько utf-8 символов надо удалить
     int cnt_del = utf8_strlen(event->seq);
 
@@ -790,7 +797,7 @@ State* cmd_uninsert(MsgNode* node, InputEvent* event) {
 
 // [TODO:gmm] Функция для удаления символа справа от курсора (DEL)
 
-State* cmd_backspace(MsgNode* node, InputEvent* event) {
+Action* cmd_backspace(MsgNode* node, InputEvent* event) {
     // If cursor is at the start, no need to backspace
     if (node->cursor_pos == 0) {
         return NULL;
@@ -841,25 +848,25 @@ State* cmd_backspace(MsgNode* node, InputEvent* event) {
     // Здесь будет указатель на удаляемое
     char* del = NULL;
 
-    State* newState =
-        manageState(node, event, cmd_backspace, NULL);
+    Action* newAction =
+        mngAct(node, event, cmd_backspace, NULL);
 
-    if (newState->cnt > 1) {
-        // Если мы тут, значит используется старое состояние
+    if (newAction->cnt > 1) {
+        // Если мы тут, значит используется старый экшн
         // из стека и теперь мы должны его скорректировать.
         // Сначала, вернем к единице cnt.
-        newState->cnt = 1;
-        // Будем присоединять удаляемое к предыдущему состоянию.
+        newAction->cnt = 1;
+        // Будем присоединять удаляемое к предыдущему экшену
 
-        // Определяем, сколько байт содержит newState->seq
-        int old_len = strlen(newState->seq);
+        // Определяем, сколько байт содержит newAction->seq
+        int old_len = strlen(newAction->seq);
 
-        // Реаллоцируем newState->seq чтобы вместить туда
+        // Реаллоцируем newAction->seq чтобы вместить туда
         // новое удаляемое и нуль-терминатор
-        del = realloc(newState->seq, old_len + del_len + 1);
+        del = realloc(newAction->seq, old_len + del_len + 1);
 
-        // Сдвигаем содержимое newState->seq вправо на del_len
-        strncpy(newState->seq + del_len, newState->seq, old_len);
+        // Сдвигаем содержимое newAction->seq вправо на del_len
+        strncpy(newAction->seq + del_len, newAction->seq, old_len);
 
         // Дописываем в начало del удаляемое
         strncpy(del, node->text + byte_offset_prev, del_len);
@@ -867,11 +874,11 @@ State* cmd_backspace(MsgNode* node, InputEvent* event) {
         // Завершаем удаляемое нуль-терминатором
         memset(del + old_len + del_len, 0, 1);
 
-        // Обновляем newState->seq
-        newState->seq = del;
+        // Обновляем newAction->seq
+        newAction->seq = del;
     } else {
-        // Если мы тут, значит мы используем свежесозданное
-        // состояние
+        // Если мы тут, значит мы используем свежесозданный
+        // экшн
 
         // Выделяем память для удаляемого символа и нуль-терминатора
         del = malloc(del_len + 1);
@@ -887,7 +894,7 @@ State* cmd_backspace(MsgNode* node, InputEvent* event) {
         memset(del + del_len, 0, 1);
 
         // Запоминить в его seq удаляемый символ
-        newState->seq = del;
+        newAction->seq = del;
     }
 
     // :::: Изменение node
@@ -919,17 +926,17 @@ State* cmd_backspace(MsgNode* node, InputEvent* event) {
     // Обновляем позицию маркера
     node->marker_pos = new_marker_pos;
 
-    return newState;
+    return newAction;
 }
 
 
-State* cmd_prev_msg() {
+Action* cmd_prev_msg() {
     /* moveToPreviousMessage(&msgList); */
 
     return NULL;
 }
 
-State* cmd_next_msg() {
+Action* cmd_next_msg() {
     /* moveToNextMessage(&msgList); */
 
     return NULL;
@@ -962,7 +969,7 @@ char* pop_clipboard() {
     return text;
 }
 
-State* cmd_copy(MsgNode* node, InputEvent* event) {
+Action* cmd_copy(MsgNode* node, InputEvent* event) {
     /* int start = min(node->cursor_pos, node->marker_pos); */
     /* int end = max(node->cursor_pos, node->marker_pos); */
 
@@ -978,7 +985,7 @@ State* cmd_copy(MsgNode* node, InputEvent* event) {
     return NULL;
 }
 
-State* cmd_cut(MsgNode* node, InputEvent* event) {
+Action* cmd_cut(MsgNode* node, InputEvent* event) {
     /* cmd_copy(node, param); // Сначала копируем текст */
 
     /* int start = min(node->cursor_pos, node->marker_pos); */
@@ -995,7 +1002,7 @@ State* cmd_cut(MsgNode* node, InputEvent* event) {
     return NULL;
 }
 
-State* cmd_paste(MsgNode* node, InputEvent* event) {
+Action* cmd_paste(MsgNode* node, InputEvent* event) {
     /* char* text_to_paste = pop_clipboard(); */
     /* if (text_to_paste) { */
     /*     cmd_insert(node, text_to_paste); */
@@ -1010,30 +1017,30 @@ void upd_set_marker(MsgNode* node, InputEvent* event) {
     node->marker_pos = node->cursor_pos;
 }
 
-State* cmd_set_marker(MsgNode* node, InputEvent* event) {
+Action* cmd_set_marker(MsgNode* node, InputEvent* event) {
     // Если маркер уже установлен, то ничего не делаем
     if (node->marker_pos != -1) {
         return NULL;
     }
 
-    State* newState =
-        manageState(node, event, cmd_set_marker,
-                    upd_set_marker);
+    Action* newAction =
+        mngAct(node, event, cmd_set_marker,
+               upd_set_marker);
 
     if (event->seq) {
-        // Если в состоянии есть seq это значит нас вызвал
+        // Если в event есть seq это значит нас вызвал
         // cmd_undo. Восстановим позицию маркера
         node->marker_pos = hex_to_int(event->seq);
     }
 
     // Делаем из node->cursor_pos строку,
-    // которую позже запишем в newState->seq
+    // которую позже запишем в newAction->seq
     char* seq = int_to_hex(node->cursor_pos);
 
-    // Записываем в состояние позицию маркера
-    newState->seq = seq;
+    // Записываем в экшн позицию маркера
+    newAction->seq = seq;
 
-    return newState;  // Возвращаем состояние
+    return newAction;  // Возвращаем экшн
 }
 
 void upd_unset_marker(MsgNode* node, InputEvent* event) {
@@ -1041,7 +1048,7 @@ void upd_unset_marker(MsgNode* node, InputEvent* event) {
     node->marker_pos = -1;
 }
 
-State* cmd_unset_marker(MsgNode* node, InputEvent* event) {
+Action* cmd_unset_marker(MsgNode* node, InputEvent* event) {
     // Если маркер не установлен, то ничего не делаем
     if (node->marker_pos == -1) {
         return NULL;
@@ -1051,18 +1058,18 @@ State* cmd_unset_marker(MsgNode* node, InputEvent* event) {
     // для будующего сохранения
     int old_marker_pos = node->marker_pos;
 
-    State* newState =
-        manageState(node, event, cmd_unset_marker,
-                    upd_unset_marker);
+    Action* newAction =
+        mngAct(node, event, cmd_unset_marker,
+               upd_unset_marker);
 
     // Делаем из node->cursor_pos строку,
-    // которую позже запишем в newState->seq
+    // которую позже запишем в newAction->seq
     char* seq = int_to_hex(old_marker_pos);
 
-    // Записываем в состояние старую позицию маркера
-    newState->seq = seq;
+    // Записываем в экшн старую позицию маркера
+    newAction->seq = seq;
 
-    return newState;  // Возвращаем состояние
+    return newAction;  // Возвращаем экшн
 }
 
 void upd_toggle_cursor(MsgNode* node, InputEvent* event) {
@@ -1071,38 +1078,38 @@ void upd_toggle_cursor(MsgNode* node, InputEvent* event) {
     node->marker_pos = temp;
 }
 
-State* cmd_toggle_cursor(MsgNode* node, InputEvent* event) {
-    return manageState(node, event, cmd_toggle_cursor,
-                       upd_toggle_cursor);
+Action* cmd_toggle_cursor(MsgNode* node, InputEvent* event) {
+    return mngAct(node, event, cmd_toggle_cursor,
+                  upd_toggle_cursor);
 }
 
 
-State* cmd_undo(MsgNode* node, InputEvent* event) {
+Action* cmd_undo(MsgNode* node, InputEvent* event) {
     if (undoStack == NULL) {
         pushMessage(&msgList, "No more actions to undo");
         return NULL;
     }
 
-    // Pop the last state from the undo stack
-    State* prevState = popState(&undoStack);
-    if (!prevState) {
-        pushMessage(&msgList, "Failed to pop state from undoStack");
+    // Pop the last action from the undo stack
+    Action* prevAction = popAction(&undoStack);
+    if (!prevAction) {
+        pushMessage(&msgList, "Failed to pop Action from undoStack");
         return NULL;
     }
 
     // Get the complementary command
-    CmdFunc undoCmd = get_comp_cmd(prevState->cmdFn);
+    CmdFunc undoCmd = get_comp_cmd(prevAction->cmdFn);
     if (undoCmd == NULL) {
         char undoMsg[DBG_LOG_MSG_SIZE] = {0};
         int len =
-            (prevState->seq) ? (int)utf8_strlen(prevState->seq) : 0;
+            (prevAction->seq) ? (int)utf8_strlen(prevAction->seq) : 0;
         snprintf(undoMsg, sizeof(undoMsg),
                  "Undo: No complementary found for %s <%s>(%d) [%d]",
-                 descr_cmd_fn(prevState->cmdFn),
-                 prevState->seq, len, prevState->cnt);
+                 descr_cmd_fn(prevAction->cmdFn),
+                 prevAction->seq, len, prevAction->cnt);
         pushMessage(&msgList, undoMsg);
-        // Push the state back onto undo stack
-        pushState(&undoStack, prevState);
+        // Push the Action back onto undo stack
+        pushAction(&undoStack, prevAction);
         return NULL;
     }
 
@@ -1110,59 +1117,59 @@ State* cmd_undo(MsgNode* node, InputEvent* event) {
     InputEvent undoEvent = {
         .type = CMD,
         .cmdFn = undoCmd,
-        .seq = prevState->seq ? strdup(prevState->seq) : NULL,
+        .seq = prevAction->seq ? strdup(prevAction->seq) : NULL,
         .next = NULL
     };
 
     // Apply the undo command
-    for (int i = 0; i < prevState->cnt; i++) {
+    for (int i = 0; i < prevAction->cnt; i++) {
         undoCmd(node, &undoEvent);
     }
 
-    // Перемещаем prevState в redoStack
-    pushState(&redoStack, prevState);
+    // Перемещаем prevAction в redoStack
+    pushAction(&redoStack, prevAction);
 
     // Clean up
     if (undoEvent.seq) free(undoEvent.seq);
 
-    // Return the prevState to indicate the state has changed
-    return prevState;
+    // Return the prevAction to indicate the Action has changed
+    return prevAction;
 }
 
-State* cmd_redo(MsgNode* node, InputEvent* event) {
+Action* cmd_redo(MsgNode* node, InputEvent* event) {
     if (redoStack == NULL) {
         pushMessage(&msgList, "No more actions to redo");
         return NULL;
     }
 
-    // Pop the last state from the redo stack
-    State* nextState = popState(&redoStack);
-    if (!nextState) {
-        pushMessage(&msgList, "Failed to pop state from redoStack");
+    // Pop the last Action from the redo stack
+    Action* nextAction = popAction(&redoStack);
+    if (!nextAction) {
+        pushMessage(&msgList, "Failed to pop Action from redoStack");
         return NULL;
     }
 
     // Create a new event to apply the redo command
     InputEvent redoEvent = {
         .type = CMD,
-        .cmdFn = nextState->cmdFn,
-        .seq = nextState->seq ? strdup(nextState->seq) : NULL,
+        .cmdFn = nextAction->cmdFn,
+        .seq = nextAction->seq ? strdup(nextAction->seq) : NULL,
         .next = NULL
     };
 
     // Apply the redo command
-    for (int i = 0; i < nextState->cnt; i++) {
-        nextState->cmdFn(node, &redoEvent);
+    for (int i = 0; i < nextAction->cnt; i++) {
+        nextAction->cmdFn(node, &redoEvent);
     }
 
-    // Push the next state back onto the undo stack
-    pushState(&undoStack, nextState);
+    // Push the next Action back onto the undo stack
+    pushAction(&undoStack, nextAction);
 
     // Clean up
     if (redoEvent.seq) { free(redoEvent.seq); }
 
-    // Return the nextState to indicate the state has changed
-    return nextState;
+    // Return the nextAction to indicate the Action has changed
+    return nextAction;
 }
 
 
@@ -1191,6 +1198,6 @@ CmdFunc get_comp_cmd (CmdFunc cmd) {
     return NULL;
 }
 
-State* cmd_stub(MsgNode* msg, InputEvent* event) {
+Action* cmd_stub(MsgNode* msg, InputEvent* event) {
     return NULL;
 }

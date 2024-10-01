@@ -17,8 +17,8 @@
 
 #define MAX_BUFFER 1024
 
-extern StateStack* undoStack;
-extern StateStack* redoStack;
+extern ActionStackElt* undoStack;
+extern ActionStackElt* redoStack;
 
 void drawHorizontalLine(int cols, int y, char sym);
 
@@ -221,7 +221,7 @@ void dispCtrlStack() {
 
 // Undo/Redo
 
-void displayStack(StateStack* stateStack) {
+void displayStack(ActionStackElt* stack) {
     // Начальный размер буфера
     size_t bufferSize = 256;
     char* buffer = malloc(bufferSize);
@@ -231,20 +231,20 @@ void displayStack(StateStack* stateStack) {
     }
     buffer[0] = '\0';  // Инициализация пустой строки
 
-    StateStack* currStateStack = stateStack;
-    while (currStateStack != NULL) {
-        State* state = currStateStack->state;
-        if (state) {
+    ActionStackElt* curStack = stack;
+    while (curStack != NULL) {
+        Action* act = curStack->act;
+        if (act) {
             // Достаточно большой для одного описания
-            char stateDesc[128] = {0};
-            snprintf(stateDesc, sizeof(stateDesc),
+            char descr[128] = {0};
+            snprintf(descr, sizeof(descr),
                      "(%s «%s» %d) ",
-                     descr_cmd_fn(state->cmdFn),
-                     state->seq ? state->seq : "null",
-                     state->cnt);
+                     descr_cmd_fn(act->cmdFn),
+                     act->seq ? act->seq : "null",
+                     act->cnt);
 
             size_t neededSize =
-                strlen(buffer) + strlen(stateDesc) + 1;
+                strlen(buffer) + strlen(descr) + 1;
 
             if (neededSize > bufferSize) {
                 bufferSize *= 2;  // Удвоение размера при необходимости
@@ -256,9 +256,9 @@ void displayStack(StateStack* stateStack) {
                 }
                 buffer = newBuffer;
             }
-            strcat(buffer, stateDesc);
+            strcat(buffer, descr);
         }
-        currStateStack = currStateStack->next;
+        curStack = curStack->next;
     }
 
     appendToMiniBuffer(buffer);
@@ -452,15 +452,15 @@ void freeMsgNodes(MsgNode* msgnode) {
 
 // Отображение истории состяний
 
-State* peekState(const StateStack* stack) {
+Action* peekAction(const ActionStackElt* stack) {
     if (!stack) {
         return NULL;  // Возвращаем NULL, если стек пуст
     }
-    // Возвращаем состояние на вершине стека
-    return stack->state;
+    // Возвращаем экшн на вершине стека без его удаления
+    return stack->act;
 }
 
-// Инициализация состояния
+// Инициализация состояния программы
 
 void reinitializeState() {
     initMsgList(&msgList);

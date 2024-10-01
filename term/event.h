@@ -13,15 +13,15 @@
 extern MsgList msgList;
 extern pthread_mutex_t msgList_mutex;
 
-// Предварительное объявление структуры State
-typedef struct State State;
+// Предварительное объявление структуры Action
+typedef struct Action Action;
 
 // Предварительное объявление структуры InputEvent
 typedef struct InputEvent InputEvent;
 
 // Определение типа функции CmdFunc, который теперь
-// знает о типе State и InputEvent
-typedef State* (*CmdFunc)(MsgNode*, InputEvent* event);
+// знает о типе Action и InputEvent
+typedef Action* (*CmdFunc)(MsgNode*, InputEvent* event);
 
 // [TODO:gmm] Типы Event-ов нужны для отладочного вывода, после удалить
 typedef enum { DBG, CMD } EventType;
@@ -34,23 +34,23 @@ typedef struct InputEvent {
     struct InputEvent* next;
 } InputEvent;
 
-// Полное определение структуры State,
+// Полное определение структуры Action,
 // которое уже может использовать CmdFunc
-typedef struct State {
+typedef struct Action {
     CmdFunc cmdFn;
     char* seq;
     int cnt;
-} State;
+} Action;
 
-// Тип стека состояний для undo/redo
-typedef struct StateStack {
-    State* state;
-    struct StateStack* next;
-} StateStack;
+// Тип стека экшенов для undo/redo
+typedef struct ActionStackElt {
+    Action* act;
+    struct ActionStackElt* next;
+} ActionStackElt;
 
 // Стеки undo и redo
-extern StateStack* undoStack;
-extern StateStack* redoStack;
+extern ActionStackElt* undoStack;
+extern ActionStackElt* redoStack;
 
 // Очереди и их мьютексы
 extern InputEvent* gInputEventQueue;
@@ -61,7 +61,7 @@ extern pthread_mutex_t gHistoryQueue_mutex;
 
 // Добавлятель в очередь
 void enqueueEvent(InputEvent** eventQueue,
-				  pthread_mutex_t* queueMutex,
+                  pthread_mutex_t* queueMutex,
                   EventType type, CmdFunc cmdFn, char* seq);
 
 
@@ -73,17 +73,17 @@ void convertToAsciiCodes(const char *input, char *output,
 
 // Процессор событий
 bool processEvents(InputEvent** eventQueue,
-				   pthread_mutex_t* queueMutex,
+                   pthread_mutex_t* queueMutex,
                    char* input, int* input_size,
                    int* log_window_start, int rows);
 
 
-// Функции работы с состояниями отмены/возврата
-State* createState(MsgNode* currentNode, InputEvent* event);
-void freeState(State* state);
-void pushState(StateStack** stack, State* state);
-State* popState(StateStack** stack);
-void clearStack(StateStack** stack);
+// Функции работы с экшенами отмены/возврата
+Action* createAction(MsgNode* currentNode, InputEvent* event);
+void freeAction(Action* act);
+void pushAction(ActionStackElt** stack, Action* act);
+Action* popAction(ActionStackElt** stack);
+void clearStack(ActionStackElt** stack);
 
 // Функция для отладочного отображения CmdFunc
 char* descr_cmd_fn(CmdFunc cmd_fn);
@@ -95,32 +95,32 @@ void connect_to_server(const char* server_ip, int port);
 char* int_to_hex(int value);
 int hex_to_int(const char* hex);
 
-State* cmd_stub(MsgNode* msg, InputEvent* event);
-State* cmd_connect();
-State* cmd_enter(MsgNode* msg, InputEvent* event);
-State* cmd_alt_enter(MsgNode* msg, InputEvent* event);
+Action* cmd_stub(MsgNode* msg, InputEvent* event);
+Action* cmd_connect();
+Action* cmd_enter(MsgNode* msg, InputEvent* event);
+Action* cmd_alt_enter(MsgNode* msg, InputEvent* event);
 
-State* cmd_backward_char(MsgNode* node, InputEvent* event);
-State* cmd_forward_char(MsgNode* node, InputEvent* event);
-State* cmd_forward_word(MsgNode* node, InputEvent* event);
-State* cmd_backward_word(MsgNode* node, InputEvent* event);
-State* cmd_to_end_of_line(MsgNode* node, InputEvent* event);
-State* cmd_to_beginning_of_line(MsgNode* node, InputEvent* event);
-State* cmd_insert(MsgNode* node, InputEvent* event);
-State* cmd_backspace(MsgNode* msg, InputEvent* event);
+Action* cmd_backward_char(MsgNode* node, InputEvent* event);
+Action* cmd_forward_char(MsgNode* node, InputEvent* event);
+Action* cmd_forward_word(MsgNode* node, InputEvent* event);
+Action* cmd_backward_word(MsgNode* node, InputEvent* event);
+Action* cmd_to_end_of_line(MsgNode* node, InputEvent* event);
+Action* cmd_to_beginning_of_line(MsgNode* node, InputEvent* event);
+Action* cmd_insert(MsgNode* node, InputEvent* event);
+Action* cmd_backspace(MsgNode* msg, InputEvent* event);
 
-State* cmd_prev_msg();
-State* cmd_next_msg();
+Action* cmd_prev_msg();
+Action* cmd_next_msg();
 
-State* cmd_copy(MsgNode* node, InputEvent* event);
-State* cmd_cut(MsgNode* node, InputEvent* event);
-State* cmd_paste(MsgNode* node, InputEvent* event);
-State* cmd_toggle_cursor(MsgNode* node, InputEvent* event);
-State* cmd_undo(MsgNode* msg, InputEvent* event);
-State* cmd_redo(MsgNode* msg, InputEvent* event);
+Action* cmd_copy(MsgNode* node, InputEvent* event);
+Action* cmd_cut(MsgNode* node, InputEvent* event);
+Action* cmd_paste(MsgNode* node, InputEvent* event);
+Action* cmd_toggle_cursor(MsgNode* node, InputEvent* event);
+Action* cmd_undo(MsgNode* msg, InputEvent* event);
+Action* cmd_redo(MsgNode* msg, InputEvent* event);
 
-State* cmd_set_marker(MsgNode* node, InputEvent* event);
-State* cmd_unset_marker(MsgNode* node, InputEvent* event);
+Action* cmd_set_marker(MsgNode* node, InputEvent* event);
+Action* cmd_unset_marker(MsgNode* node, InputEvent* event);
 
 typedef struct {
     CmdFunc redo_cmd;
