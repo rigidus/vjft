@@ -8,7 +8,7 @@
    max_width и в какой из этих строк будет расположен курсор
 */
 void calc_display_size(const char* text, int max_width,
-					   int cursor_pos,
+                       int cursor_pos,
                        int* need_cols, int* need_rows,
                        int* cursor_row, int* cursor_col) {
     int cur_text_pos = -1; // Текущий индекс выводимого символа
@@ -21,7 +21,7 @@ void calc_display_size(const char* text, int max_width,
 
         cur_text_pos++; // Увеличение текущей позиции в тексте
         if (cur_text_pos == cursor_pos) {
-			// Дошли до позиции курсора?
+            // Дошли до позиции курсора?
             *cursor_row = cur_row; // Вернуть текущую строку
             *cursor_col = cur_col; // Вернуть текущий столбец
         }
@@ -29,8 +29,8 @@ void calc_display_size(const char* text, int max_width,
         cur_col++; // Увеличение позиции в текущей строке
 
         if (cur_col > max_col) {
-			// Если эта строка длиннее чем ранее встреченные
-			// Обновить максимальную длину строки
+            // Если эта строка длиннее чем ранее встреченные
+            // Обновить максимальную длину строки
             max_col = cur_col;
         }
 
@@ -99,7 +99,7 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
     void fullfiller () {
         if (is_not_skipped_row()) {
             // Если мы не пропускаем
-			// Пока не правая граница
+            // Пока не правая граница
             while (rel_col < rel_max_width) {
                 putchar(FILLER); // Заполняем
                 rel_col++; // Увеличиваем счётчик длины строки
@@ -121,23 +121,23 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
         size_t char_len = utf8_char_length(p);
 
         // Проверяем, нужно ли изменить цвет фона
-		// для этого символа
-		if (marker_pos != -1) {
-			if (cur_pos >= sel_start && cur_pos < sel_end) {
-				if (!is_highlighted) {
-					set_highlight_color();
-					is_highlighted = true;
-				}
-			} else {
-				if (is_highlighted) {
-					reset_highlight_color();
-					is_highlighted = false;
-				}
-			}
-		}
+        // для этого символа
+        if (marker_pos != -1) {
+            if (cur_pos >= sel_start && cur_pos < sel_end) {
+                if (!is_highlighted) {
+                    set_highlight_color();
+                    is_highlighted = true;
+                }
+            } else {
+                if (is_highlighted) {
+                    reset_highlight_color();
+                    is_highlighted = false;
+                }
+            }
+        }
 
         // Если текущая строка достигает максимальной
-		// ширины отображения
+        // ширины отображения
         if (rel_col >= rel_max_width) {
             inc_rel_row();
         }
@@ -158,7 +158,7 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
                 // Если текущий символ - завершающий нулевой байт
                 if (is_not_skipped_row()) {
                     // Если мы не пропускаем
-					// Выводим символ END_OF_TEXT
+                    // Выводим символ END_OF_TEXT
                     fputs("⍿", stdout);
                 }
                 if (is_highlighted) {
@@ -171,7 +171,7 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
                 // Обычный печатаемый символ
                 if (is_not_skipped_row()) {
                     // Если мы не пропускаем
-					// Выводим UTF8-символ
+                    // Выводим UTF8-символ
                     fwrite(p, 1, char_len, stdout);
                 }
             }
@@ -182,7 +182,7 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
     }
 
     // Заполнение оставшейся части строки до конца,
-	// если необходимо
+    // если необходимо
     if (rel_col != 0) {
         fullfiller();
     }
@@ -202,7 +202,7 @@ int display_message(MsgNode* msgnode, int x, int y,
 
     int display_start_row =
         (needed_rows > max_height) ?
-		needed_rows - max_height : 0;
+        needed_rows - max_height : 0;
     int actual_rows = min(needed_rows, max_height);
 
     display_wrapped(msgnode->text, x, y, max_width,
