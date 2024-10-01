@@ -700,9 +700,16 @@ void upd_insert(MsgNode* node, InputEvent* event) {
     // Вставка event->seq в позицию курсора
     memcpy(node->text + byte_offset, event->seq, insert_len);
 
-    // Смещение курсора (выполняется в utf8-символах)
-    node->cursor_pos += utf8_strlen(event->seq);
+    // Вычисляем размер смещения
+    int cursor_offset = utf8_strlen(event->seq);
 
+    // Смещение курсора (выполняется в utf8-символах)
+    node->cursor_pos += cursor_offset;
+
+    // Смещение маркера, если он расположен после курсора
+    if (node->marker_pos >= node->cursor_pos) {
+        node->marker_pos += cursor_offset;
+    }
 }
 
 // Функция для вставки текста в позицию курсора
@@ -804,10 +811,24 @@ State* cmd_backspace(MsgNode* node, InputEvent* event) {
     int byte_offset =
         utf8_byte_offset(node->text, node->cursor_pos);
 
+    // Запомним старые позиции курсора и маркера
+    int old_cursor_pos = node->cursor_pos;
+    int old_marker_pos = node->marker_pos;
+
     // Вычисляем новую позицию курсора
-    int new_cursor_pos = node->cursor_pos - cnt_del;
+    int new_cursor_pos = old_cursor_pos - cnt_del;
     if (new_cursor_pos < 0) {
         new_cursor_pos = 0;
+    }
+
+    // Вычисляем новую позицию маркера
+    int new_marker_pos = old_marker_pos;
+    if (old_marker_pos > new_marker_pos) {
+        // Если маркер находится после курсора и
+        // удаление происходит перед маркером:
+        // Необходимо сдвинуть маркер влево на
+        // количество удалённых символов.
+        new_marker_pos = old_marker_pos - cnt_del;
     }
 
     // Находим байтовую позицию предыдущего символа
@@ -867,7 +888,6 @@ State* cmd_backspace(MsgNode* node, InputEvent* event) {
 
         // Запоминить в его seq удаляемый символ
         newState->seq = del;
-
     }
 
     // :::: Изменение node
@@ -895,6 +915,9 @@ State* cmd_backspace(MsgNode* node, InputEvent* event) {
 
     // Обновляем позицию курсора
     node->cursor_pos = new_cursor_pos;
+
+    // Обновляем позицию маркера
+    node->marker_pos = new_marker_pos;
 
     return newState;
 }
