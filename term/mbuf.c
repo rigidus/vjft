@@ -34,13 +34,14 @@ void appendToMiniBuffer(const char* text) {
 
     // Проверяем, нужно ли расширить буфер
     if (new_size >= miniBuffer.capacity) {
-        size_t new_capacity = miniBuffer.capacity == 0 ? 128 : miniBuffer.capacity * 2;
+        size_t new_capacity
+            = miniBuffer.capacity == 0 ? 128 : miniBuffer.capacity * 2;
         while (new_capacity <= new_size) {
             new_capacity *= 2;
         }
         char* new_buffer = realloc(miniBuffer.buffer, new_capacity);
         if (new_buffer == NULL) {
-            fprintf(stderr, "Не удалось перевыделить память для минибуфера\n");
+            fprintf(stderr, "Realloc error in appendToMiniBuffer\n");
             freeMiniBuffer();
             exit(EXIT_FAILURE);
         }

@@ -20,8 +20,6 @@
 extern StateStack* undoStack;
 extern StateStack* redoStack;
 
-/* char miniBuffer[MAX_BUFFER] = {0}; */
-
 void drawHorizontalLine(int cols, int y, char sym);
 
 volatile int win_cols = 0;
@@ -264,6 +262,8 @@ void displayStack(StateStack* stateStack) {
     }
 
     appendToMiniBuffer(buffer);
+
+    free(buffer);
 }
 
 
@@ -497,6 +497,9 @@ int main() {
     sigaction(SIGWINCH, &sa, NULL);
 
 
+    initMiniBuffer(128);
+
+
     connect_to_server("127.0.0.1", 8888);
 
 
@@ -588,6 +591,11 @@ int main() {
 
     pthread_mutex_destroy(&msgList_mutex);
     pthread_mutex_destroy(&gEventQueue_mutex);
+
+    clearStack(&redoStack);
+    clearStack(&undoStack);
+
+    freeMiniBuffer();
 
     return 0;
 }
