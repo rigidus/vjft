@@ -988,7 +988,7 @@ void upd_set_marker(MsgNode* node, InputEvent* event) {
 }
 
 State* cmd_set_marker(MsgNode* node, InputEvent* event) {
-    // Если маркер уже установлен, то ничего не делаеме
+    // Если маркер уже установлен, то ничего не делаем
     if (node->marker_pos != -1) {
         return NULL;
     }
@@ -1042,42 +1042,15 @@ State* cmd_unset_marker(MsgNode* node, InputEvent* event) {
     return newState;  // Возвращаем состояние
 }
 
-
-State* cmd_toggle_cursor(MsgNode* node, InputEvent* event) {
+void upd_toggle_cursor(MsgNode* node, InputEvent* event) {
     int temp = node->cursor_pos;
     node->cursor_pos = node->marker_pos;
     node->marker_pos = temp;
+}
 
-    // Окей, мы переместили курсор, теперь займемся State
-
-    // Указатель на последнее состояние в undo-стеке
-    // либо мы его создадим, либо возьмем с вершины стека
-    State* currState = NULL;
-
-    // Пытаемся получить предыдущее состояние из undo-стека
-    State* prevState = popState(&undoStack);
-    if (!prevState) {
-        // Если не получилось получить предыдущее состояние
-        // то формируем новое состояние, которое будет возвращено
-        currState = createState(node, event);
-    } else if ( (prevState->cmdFn != cmd_toggle_cursor) ) {
-        // Если предыдущее состояние не cmd_toggle_cursor,
-        // вернем его обратно
-        pushState(&undoStack, prevState);
-
-        // и сформируем для возврата новое состояние
-        currState = createState(node, event);
-    } else {
-        // Иначе, если в undo-стеке существует предыдущее
-        // состояние, которое тоже cmd_toggle_cursor.
-        // Так как мы извлекли предыдущее состояние, то
-        // приравняв его к currState  мы можем возвратить
-        // его обратно, только увеличив cnt
-        currState = prevState;
-        currState->cnt++;
-    }
-
-    return currState;
+State* cmd_toggle_cursor(MsgNode* node, InputEvent* event) {
+    return manageState(node, event, cmd_toggle_cursor,
+                       upd_toggle_cursor);
 }
 
 
