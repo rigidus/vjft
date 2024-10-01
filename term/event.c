@@ -988,33 +988,27 @@ void upd_set_marker(MsgNode* node, InputEvent* event) {
 }
 
 State* cmd_set_marker(MsgNode* node, InputEvent* event) {
+    // Если маркер уже установлен, то ничего не делаеме
+    if (node->marker_pos != -1) {
+        return NULL;
+    }
+
     State* newState =
         manageState(node, event, cmd_set_marker,
                     upd_set_marker);
 
-    if (newState->cnt > 1) {
-        // Если мы тут, значит используется старое состояние
-        // из стека и теперь мы должны его скорректировать.
-        // Сначала, вернем к единице cnt.
-        newState->cnt = 1;
-        // Так как это повторное применение того же действия
-        // в том же положении курсора, то больше ничего не надо
-    } else {
-        // Если мы тут, то используем новое свежесозданное
-        // состояние.
-        if (event->seq) {
-            // Если в состоянии есть seq это значит нас вызвал
-            // cmd_undo. Восстановим позицию маркера
-            node->marker_pos = hex_to_int(event->seq);
-        }
-
-        // Делаем из node->cursor_pos строку,
-        // которую позже запишем в newState->seq
-        char* seq = int_to_hex(node->cursor_pos);
-
-        // Записываем в состояние позицию маркера
-        newState->seq = seq;
+    if (event->seq) {
+        // Если в состоянии есть seq это значит нас вызвал
+        // cmd_undo. Восстановим позицию маркера
+        node->marker_pos = hex_to_int(event->seq);
     }
+
+    // Делаем из node->cursor_pos строку,
+    // которую позже запишем в newState->seq
+    char* seq = int_to_hex(node->cursor_pos);
+
+    // Записываем в состояние позицию маркера
+    newState->seq = seq;
 
     return newState;  // Возвращаем состояние
 }
@@ -1025,6 +1019,11 @@ void upd_unset_marker(MsgNode* node, InputEvent* event) {
 }
 
 State* cmd_unset_marker(MsgNode* node, InputEvent* event) {
+    // Если маркер не установлен, то ничего не делаем
+    if (node->marker_pos == -1) {
+        return NULL;
+    }
+
     // Нам потребуется иметь позицию маркера
     // для будующего сохранения
     int old_marker_pos = node->marker_pos;
@@ -1033,24 +1032,12 @@ State* cmd_unset_marker(MsgNode* node, InputEvent* event) {
         manageState(node, event, cmd_unset_marker,
                     upd_unset_marker);
 
-    if (newState->cnt > 1) {
-        // Если мы тут, значит используется старое состояние
-        // из стека и теперь мы должны его скорректировать.
-        // Сначала, вернем к единице cnt.
-        newState->cnt = 1;
-        // Так как это повторное применение того же действия
-        // в том же положении курсора, то больше ничего не надо
-    } else {
-        // Если мы тут, то используем новое свежесозданное
-        // состояние.
+    // Делаем из node->cursor_pos строку,
+    // которую позже запишем в newState->seq
+    char* seq = int_to_hex(old_marker_pos);
 
-        // Делаем из node->cursor_pos строку,
-        // которую позже запишем в newState->seq
-        char* seq = int_to_hex(old_marker_pos);
-
-        // Записываем в состояние старую позицию маркера
-        newState->seq = seq;
-    }
+    // Записываем в состояние старую позицию маркера
+    newState->seq = seq;
 
     return newState;  // Возвращаем состояние
 }
