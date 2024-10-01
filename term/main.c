@@ -78,6 +78,10 @@ KeyMap keyCommands[] = {
     KEY_COMMAND("CMD_TOGGLE_CURSOR", cmd_toggle_cursor, NULL, KEY_CTRL_T)
     KEY_COMMAND("CMD_UNDO", cmd_undo, NULL, KEY_CTRL_BACKSPACE)
     KEY_COMMAND("CMD_REDO", cmd_redo, NULL, KEY_ALT_BACKSPACE)
+    KEY_COMMAND("CMD_REDO", cmd_redo, NULL, KEY_ALT_BACKSPACE)
+    KEY_COMMAND("CMD_SET_MARKER", cmd_set_marker, NULL, KEY_CTRL_BACKTICK)
+    KEY_COMMAND("CMD_UNSET_MARKER", cmd_unset_marker, NULL,
+                KEY_SHIFT_ALT_CTRL_2_IS_ALT_CTRL_ATSIGN)
 };
 
 
@@ -112,7 +116,7 @@ bool matchesCombo(Key* combo, int length) {
         current = current->next;
     }
     /* pushMessage(&msgList, strdup("ALMOST_MATCH")); */
-	// Убедимся, что в стеке нет лишних клавиш
+    // Убедимся, что в стеке нет лишних клавиш
     return current == NULL;
 }
 
@@ -167,7 +171,7 @@ bool keyb () {
                 /* pushMessage(&msgList, strdup(fc_text)); */
                 // DBG  OFF
                 enqueueEvent(&gInputEventQueue,
-							 &gEventQueue_mutex,
+                             &gEventQueue_mutex,
                              CMD, cmd->cmdFunc, cmd->param);
                 // Clear command stack after sending command
                 clearCtrlStack();
@@ -175,7 +179,7 @@ bool keyb () {
                 pushMessage(&msgList, "keyb: cmd not found");
                 // Command not found
                 enqueueEvent(&gInputEventQueue,
-							 &gEventQueue_mutex,
+                             &gEventQueue_mutex,
                              DBG, NULL, input_buffer);
             }
         }
@@ -194,7 +198,7 @@ bool keyb () {
 // Формируем отображение CtrlStack
 void dispCtrlStack() {
     char buffer[MAX_BUFFER / 2] = {0};
-	// Указатель на конец буфера
+    // Указатель на конец буфера
     char *ptr = buffer + sizeof(buffer) - 1;
     *ptr = '\0';  // Завершающий нуль-символ
 
@@ -203,11 +207,11 @@ void dispCtrlStack() {
         while (selt) {
             const char* tmp = key_to_str(selt->key);
             int len = strlen(tmp);
-			// Сдвиг указателя назад на длину строки ключа
+            // Сдвиг указателя назад на длину строки ключа
             ptr -= len;
             memcpy(ptr, tmp, len); // Копирование строки в буфер
             // Добавляем пробел между элементами, если это
-			// не первый элемент
+            // не первый элемент
             *(--ptr) = ' ';
             // Следующий элемент стека
             selt = selt->next;
@@ -217,30 +221,51 @@ void dispCtrlStack() {
     appendToMiniBuffer(ptr);
 }
 
+
 // Undo/Redo
 
-void displayUndoStates(StateStack* stateStack) {
-    char undoStatesBuffer[MAX_BUFFER / 2] = {0};
-    strcat(undoStatesBuffer, "\n");
-
-    StateStack* currentStateStack = stateStack;
-    while (currentStateStack != NULL) {
-        State* state = currentStateStack->state;
-        if (state) {
-            char stateDesc[128] = {0};
-            // Форматирование описания состояния и добавление его в буфер
-            snprintf(stateDesc, sizeof(stateDesc),
-                     "(%s «%s» %d)\n",
-                     descr_cmd_fn(state->cmdFn),
-                     state->seq,
-                     state->cnt);
-            strcat(undoStatesBuffer, stateDesc);
-        }
-        currentStateStack = currentStateStack->next;
+void displayStack(StateStack* stateStack) {
+    // Начальный размер буфера
+    size_t bufferSize = 256;
+    char* buffer = malloc(bufferSize);
+    if (!buffer) {
+        perror("Failed to allocate memory for buffer");
+        return;
     }
-    appendToMiniBuffer(undoStatesBuffer);
-}
+    buffer[0] = '\0';  // Инициализация пустой строки
 
+    StateStack* currStateStack = stateStack;
+    while (currStateStack != NULL) {
+        State* state = currStateStack->state;
+        if (state) {
+            // Достаточно большой для одного описания
+            char stateDesc[128] = {0};
+            snprintf(stateDesc, sizeof(stateDesc),
+                     "(%s «%s» %d) ",
+                     descr_cmd_fn(state->cmdFn),
+                     state->seq ? state->seq : "null",
+                     state->cnt);
+
+            size_t neededSize =
+                strlen(buffer) + strlen(stateDesc) + 1;
+
+            if (neededSize > bufferSize) {
+                bufferSize *= 2;  // Удвоение размера при необходимости
+                char* newBuffer = realloc(buffer, bufferSize);
+                if (!newBuffer) {
+                    perror("Failed to realloc for buffer");
+                    free(buffer);
+                    return;
+                }
+                buffer = newBuffer;
+            }
+            strcat(buffer, stateDesc);
+        }
+        currStateStack = currStateStack->next;
+    }
+
+    appendToMiniBuffer(buffer);
+}
 
 
 int margin = 8;
@@ -271,33 +296,35 @@ void reDraw() {
     clearMiniBuffer();
 
     // Формируем текст для минибуфера с позицией курсора
-	// в строке inputBuffer-a относительной позицией в
-	// строке и столбце минибуфера
+    // в строке inputBuffer-a относительной позицией в
+    // строке и столбце минибуфера
     char mb_text[MAX_BUFFER] = {0};
     snprintf(mb_text, MAX_BUFFER,
-             "cur_pos=%d\ncur_row=%d\ncur_col=%d\nib_need_rows=%d\nib_from_row=%d\n",
-             msgList.curr->cursor_pos, ib_cursor_row,
-			 ib_cursor_col, ib_need_rows,
-			 ib_from_row);
+             "cur_pos=%d\nmar_pos=%d\ncur_row=%d\ncur_col=%d\nib_need_rows=%d\nib_from_row=%d\n",
+             msgList.curr->cursor_pos, msgList.curr->marker_pos,
+             ib_cursor_row, ib_cursor_col, ib_need_rows,
+             ib_from_row);
     appendToMiniBuffer(mb_text);
 
     dispCtrlStack();
 
     dispExEv(gHistoryEventQueue);
 
-    displayUndoStates(undoStack);
-    displayUndoStates(redoStack);
+    appendToMiniBuffer("\nUndoStack: ");
+    displayStack(undoStack);
+    appendToMiniBuffer("\nRedoStack: ");
+    displayStack(redoStack);
 
     // Отображение минибуфера
     int mb_need_cols = 0, mb_need_rows = 0,
         mb_cursor_row = 0, mb_cursor_col = 0;
     int mb_width = win_cols-2;
     calc_display_size(miniBuffer.buffer, mb_width, 0,
-					  &mb_need_cols, &mb_need_rows,
+                      &mb_need_cols, &mb_need_rows,
                       &mb_cursor_row, &mb_cursor_col);
 
     // Когда я вывожу что-то в минибуфер я хочу чтобы
-	// при большом выводе он показывал только первые 10 строк
+    // при большом выводе он показывал только первые 10 строк
     int max_minibuffer_rows = 30;
     if (mb_need_rows > max_minibuffer_rows)  {
         mb_need_rows = max_minibuffer_rows;
@@ -305,7 +332,7 @@ void reDraw() {
     int mb_from_row = 0;
     int mb_up = win_rows + 1 - mb_need_rows + mb_from_row;
     display_wrapped(miniBuffer.buffer, 2, mb_up,
-					mb_width, mb_need_rows,
+                    mb_width, mb_need_rows,
                     mb_from_row, -1, -1);
     drawHorizontalLine(win_cols, mb_up-1, '=');
     int bottom = mb_up-2;
@@ -313,14 +340,14 @@ void reDraw() {
     // INPUTBUFFER ::::::::::::::::::::::::::::::::::::::::::
 
     // Область вывода может быть максимум половиной
-	// от оставшейся высоты
+    // от оставшейся высоты
     int max_ib_rows = bottom / 2;
 
     // Если содержимое больше чем область вывода
     if (ib_need_rows > max_ib_rows)  {
         // Тогда надо вывести область где курсор, при этом:
         // Если порядковый номер строки, на которой находится
-		// курсор, меньше, чем размер области вывода
+        // курсор, меньше, чем размер области вывода
         if (ib_cursor_row <= max_ib_rows) {
             // ..то надо выводить с первой строки
             ib_from_row = 0;
@@ -342,7 +369,7 @@ void reDraw() {
     if (msgList.curr) {
         display_wrapped(msgList.curr->text, margin, up,
                         rel_max_width, ib_need_rows,
-						ib_from_row,
+                        ib_from_row,
                         msgList.curr->cursor_pos,
                         msgList.curr->marker_pos);
     }
@@ -355,29 +382,29 @@ void reDraw() {
     int outputBufferAvailableLines = bottom - 1;
 
     int ob_bottom = outputBufferAvailableLines;
-	// максимальная ширина текста
+    // максимальная ширина текста
     int maxWidth = win_cols - 2 * margin;
     // начинаем с последнего элемента
     MsgNode* current = msgList.tail;
     if (current) {
-		// пропускаем последнее сообщение
+        // пропускаем последнее сообщение
         current = current->prev;
     }
 
     while (current && ob_bottom > 0) {
         int needCols = 0, needRows = 0,
-			cursorRow = 0, cursorCol = 0;
+            cursorRow = 0, cursorCol = 0;
 
         calc_display_size(current->text, maxWidth, 0,
                           &needCols, &needRows,
-						  &cursorRow, &cursorCol);
+                          &cursorRow, &cursorCol);
 
         if (needRows <= ob_bottom) {
             display_wrapped(current->text, margin,
                             ob_bottom - needRows,
                             maxWidth, needRows, 0, -1, -1);
             // обновляем начальную точку для
-			// следующего сообщения
+            // следующего сообщения
             ob_bottom -= needRows+1;
         } else {
             display_wrapped(current->text, margin, 0,
@@ -385,7 +412,7 @@ void reDraw() {
                             needRows - ob_bottom, -1, -1);
             ob_bottom = 0; // заполнили доступное пространство
         }
-		// переходим к предыдущему сообщению
+        // переходим к предыдущему сообщению
         current = current->prev;
     }
 
@@ -430,7 +457,7 @@ State* peekState(const StateStack* stack) {
     if (!stack) {
         return NULL;  // Возвращаем NULL, если стек пуст
     }
-	// Возвращаем состояние на вершине стека
+    // Возвращаем состояние на вершине стека
     return stack->state;
 }
 
@@ -516,7 +543,7 @@ int main() {
                         sig_winch_raised =  false;
                     }
                     // Сейчас мы должны сразу перейти
-					// к отображению..
+                    // к отображению..
                 } else {
                     // Ошибка, которая не является EINTR
                     perror("select failed");

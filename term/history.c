@@ -3,7 +3,6 @@
 #include "history.h"
 #include "mbuf.h"
 
-
 // Глобальный динамический буфер для истории событий
 DynamicBuffer historyBuffer = {NULL, 0, 0};
 
@@ -58,7 +57,6 @@ void clearDynamicBuffer(DynamicBuffer* db) {
     }
 }
 
-
 // Инициализация истории событий
 void initEventHistory(DynamicBuffer* db) {
     initDynamicBuffer(db, 512);  // Начальная вместимость
@@ -83,17 +81,3 @@ void dispExEv(InputEvent* gHistoryEventQueue) {
     /* printf("%s\n", historyBuffer.buffer);  // Вывод истории событий */
     appendToMiniBuffer(historyBuffer.buffer);
 }
-
-/* int main() { */
-/*     // Инициализация истории событий */
-/*     initEventHistory(&historyBuffer); */
-
-/*     // Пример использования функции dispExEv */
-/*     InputEvent e1 = {"Seq1", NULL}; */
-/*     InputEvent e2 = {"Seq2", &e1}; */
-/*     dispExEv(&e2); */
-
-/*     // Очистка ресурсов */
-/*     freeDynamicBuffer(&historyBuffer); */
-/*     return 0; */
-/* } */

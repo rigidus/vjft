@@ -2,7 +2,6 @@
 
 #include "mbuf.h"
 
-
 // Глобальный минибуфер
 MiniBuffer miniBuffer = {NULL, 0, 0};
 

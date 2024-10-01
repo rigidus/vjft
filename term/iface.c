@@ -85,11 +85,11 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
                      int from_row, int cursor_pos,
                      int marker_pos)
 {
-    int cur_pos   = 0; // Текущий индекс символа в строке
-    int rel_row   = 0;  // Текущая строка, она же счётчик строк
-    int rel_col   = 0;  // Текущий столбец
-    int sel_start = min(cursor_pos, marker_pos);
-    int sel_end   = max(cursor_pos, marker_pos);
+    int  cur_pos   = 0; // Текущий индекс символа в строке
+    int  rel_row   = 0; // Текущая строка, она же счётчик строк
+    int  rel_col   = 0; // Текущий столбец
+    int  sel_start = min(cursor_pos, marker_pos);
+    int  sel_end   = max(cursor_pos, marker_pos);
     bool is_highlighted = false; // Флаг выделения
 
     bool is_not_skipped_row() {
@@ -117,23 +117,24 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
 
     inc_rel_row(); // Курсор на начальную позицию
 
-
     for (const char* p = text; ; ) {
         size_t char_len = utf8_char_length(p);
 
         // Проверяем, нужно ли изменить цвет фона
 		// для этого символа
-        if (cur_pos >= sel_start && cur_pos < sel_end) {
-            if (!is_highlighted) {
-                set_highlight_color();
-                is_highlighted = true;
-            }
-        } else {
-            if (is_highlighted) {
-                reset_highlight_color();
-                is_highlighted = false;
-            }
-        }
+		if (marker_pos != -1) {
+			if (cur_pos >= sel_start && cur_pos < sel_end) {
+				if (!is_highlighted) {
+					set_highlight_color();
+					is_highlighted = true;
+				}
+			} else {
+				if (is_highlighted) {
+					reset_highlight_color();
+					is_highlighted = false;
+				}
+			}
+		}
 
         // Если текущая строка достигает максимальной
 		// ширины отображения
@@ -179,7 +180,6 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
             cur_pos++;
         }
     }
-
 
     // Заполнение оставшейся части строки до конца,
 	// если необходимо

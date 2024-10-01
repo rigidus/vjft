@@ -119,6 +119,8 @@ State* cmd_toggle_cursor(MsgNode* node, InputEvent* event);
 State* cmd_undo(MsgNode* msg, InputEvent* event);
 State* cmd_redo(MsgNode* msg, InputEvent* event);
 
+State* cmd_set_marker(MsgNode* node, InputEvent* event);
+State* cmd_unset_marker(MsgNode* node, InputEvent* event);
 
 typedef struct {
     CmdFunc redo_cmd;

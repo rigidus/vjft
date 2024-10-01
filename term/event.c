@@ -18,13 +18,13 @@ InputEvent* gHistoryEventQueue = NULL;
 pthread_mutex_t gHistoryQueue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void enqueueEvent(InputEvent** eventQueue,
-				  pthread_mutex_t* queueMutex,
+                  pthread_mutex_t* queueMutex,
                   EventType type, CmdFunc cmdFn, char* seq)
 {
     pthread_mutex_lock(queueMutex);
 
     InputEvent* newEvent =
-		(InputEvent*)malloc(sizeof(InputEvent));
+        (InputEvent*)malloc(sizeof(InputEvent));
 
     if (newEvent == NULL) {
         perror("Failed to allocate memory for a new event");
@@ -60,11 +60,13 @@ char* descr_cmd_fn(CmdFunc cmd_fn) {
     if (cmd_fn == cmd_undo) return "cmd_undo";
     if (cmd_fn == cmd_redo) return "cmd_redo";
     if (cmd_fn == cmd_to_beginning_of_line)
-		return "cmd_to_beginning_of_line";
+        return "cmd_to_beginning_of_line";
     if (cmd_fn == cmd_to_end_of_line) return "cmd_to_end_of_line";
     if (cmd_fn == cmd_backward_word) return "cmd_backward_word";
-	if (cmd_fn == cmd_forward_word) return "cmd_forward_word";
-	if (cmd_fn == cmd_toggle_cursor) return "cmd_toggle_cursor";
+    if (cmd_fn == cmd_forward_word) return "cmd_forward_word";
+    if (cmd_fn == cmd_toggle_cursor) return "cmd_toggle_cursor";
+    if (cmd_fn == cmd_set_marker) return "cmd_set_marker";
+    if (cmd_fn == cmd_unset_marker) return "cmd_unset_marker";
     return  "cmd_notfound";
 }
 
@@ -115,7 +117,7 @@ bool processEvents(InputEvent** eventQueue,
                 convertToAsciiCodes(event->seq, asciiCodes,
                                     ASCII_CODES_BUF_SIZE);
                 Key key = identify_key(event->seq,
-									   strlen(event->seq));
+                                       strlen(event->seq));
                 char logMsg[DBG_LOG_MSG_SIZE] = {0};
                 snprintf(logMsg, sizeof(logMsg),
                          "[DBG]: %s, [%s]\n",
@@ -154,7 +156,7 @@ bool processEvents(InputEvent** eventQueue,
                 if (!retState) {
                     // Если retState - NULL, то это значит, что в
                     // результате выполнения cmdFn ничего не
-					// поменялось - значит ничего не делаем
+                    // поменялось - значит ничего не делаем
                 } else {
                     // Если текущее состояние не NULL, помещаем его
                     // в undo-стек
@@ -164,7 +166,7 @@ bool processEvents(InputEvent** eventQueue,
                     clearStack(&redoStack);
 
                     // и сообщаем что данные для отображения
-					// обновились
+                    // обновились
                     updated = true;
                 }
             }
@@ -338,7 +340,7 @@ State* manageState(MsgNode* node, InputEvent* event,
         newState->cnt++;
     } else {
         // Иначе создаем новое состояние и возвращаем
-		// предыдущее на место
+        // предыдущее на место
         pushState(&undoStack, prevState);
         newState = createState(node, event);
         newState->cnt = 1;
@@ -436,8 +438,8 @@ State* cmd_backward_char(MsgNode* node, InputEvent* event) {
         return NULL;
     }
 
-	return manageState(node, event, cmd_backward_char,
-					   upd_backward_char);
+    return manageState(node, event, cmd_backward_char,
+                       upd_backward_char);
 }
 
 void upd_forward_char(MsgNode* node, InputEvent* event) {
@@ -457,45 +459,45 @@ State* cmd_forward_char(MsgNode* node, InputEvent* event) {
         return NULL;
     }
 
-	return manageState(node, event, cmd_forward_char,
-					   upd_forward_char);
+    return manageState(node, event, cmd_forward_char,
+                       upd_forward_char);
 }
 
 void upd_forward_word(MsgNode* node, InputEvent* event) {
-	// Получаем текущую позицию курсора
-	int current_pos = node->cursor_pos;
+    // Получаем текущую позицию курсора
+    int current_pos = node->cursor_pos;
 
-	// Получаем длину текста в символах
-	int text_length = utf8_strlen(node->text);
-	int byte_offset = utf8_byte_offset(node->text, current_pos);
+    // Получаем длину текста в символах
+    int text_length = utf8_strlen(node->text);
+    int byte_offset = utf8_byte_offset(node->text, current_pos);
 
-	// Пропускаем пробельные символы, начиная с текущей позиции
-	while (current_pos < text_length
-		   && isspace((unsigned char)node->text[byte_offset])) {
-		byte_offset = utf8_next_char(node->text, byte_offset);
-		current_pos++;
-	}
+    // Пропускаем пробельные символы, начиная с текущей позиции
+    while (current_pos < text_length
+           && isspace((unsigned char)node->text[byte_offset])) {
+        byte_offset = utf8_next_char(node->text, byte_offset);
+        current_pos++;
+    }
 
-	// Продолжаем двигаться вперед до следующего пробельного символа
-	while (current_pos < text_length
-		   && !isspace((unsigned char)node->text[byte_offset])) {
-		byte_offset = utf8_next_char(node->text, byte_offset);
-		current_pos++;
-	}
+    // Продолжаем двигаться вперед до следующего пробельного символа
+    while (current_pos < text_length
+           && !isspace((unsigned char)node->text[byte_offset])) {
+        byte_offset = utf8_next_char(node->text, byte_offset);
+        current_pos++;
+    }
 
-	// Обновляем позицию курсора в узле
-	node->cursor_pos = current_pos;
+    // Обновляем позицию курсора в узле
+    node->cursor_pos = current_pos;
 }
 
 // Перемещение курсора вперед на одно слово
 State* cmd_forward_word(MsgNode* node, InputEvent* event) {
-	// Если курсор уже в конце строки, то вернемся
-	if (node->cursor_pos == utf8_strlen(node->text)) {
+    // Если курсор уже в конце строки, то вернемся
+    if (node->cursor_pos == utf8_strlen(node->text)) {
         return NULL;
     }
 
-	return manageState(node, event, cmd_forward_word,
-					   upd_forward_word);
+    return manageState(node, event, cmd_forward_word,
+                       upd_forward_word);
 }
 
 void upd_backward_word(MsgNode* node, InputEvent* event) {
@@ -505,15 +507,15 @@ void upd_backward_word(MsgNode* node, InputEvent* event) {
 
     // Пропускаем пробельные символы, идя назад
     while (current_pos > 0
-		   && isspace((unsigned char)node->text[byte_offset - 1])) {
+           && isspace((unsigned char)node->text[byte_offset - 1])) {
         byte_offset = utf8_prev_char(node->text, byte_offset);
         current_pos--;
     }
 
     // Продолжаем двигаться назад до следующего пробельного
-	// символа или начала текста
+    // символа или начала текста
     while (current_pos > 0
-		   && !isspace((unsigned char)node->text[byte_offset - 1])) {
+           && !isspace((unsigned char)node->text[byte_offset - 1])) {
         byte_offset = utf8_prev_char(node->text, byte_offset);
         current_pos--;
     }
@@ -524,26 +526,26 @@ void upd_backward_word(MsgNode* node, InputEvent* event) {
 
 // Перемещение курсора назад на одно слово
 State* cmd_backward_word(MsgNode* node, InputEvent* event) {
-	// Если курсор уже в начале строки, ничего не делаем
+    // Если курсор уже в начале строки, ничего не делаем
     if (node->cursor_pos == 0) {
         return NULL;
     }
 
-	// Запоминаем старую позицию курсора
-	int old_cursor_pos = node->cursor_pos;
+    // Запоминаем старую позицию курсора
+    int old_cursor_pos = node->cursor_pos;
 
-	State* newState =
-		manageState(node, event, cmd_backward_word,
-					upd_backward_word);
+    State* newState =
+        manageState(node, event, cmd_backward_word,
+                    upd_backward_word);
 
-	if (newState->cnt == 1) {
-		// Если в результате мы имеем новое состояние
-		// а не взяли предыдущее, то записываем в него
-		// старую позицию курсора в виде строки
-		newState->seq = int_to_hex(old_cursor_pos);
-	}
+    if (newState->cnt == 1) {
+        // Если в результате мы имеем новое состояние
+        // а не взяли предыдущее, то записываем в него
+        // старую позицию курсора в виде строки
+        newState->seq = int_to_hex(old_cursor_pos);
+    }
 
-	return newState;
+    return newState;
 }
 
 void upd_to_beginning_of_line(MsgNode* node, InputEvent* event) {
@@ -578,9 +580,9 @@ State* cmd_to_beginning_of_line(MsgNode* node, InputEvent* event) {
     // которую позже запишем в newState->seq
     char* seq = int_to_hex(node->cursor_pos);
 
-	State* newState =
-		manageState(node, event, cmd_to_beginning_of_line,
-					upd_to_beginning_of_line);
+    State* newState =
+        manageState(node, event, cmd_to_beginning_of_line,
+                    upd_to_beginning_of_line);
 
     // Записываем в него старую позицию курсора
     newState->seq = seq;
@@ -590,7 +592,7 @@ State* cmd_to_beginning_of_line(MsgNode* node, InputEvent* event) {
 
 State* cmd_get_back_to_line_pos(MsgNode* node, InputEvent* event) {
     // seq хранит старую позицию курсора
-	// в шестнадцатеричном виде, поэтому декодируем
+    // в шестнадцатеричном виде, поэтому декодируем
     int old_cursor_pos = hex_to_int(event->seq);
 
     // Проверка на выход за пределы допустимого
@@ -638,9 +640,9 @@ State* cmd_to_end_of_line(MsgNode* node, InputEvent* event) {
     // которую позже запишем в newState->seq
     char* seq = int_to_hex(node->cursor_pos);
 
-	State* newState =
-		manageState(node, event, cmd_to_end_of_line,
-					upd_to_end_of_line);
+    State* newState =
+        manageState(node, event, cmd_to_end_of_line,
+                    upd_to_end_of_line);
 
     // Записываем в него старую позицию курсора
     newState->seq = seq;
@@ -649,26 +651,26 @@ State* cmd_to_end_of_line(MsgNode* node, InputEvent* event) {
 }
 
 void upd_insert(MsgNode* node, InputEvent* event) {
-	// Байтовое смещение позиции курсора
+    // Байтовое смещение позиции курсора
     int byte_offset =
         utf8_byte_offset(node->text, node->cursor_pos);
 
-	// Длина вставляемой последовательности в байтах
+    // Длина вставляемой последовательности в байтах
     int insert_len = strlen(event->seq);
 
     // Рассчитываем новую длину строки после вставки
     int old_len = strlen(node->text);
     int new_len = old_len + insert_len;
 
-	// Попытка реаллоцировать память для нового текста
-	// +1 для нуль-терминатора
+    // Попытка реаллоцировать память для нового текста
+    // +1 для нуль-терминатора
     char* new_text = realloc(node->text, new_len + 1);
     if (new_text == NULL) {
         perror("Failed to reallocate memory in upd_insert");
         exit(1);
     }
 
-	// Обновляем указатель на message в node
+    // Обновляем указатель на message в node
     node->text = new_text;
 
     // Сдвиг части строки справа от курсора вправо на insert_len
@@ -676,7 +678,7 @@ void upd_insert(MsgNode* node, InputEvent* event) {
             node->text + byte_offset,              // src
             strlen(node->text) - byte_offset + 1); // size_t
 
-	// Вставка event->seq в позицию курсора
+    // Вставка event->seq в позицию курсора
     memcpy(node->text + byte_offset, event->seq, insert_len);
 
     // Смещение курсора (выполняется в utf8-символах)
@@ -686,17 +688,17 @@ void upd_insert(MsgNode* node, InputEvent* event) {
 
 // Функция для вставки текста в позицию курсора
 State* cmd_insert(MsgNode* node, InputEvent* event) {
-	State* newState =
-		manageState(node, event, cmd_insert,
-					upd_insert);
+    State* newState =
+        manageState(node, event, cmd_insert,
+                    upd_insert);
 
-	if (newState->cnt > 1) {
-		// Если мы тут, значит используется старое состояние
-		// из стека и теперь мы должны его скорректировать.
-		// Сначала, вернем к единице cnt.
-		newState->cnt = 1;
-		// Потом допишем event->seq к newState->seq:
-		// Вычислим длину insert-sequence в байтах
+    if (newState->cnt > 1) {
+        // Если мы тут, значит используется старое состояние
+        // из стека и теперь мы должны его скорректировать.
+        // Сначала, вернем к единице cnt.
+        newState->cnt = 1;
+        // Потом допишем event->seq к newState->seq:
+        // Вычислим длину insert-sequence в байтах
         int insert_seq_len  = strlen(newState->seq);
         // Вычислим длину в байтах того что хотим добавить
         int event_seq_len = strlen(event->seq);
@@ -716,9 +718,9 @@ State* cmd_insert(MsgNode* node, InputEvent* event) {
                 event->seq, event_seq_len);
         // Записываем реаллоцированный seq в newState
         newState->seq = new_seq;
-	}
+    }
 
-	return newState;
+    return newState;
 }
 
 State* cmd_uninsert(MsgNode* node, InputEvent* event) {
@@ -768,7 +770,7 @@ State* cmd_backspace(MsgNode* node, InputEvent* event) {
         return NULL;
     }
 
-	// В случае, если эта функция вызывается из cmd_redo
+    // В случае, если эта функция вызывается из cmd_redo
     // она может удалять более чем один символ. Информация
     // об этом сохраняется в event->seq, поэтому мы можем
     // определить сколько символов надо удалять
@@ -779,7 +781,7 @@ State* cmd_backspace(MsgNode* node, InputEvent* event) {
         cnt_del = 1;
     }
 
-	// Находим байтовую позицию текущего UTF-8 символа
+    // Находим байтовую позицию текущего UTF-8 символа
     int byte_offset =
         utf8_byte_offset(node->text, node->cursor_pos);
 
@@ -789,7 +791,7 @@ State* cmd_backspace(MsgNode* node, InputEvent* event) {
         new_cursor_pos = 0;
     }
 
-	// Находим байтовую позицию предыдущего символа
+    // Находим байтовую позицию предыдущего символа
     int byte_offset_prev =
         utf8_byte_offset(node->text, new_cursor_pos);
 
@@ -799,17 +801,17 @@ State* cmd_backspace(MsgNode* node, InputEvent* event) {
     // Здесь будет указатель на удаляемое
     char* del = NULL;
 
-	State* newState =
-		manageState(node, event, cmd_backspace, NULL);
+    State* newState =
+        manageState(node, event, cmd_backspace, NULL);
 
-	if (newState->cnt > 1) {
-		// Если мы тут, значит используется старое состояние
-		// из стека и теперь мы должны его скорректировать.
-		// Сначала, вернем к единице cnt.
-		newState->cnt = 1;
-		// Будем присоединять удаляемое к предыдущему состоянию.
+    if (newState->cnt > 1) {
+        // Если мы тут, значит используется старое состояние
+        // из стека и теперь мы должны его скорректировать.
+        // Сначала, вернем к единице cnt.
+        newState->cnt = 1;
+        // Будем присоединять удаляемое к предыдущему состоянию.
 
-		// Определяем, сколько байт содержит newState->seq
+        // Определяем, сколько байт содержит newState->seq
         int old_len = strlen(newState->seq);
 
         // Реаллоцируем newState->seq чтобы вместить туда
@@ -827,11 +829,11 @@ State* cmd_backspace(MsgNode* node, InputEvent* event) {
 
         // Обновляем newState->seq
         newState->seq = del;
-	} else {
-		// Если мы тут, значит мы используем свежесозданное
-		// состояние
+    } else {
+        // Если мы тут, значит мы используем свежесозданное
+        // состояние
 
-		// Выделяем память для удаляемого символа и нуль-терминатора
+        // Выделяем память для удаляемого символа и нуль-терминатора
         del = malloc(del_len + 1);
         if (!del) {
             perror("Failed to allocate memory for deleted");
@@ -844,14 +846,14 @@ State* cmd_backspace(MsgNode* node, InputEvent* event) {
         // Завершаем удаляемое нуль-терминатором
         memset(del + del_len, 0, 1);
 
-		// Запоминить в его seq удаляемый символ
+        // Запоминить в его seq удаляемый символ
         newState->seq = del;
 
-	}
+    }
 
-	// :::: Изменение node
+    // :::: Изменение node
 
-	// Вычисляем новую длину text в байтах
+    // Вычисляем новую длину text в байтах
     int new_len = strlen(node->text) - del_len + 1;
 
     // Выделяем память под новый text
@@ -875,7 +877,7 @@ State* cmd_backspace(MsgNode* node, InputEvent* event) {
     // Обновляем позицию курсора
     node->cursor_pos = new_cursor_pos;
 
-	return newState;
+    return newState;
 }
 
 
@@ -961,39 +963,113 @@ State* cmd_paste(MsgNode* node, InputEvent* event) {
     return NULL;
 }
 
+void upd_set_marker(MsgNode* node, InputEvent* event) {
+    // Присваиваем marker_pos значение cursor_pos
+    node->marker_pos = node->cursor_pos;
+}
+
+State* cmd_set_marker(MsgNode* node, InputEvent* event) {
+    State* newState =
+        manageState(node, event, cmd_set_marker,
+                    upd_set_marker);
+
+    if (newState->cnt > 1) {
+        // Если мы тут, значит используется старое состояние
+        // из стека и теперь мы должны его скорректировать.
+        // Сначала, вернем к единице cnt.
+        newState->cnt = 1;
+        // Так как это повторное применение того же действия
+        // в том же положении курсора, то больше ничего не надо
+    } else {
+        // Если мы тут, то используем новое свежесозданное
+        // состояние.
+        if (event->seq) {
+            // Если в состоянии есть seq это значит нас вызвал
+            // cmd_undo. Восстановим позицию маркера
+            node->marker_pos = hex_to_int(event->seq);
+        }
+
+        // Делаем из node->cursor_pos строку,
+        // которую позже запишем в newState->seq
+        char* seq = int_to_hex(node->cursor_pos);
+
+        // Записываем в состояние позицию маркера
+        newState->seq = seq;
+    }
+
+    return newState;  // Возвращаем состояние
+}
+
+void upd_unset_marker(MsgNode* node, InputEvent* event) {
+    // Присваиваем marker_pos значение -1
+    node->marker_pos = -1;
+}
+
+State* cmd_unset_marker(MsgNode* node, InputEvent* event) {
+    // Нам потребуется иметь позицию маркера
+    // для будующего сохранения
+    int old_marker_pos = node->marker_pos;
+
+    State* newState =
+        manageState(node, event, cmd_unset_marker,
+                    upd_unset_marker);
+
+    if (newState->cnt > 1) {
+        // Если мы тут, значит используется старое состояние
+        // из стека и теперь мы должны его скорректировать.
+        // Сначала, вернем к единице cnt.
+        newState->cnt = 1;
+        // Так как это повторное применение того же действия
+        // в том же положении курсора, то больше ничего не надо
+    } else {
+        // Если мы тут, то используем новое свежесозданное
+        // состояние.
+
+        // Делаем из node->cursor_pos строку,
+        // которую позже запишем в newState->seq
+        char* seq = int_to_hex(old_marker_pos);
+
+        // Записываем в состояние старую позицию маркера
+        newState->seq = seq;
+    }
+
+    return newState;  // Возвращаем состояние
+}
+
+
 State* cmd_toggle_cursor(MsgNode* node, InputEvent* event) {
     int temp = node->cursor_pos;
     node->cursor_pos = node->marker_pos;
     node->marker_pos = temp;
 
-	// Окей, мы переместили курсор, теперь займемся State
+    // Окей, мы переместили курсор, теперь займемся State
 
-	// Указатель на последнее состояние в undo-стеке
+    // Указатель на последнее состояние в undo-стеке
     // либо мы его создадим, либо возьмем с вершины стека
     State* currState = NULL;
 
-	// Пытаемся получить предыдущее состояние из undo-стека
+    // Пытаемся получить предыдущее состояние из undo-стека
     State* prevState = popState(&undoStack);
     if (!prevState) {
         // Если не получилось получить предыдущее состояние
         // то формируем новое состояние, которое будет возвращено
         currState = createState(node, event);
-	} else if ( (prevState->cmdFn != cmd_toggle_cursor) ) {
-		// Если предыдущее состояние не cmd_toggle_cursor,
-		// вернем его обратно
-		pushState(&undoStack, prevState);
+    } else if ( (prevState->cmdFn != cmd_toggle_cursor) ) {
+        // Если предыдущее состояние не cmd_toggle_cursor,
+        // вернем его обратно
+        pushState(&undoStack, prevState);
 
         // и сформируем для возврата новое состояние
         currState = createState(node, event);
-	} else {
-		// Иначе, если в undo-стеке существует предыдущее
+    } else {
+        // Иначе, если в undo-стеке существует предыдущее
         // состояние, которое тоже cmd_toggle_cursor.
-		// Так как мы извлекли предыдущее состояние, то
-		// приравняв его к currState  мы можем возвратить
-		// его обратно, только увеличив cnt
+        // Так как мы извлекли предыдущее состояние, то
+        // приравняв его к currState  мы можем возвратить
+        // его обратно, только увеличив cnt
         currState = prevState;
-		currState->cnt++;
-	}
+        currState->cnt++;
+    }
 
     return currState;
 }
@@ -1096,8 +1172,10 @@ CmdPair comp_cmds[] = {
     { cmd_to_beginning_of_line,  cmd_get_back_to_line_pos },
     { cmd_to_end_of_line,        cmd_get_back_to_line_pos },
     { cmd_backward_word,         cmd_get_back_to_line_pos },
-	{ cmd_forward_word,          cmd_get_back_to_line_pos },
-	{ cmd_toggle_cursor,         cmd_toggle_cursor },
+    { cmd_forward_word,          cmd_get_back_to_line_pos },
+    { cmd_toggle_cursor,         cmd_toggle_cursor },
+    { cmd_set_marker,            cmd_unset_marker },
+    { cmd_unset_marker,          cmd_set_marker },
     // ...
 };
 

@@ -27,7 +27,7 @@ void pushMessage(MsgList* list, const char* text) {
     newNode->prev = NULL;
     newNode->next = list->head;
     newNode->cursor_pos = 0;
-    newNode->marker_pos = 0;
+    newNode->marker_pos = -1;
 
     if (list->head) {
         list->head->prev = newNode;
