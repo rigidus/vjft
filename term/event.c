@@ -52,23 +52,42 @@ void enqueueEvent(InputEvent** eventQueue,
     pthread_mutex_unlock(queueMutex);
 }
 
+#define CMD_FUNC_TABLE                          \
+    X(cmd_insert)                               \
+    X(cmd_backspace)                            \
+    X(cmd_backward_char)                        \
+    X(cmd_forward_char)                         \
+    X(cmd_undo)                                 \
+    X(cmd_redo)                                 \
+    X(cmd_to_beginning_of_line)                 \
+    X(cmd_to_end_of_line)                       \
+    X(cmd_backward_word)                        \
+    X(cmd_forward_word)                         \
+    X(cmd_toggle_cursor)                        \
+    X(cmd_set_marker)                           \
+    X(cmd_unset_marker)
+
+typedef struct {
+    CmdFunc func;
+    const char* description;
+} CmdFuncEntry;
+
+CmdFuncEntry cmd_func_table[] = {
+#define X(func) {func, #func},
+    CMD_FUNC_TABLE
+#undef X
+    {NULL, NULL} // Terminate the array
+};
+
 char* descr_cmd_fn(CmdFunc cmd_fn) {
-    if (cmd_fn == cmd_insert) return "cmd_insert";
-    if (cmd_fn == cmd_backspace) return "cmd_backspace";
-    if (cmd_fn == cmd_backward_char) return "cmd_backward_char";
-    if (cmd_fn == cmd_forward_char) return "cmd_forward_char";
-    if (cmd_fn == cmd_undo) return "cmd_undo";
-    if (cmd_fn == cmd_redo) return "cmd_redo";
-    if (cmd_fn == cmd_to_beginning_of_line)
-        return "cmd_to_beginning_of_line";
-    if (cmd_fn == cmd_to_end_of_line) return "cmd_to_end_of_line";
-    if (cmd_fn == cmd_backward_word) return "cmd_backward_word";
-    if (cmd_fn == cmd_forward_word) return "cmd_forward_word";
-    if (cmd_fn == cmd_toggle_cursor) return "cmd_toggle_cursor";
-    if (cmd_fn == cmd_set_marker) return "cmd_set_marker";
-    if (cmd_fn == cmd_unset_marker) return "cmd_unset_marker";
-    return  "cmd_notfound";
+    for (int i = 0; cmd_func_table[i].func != NULL; i++) {
+        if (cmd_func_table[i].func == cmd_fn) {
+            return (char*)cmd_func_table[i].description;
+        }
+    }
+    return "cmd_notfound";
 }
+
 
 void convertToAsciiCodes(const char *input, char *output,
                          size_t outputSize)
