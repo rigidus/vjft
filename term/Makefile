@@ -33,9 +33,17 @@ key_map.h: $(M4_HEAD)
 # $(HEADERS): $(M4_HEAD)
 # 	m4 $< > $@
 
+# Правило для тестирования
+test: test.c
+	gcc -o test test.c
+
 # valgrind
 valgrind:
 	valgrind --leak-check=full ./$(TARGET)
+
+# callgrind
+callgrind:
+	valgrind --tool=callgrind ./a.out
 
 gdb:
 	gdb $(TARGET)
