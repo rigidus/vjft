@@ -500,7 +500,7 @@ int main() {
     initMiniBuffer(128);
 
 
-    connect_to_server("127.0.0.1", 8888);
+    /* connect_to_server("127.0.0.1", 8888); */
 
 
     fd_set read_fds;
