@@ -13,7 +13,7 @@ void pushMessage(MsgList* list, const char* text) {
     if (newNode == NULL) {
         perror("Failed to allocate memory for new message node");
         pthread_mutex_unlock(&msgList_mutex);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     newNode->text = strdup(text);

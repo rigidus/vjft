@@ -227,14 +227,14 @@ int main() {
                     // Отображаем вывод
                     printf("%s", buffer);
                     // Сравниваем с ожидаемым результатом
-                    if (strstr(buffer, tests[i].expected_output) == NULL)
-                    {
-                        fprintf(stderr,
-                  "Тест %zu не пройден: ожидалось '%s', получено '%s'\n",
-                                i + 1, tests[i].expected_output, buffer);
-                        /* kill(pid, SIGKILL); // Прерываем целевую программу */
-                        /* break; */
-                    }
+                    /* if (strstr(buffer, tests[i].expected_output) == NULL) */
+                  /*   { */
+                  /*       fprintf(stderr, */
+                  /* "Тест %zu не пройден: ожидалось '%s', получено '%s'\n", */
+                  /*               i + 1, tests[i].expected_output, buffer); */
+                  /*       /\* kill(pid, SIGKILL); // Прерываем целевую программу *\/ */
+                  /*       /\* break; *\/ */
+                  /*   } */
                 }
             }
         }

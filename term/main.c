@@ -29,6 +29,9 @@ void upd_win_size() {
     struct winsize size;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == 0)
     {
+        // Освобождаем старые буферы
+        resize_buffers(size.ws_row, size.ws_col);
+        // Обновляем переменные размеров окна
         win_cols = size.ws_col;
         win_rows = size.ws_row;
     }
@@ -287,9 +290,6 @@ void reDraw() {
                       &ib_need_cols, &ib_need_rows,
                       &ib_cursor_row, &ib_cursor_col);
 
-    // Очищаем экран
-    clearScreen();
-
     // МИНИБУФЕР ::::::::::::::::::::::::::::::::::::::::::::
 
     clearMiniBuffer();
@@ -366,11 +366,21 @@ void reDraw() {
     int up = bottom + 1 - ib_need_rows;
     // Выводим
     if (msgList.curr) {
-        display_wrapped(msgList.curr->text, margin, up,
-                        rel_max_width, ib_need_rows,
-                        ib_from_row,
-                        msgList.curr->cursor_pos,
-                        msgList.curr->marker_pos);
+
+        render_text_window(
+            msgList.curr->text,
+            /* "Какой-то текст, который явно не вмещается в окно. \n" */
+            /* "This is a sample text to display in the window. \n" */
+            /* "It should wrap properly and handle movements. ", */
+            margin, up,
+            ib_need_cols-2, ib_need_rows,
+            msgList.curr->cursor_pos, msgList.curr->marker_pos);
+
+        /* display_wrapped(msgList.curr->text, margin, up, */
+        /*                 rel_max_width, ib_need_rows, */
+        /*                 ib_from_row, */
+        /*                 msgList.curr->cursor_pos, */
+        /*                 msgList.curr->marker_pos); */
     }
     drawHorizontalLine(win_cols, up-1, '-');
     // Возвращаем номер строки выше отображения inputbuffer
@@ -417,6 +427,10 @@ void reDraw() {
 
     // Flush
     fflush(stdout);
+
+    // После завершения рендеринга
+    render_screen();
+    clear_screen_buffer(back_buffer);
 
     // Перемещаем курсор в нужную позицию с поправкой
     // на расположение inputbuffer
@@ -481,6 +495,7 @@ int main() {
 
     // Отключение буферизации для stdout
     setvbuf(stdout, NULL, _IONBF, 0);
+
     // Включаем сырой режим
     enableRawMode(STDIN_FILENO);
 
@@ -491,11 +506,14 @@ int main() {
     // Получаем размер терминала в win_cols и win_rows
     upd_win_size();
 
+    // Инициализируем буферы
+    init_buffers(win_rows, win_cols);
+
+    // Устанавливаем обработчик сигнала
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handle_winch;
     sigaction(SIGWINCH, &sa, NULL);
-
 
     initMiniBuffer(128);
 

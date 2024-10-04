@@ -29,7 +29,7 @@ void enqueueEvent(InputEvent** eventQueue,
     if (newEvent == NULL) {
         perror("Failed to allocate memory for a new event");
         pthread_mutex_unlock(queueMutex);
-        exit(1); // Выход при ошибке выделения памяти
+        exit(EXIT_FAILURE); // Выход при ошибке выделения памяти
     }
 
     *newEvent = (InputEvent){
@@ -225,7 +225,7 @@ Action* createAction(MsgNode* node, InputEvent* event) {
         act->seq = strdup(event->seq);
         if (!act->seq) {
             perror("Failed to allocate memory in createAction");
-            exit(1);
+            exit(EXIT_FAILURE);
         }
     }
     act->cnt = 1;
@@ -244,7 +244,7 @@ void pushAction(ActionStackElt** stack, Action* act) {
     ActionStackElt* newElt = malloc(sizeof(ActionStackElt));
     if (!newElt) {
         perror("Failed to allocate memory in pushAction");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     newElt->act = act;
     newElt->next = *stack;
@@ -693,7 +693,7 @@ void upd_insert(MsgNode* node, InputEvent* event) {
     char* new_text = realloc(node->text, new_len + 1);
     if (new_text == NULL) {
         perror("Failed to reallocate memory in upd_insert");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // Обновляем указатель на message в node
@@ -742,7 +742,7 @@ Action* cmd_insert(MsgNode* node, InputEvent* event) {
             realloc(newAction->seq, new_seq_len);
         if (new_seq == NULL) {
             perror("Failed to reallocate memory in cmd_insert");
-            exit(1);
+            exit(EXIT_FAILURE);
         }
         // Записываем завершающий нуль в конец строки
         memset(new_seq + new_seq_len - 2, 0, 1);
@@ -775,7 +775,7 @@ Action* cmd_uninsert(MsgNode* node, InputEvent* event) {
     // начало строки - это сбой
     if (new_byte_offset < 0) {
         perror("Error calc undo insert");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // Перемещаем правую часть строки на новую
