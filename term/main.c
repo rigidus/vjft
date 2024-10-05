@@ -371,49 +371,7 @@ void reDraw() {
     int up = bottom + 1 - ib_need_rows;
     // Выводим
     if (msgList.curr) {
-
-        /* /\* char* text = "1234567\n8901"; *\/ */
-        /* char* text = msgList.curr->text; */
-        /* int text_length = utf8_strlen(text); */
-        /* int max_col = 3; */
-        /* int max_row = 7; */
-        /* // Estimate maximum number of lines */
-        /* int max_lines = text_length + 1; */
-        /* LineInfo* lines = malloc(max_lines * sizeof(LineInfo)); */
-        /* int lindex = get_lines(text, max_col, max_row, lines); */
-
-        /* // dbg  out */
-        /* for (int cur_row = 0; cur_row < lindex; cur_row++) { */
-        /*     char is_text[1024] = {0}; */
-        /*     char sub[1024] = {0}; */
-        /*     memcpy(&sub, text + lines[cur_row].byte_offset_start, */
-        /*            lines[cur_row].byte_offset_end */
-        /*            - lines[cur_row].byte_offset_start); */
-        /*     snprintf( */
-        /*         is_text, 1024, */
-        /*         "[%d] %d..%d '%s' (%d)", */
-        /*         cur_row, */
-        /*         lines[cur_row].byte_offset_start, */
-        /*         lines[cur_row].byte_offset_end, */
-        /*         &sub, */
-        /*         lines[cur_row].byte_offset_end */
-        /*         - lines[cur_row].byte_offset_start */
-        /*         ); */
-        /*     pushMessage(&msgList, is_text); */
-        /* } */
-        /* // end dbg out */
-
-        /* int scroll = 0; */
-        /* render_text_window( */
-        /*     text, */
-        /*     margin, up-26, */
-        /*     max_col, //ib_need_cols, */
-        /*     max_row, //ib_need_rows, */
-        /*     msgList.curr->cursor_pos, */
-        /*     msgList.curr->marker_pos, */
-        /*     &scroll); */
-
-        display_wrapped(//
+        display_wrapped(
             msgList.curr->text,
             ib_abs_x, ib_abs_y,
             ib_rel_max_width,
