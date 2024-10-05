@@ -40,9 +40,12 @@ typedef struct {
 
 #define FILLER U':' // '▒'
 
+int get_lines (const char* text, int max_col, int max_row,
+               LineInfo* lines);
+
 void render_text_window(const char* text,
                         int window_x, int window_y,
-                        int window_width, int window_height,
+                        int max_col, int max_row,
                         int cursor_pos, int marker_pos,
                         int* scroll_offset);
 

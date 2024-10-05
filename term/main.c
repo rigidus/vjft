@@ -299,7 +299,8 @@ void reDraw() {
     // строке и столбце минибуфера
     char mb_text[MAX_BUFFER] = {0};
     snprintf(mb_text, MAX_BUFFER,
-             "cur_pos=%d\nmar_pos=%d\ncur_row=%d\ncur_col=%d\nib_need_rows=%d\nib_from_row=%d\n",
+             "cur_pos=%d\nmar_pos=%d\ncur_row=%d\n"
+             "cur_col=%d\nib_need_rows=%d\nib_from_row=%d\n",
              msgList.curr->cursor_pos, msgList.curr->marker_pos,
              ib_cursor_row, ib_cursor_col, ib_need_rows,
              ib_from_row);
@@ -315,26 +316,20 @@ void reDraw() {
     displayStack(redoStack);
 
     // Отображение минибуфера
-    int mb_need_cols = 0, mb_need_rows = 0,
-        mb_cursor_row = 0, mb_cursor_col = 0;
-    int mb_width = win_cols-2;
-    calc_display_size(miniBuffer.buffer, mb_width, 0,
-                      &mb_need_cols, &mb_need_rows,
-                      &mb_cursor_row, &mb_cursor_col);
+    int mb_max_col = win_cols-2, mb_max_row = 10;
+    int max_lines = miniBuffer.size + 1;
+    LineInfo* lines = malloc(max_lines * sizeof(LineInfo));
+    max_lines = get_lines(miniBuffer.buffer,
+                           mb_max_col, mb_max_row, lines);
 
-    // Когда я вывожу что-то в минибуфер я хочу чтобы
-    // при большом выводе он показывал только первые 10 строк
-    int max_minibuffer_rows = 30;
-    if (mb_need_rows > max_minibuffer_rows)  {
-        mb_need_rows = max_minibuffer_rows;
-    }
-    int mb_from_row = 0;
-    int mb_up = win_rows + 1 - mb_need_rows + mb_from_row;
-    display_wrapped(miniBuffer.buffer, 2, mb_up,
-                    mb_width, mb_need_rows,
-                    mb_from_row, -1, -1);
-    drawHorizontalLine(win_cols, mb_up-1, '=');
-    int bottom = mb_up-2;
+    int mb_scroll_offset = 0;
+    render_text_window(miniBuffer.buffer,
+                       1, win_rows - max_lines,
+                       mb_max_col, mb_max_col,
+                       -1, -1,
+                       &mb_scroll_offset);
+
+    int bottom = win_rows - max_lines - 2;
 
     // INPUTBUFFER ::::::::::::::::::::::::::::::::::::::::::
 

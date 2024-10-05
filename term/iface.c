@@ -118,8 +118,6 @@ int get_lines (const char* text, int max_col, int max_row,
     return lindex;
 }
 
-
-
 void render_text_window(const char* text,
                         int window_x, int window_y,
                         int max_col, int max_row,
