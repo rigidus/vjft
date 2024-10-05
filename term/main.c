@@ -367,14 +367,19 @@ void reDraw() {
     // Выводим
     if (msgList.curr) {
 
+        int scroll = 0;
         render_text_window(
-            msgList.curr->text,
+            /* msgList.curr->text, */
+            "1234567\n8901",
             /* "Какой-то текст, который явно не вмещается в окно. \n" */
             /* "This is a sample text to display in the window. \n" */
             /* "It should wrap properly and handle movements. ", */
-            margin, up,
-            ib_need_cols-2, ib_need_rows,
-            msgList.curr->cursor_pos, msgList.curr->marker_pos);
+            margin, up-10,
+            3, // ib_need_cols-2,
+            7, // ib_need_rows,
+            1, // msgList.curr->cursor_pos,
+            5, // msgList.curr->marker_pos,
+            &scroll);
 
         /* display_wrapped(msgList.curr->text, margin, up, */
         /*                 rel_max_width, ib_need_rows, */
@@ -527,7 +532,6 @@ int main() {
 
     bool terminate = false;
 
-    reDraw();
     while (!terminate) {
         // initialization for select
         FD_ZERO(&read_fds);

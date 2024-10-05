@@ -72,10 +72,10 @@ void reset_highlight_color() {
 void render_text_window(const char* text,
                         int window_x, int window_y,
                         int window_width, int window_height,
-                        int cursor_pos, int marker_pos) {
-    int text_pos = 0; // Position in the text (in characters)
-    int byte_offset = 0; // Byte offset in the text
-    int current_row = 0;
+                        int cursor_pos, int marker_pos,
+                        int* scroll_offset) {
+    int text_pos = 0;     // Position in the text (in characters)
+    int byte_offset = 0;  // Byte offset in the text
     int current_col = 0;
     int max_row = window_height;
     int max_col = window_width;
@@ -84,71 +84,172 @@ void render_text_window(const char* text,
     int sel_end = max(cursor_pos, marker_pos);
     bool is_highlighted = false;
 
-    while (current_row < max_row && text_pos < text_length) {
-        // Get the next UTF-8 character
+    // Calculate the total number of lines and positions of each line start
+    // so we can properly handle scrolling
+    typedef struct {
+        int byte_offset_start;
+        int text_pos_start;
+        int byte_offset_end;
+        int text_pos_end;
+    } LineInfo;
+
+    // Estimate maximum number of lines
+    int max_lines = text_length + 1;
+    LineInfo* lines = malloc(max_lines * sizeof(LineInfo));
+    int lindex = 0;
+
+    int start_byte_offset = 0;
+    int start_text_pos = 0;
+
+    // First pass: collect line start positions
+    while (byte_offset < strlen(text)) {
+        // length of next character
         int char_len = utf8_char_length(text + byte_offset);
         char32_t codepoint = 0;
         utf8_decode(text + byte_offset, char_len, &codepoint);
 
         // Check if we need to wrap the line
         if (current_col >= max_col || codepoint == '\n') {
+            lines[lindex].byte_offset_start = start_byte_offset;
+            lines[lindex].text_pos_start = start_text_pos;
+            lines[lindex].byte_offset_end = byte_offset;
+            lines[lindex].text_pos_end = text_pos;
+            lindex++;
             current_col = 0;
-            current_row++;
-            if (current_row >= max_row) {
-                break;
-            }
             if (codepoint == '\n') {
-                // Skip the newline character
                 byte_offset += char_len;
                 text_pos++;
-                continue;
+            }
+            start_byte_offset = byte_offset;
+            start_text_pos = text_pos;
+        } else {
+            current_col++;
+            byte_offset += char_len;
+            text_pos++;
+        }
+    }
+    lines[lindex].byte_offset_start = start_byte_offset;
+    lines[lindex].text_pos_start = start_text_pos;
+    lines[lindex].byte_offset_end = byte_offset;
+    lines[lindex].text_pos_end = text_pos;
+    lindex++;
+
+    /* // dbg  out */
+    /* for (int current_row = 0; current_row < lindex; current_row++) { */
+    /*     char is_text[1024] = {0}; */
+    /*     char sub[1024] = {0}; */
+    /*     memcpy(&sub, text + lines[current_row].byte_offset_start, */
+    /*            lines[current_row].byte_offset_end */
+    /*            - lines[current_row].byte_offset_start); */
+    /*     snprintf( */
+    /*         is_text, 1024, */
+    /*         "[%d] %d..%d '%s' (%d)", */
+    /*         current_row, */
+    /*         lines[current_row].byte_offset_start, */
+    /*         lines[current_row].byte_offset_end, */
+    /*         &sub, */
+    /*         lines[current_row].byte_offset_end */
+    /*         - lines[current_row].byte_offset_start */
+    /*         ); */
+    /*     pushMessage(&msgList, is_text); */
+    /* } */
+    /* // end dbg out */
+
+
+    // Adjust scroll_offset to ensure cursor is visible
+    if (cursor_pos != -1) {
+        int cursor_line = 0;
+        for (int i = 0; i < lindex; i++) {
+            if (cursor_pos >= lines[i].text_pos_start
+                && (i == lindex - 1
+                    || cursor_pos < lines[i].text_pos_end))
+            {
+                cursor_line = i;
+                break;
             }
         }
-
-        // Check for selection highlighting
-        if (marker_pos != -1) {
-            if (text_pos >= sel_start && text_pos < sel_end) {
-                is_highlighted = true;
-            } else {
-                is_highlighted = false;
-            }
+        if (cursor_line < *scroll_offset) {
+            *scroll_offset = cursor_line;
+        } else if (cursor_line >= *scroll_offset + max_row) {
+            *scroll_offset = cursor_line - max_row + 1;
         }
-
-        // Set the colors based on highlighting
-        int fg_color =
-            is_highlighted ? HIGHLIGHT_FG_COLOR : DEFAULT_FG_COLOR;
-        int bg_color =
-            is_highlighted ? HIGHLIGHT_BG_COLOR : DEFAULT_BG_COLOR;
-
-        // Write the character to the back_buffer
-        buffered_putchar(back_buffer,
-                         window_y + current_row,
-                         window_x + current_col,
-                         codepoint,
-                         fg_color,
-                         bg_color);
-
-        // Advance positions
-        current_col++;
-        text_pos++;
-        byte_offset += char_len;
     }
 
-    // Fill the rest of the window with filler characters if needed
-    for (; current_row < max_row; current_row++) {
+    // Second pass: render the visible lines
+    for (int current_row = 0; current_row < max_row; current_row++) {
+        int line_idx = *scroll_offset + current_row;
+
+        // Render the line
+        byte_offset = lines[line_idx].byte_offset_start;
+        text_pos = lines[line_idx].text_pos_start;
+        current_col = 0;
+
+        while (current_col < max_col
+               && text_pos < text_length
+               && current_row < lindex)
+        {
+            int char_len = utf8_char_length(text + byte_offset);
+            char32_t codepoint = 0;
+            utf8_decode(text + byte_offset, char_len, &codepoint);
+
+            if (codepoint == '\n') {
+                byte_offset += char_len;
+                text_pos++;
+                break; // Move to next line
+            }
+
+            // Check for selection highlighting
+            if (marker_pos >= 0) {
+                if (text_pos >= sel_start && text_pos < sel_end) {
+                    is_highlighted = true;
+                } else {
+                    is_highlighted = false;
+                }
+            }
+
+            // Check if this is the cursor position
+            bool is_cursor = (text_pos == cursor_pos);
+
+            // Set the colors based on cursor and highlighting
+            int fg_color = DEFAULT_FG_COLOR;
+            int bg_color = DEFAULT_BG_COLOR;
+            if (is_cursor) {
+                /* fg_color = DEFAULT_BG_COLOR; */
+                /* bg_color = DEFAULT_FG_COLOR; */
+                fg_color = BRIGHT_WHITE_FG_COLOR;
+                bg_color = MAGENTA_BG_COLOR;
+            } else if (is_highlighted) {
+                fg_color = HIGHLIGHT_FG_COLOR;
+                bg_color = HIGHLIGHT_BG_COLOR;
+            }
+
+            // Write the character to the back_buffer
+            buffered_putchar(back_buffer,
+                             window_y + current_row,
+                             window_x + current_col,
+                             codepoint,
+                             fg_color,
+                             bg_color);
+
+            // Advance positions
+            current_col++;
+            text_pos++;
+            byte_offset += char_len;
+        }
+
+        // Fill the rest of the line with spaces
         for (; current_col < max_col; current_col++) {
             buffered_putchar(back_buffer,
                              window_y + current_row,
                              window_x + current_col,
-                             FILLER,
+                             '_',
                              DEFAULT_FG_COLOR,
-
                              DEFAULT_BG_COLOR);
         }
-        current_col = 0;
     }
-}
 
+    free(lines);
+}
 
 
 

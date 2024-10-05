@@ -28,12 +28,15 @@ void calc_display_size(const char* text, int max_width, int cursor_pos,
    закончится, когда будет выведено max_width строк)
 */
 
+extern MsgList msgList;
+
 #define FILLER U':' // '▒'
 
 void render_text_window(const char* text,
                         int window_x, int window_y,
                         int window_width, int window_height,
-                        int cursor_pos, int marker_pos);
+                        int cursor_pos, int marker_pos,
+                        int* scroll_offset);
 
 // Основная функция для вывода текста с учётом переноса строк
 void display_wrapped(const char* text, int abs_x, int abs_y,
@@ -50,6 +53,41 @@ int display_message(MsgNode* message, int x, int y,
 #define DEFAULT_BG_COLOR 40
 #define HIGHLIGHT_FG_COLOR 92
 #define HIGHLIGHT_BG_COLOR 100
+
+#define BLACK_BG_COLOR           40
+#define RED_BG_COLOR             41
+#define GREEN_BG_COLOR           42
+#define YELLOW_BG_COLOR          43
+#define BLUE_BG_COLOR            44
+#define MAGENTA_BG_COLOR         45
+#define CYAN_BG_COLOR            46
+#define WHITE_BG_COLOR           47
+#define BRIGHT_BLACK_BG_COLOR    100
+#define BRIGHT_RED_BG_COLOR      101
+#define BRIGHT_GREEN_BG_COLOR    102
+#define BRIGHT_YELLOW_BG_COLOR   103
+#define BRIGHT_BLUE_BG_COLOR     104
+#define BRIGHT_MAGENTA_BG_COLOR  105
+#define BRIGHT_CYAN_BG_COLOR     106
+#define BRIGHT_WHITE_BG_COLOR    107
+
+#define BLACK_FG_COLOR           30
+#define RED_FG_COLOR             31
+#define GREEN_FG_COLOR           32
+#define YELLOW_FG_COLOR          33
+#define BLUE_FG_COLOR            34
+#define MAGENTA_FG_COLOR         35
+#define CYAN_FG_COLOR            36
+#define WHITE_FG_COLOR           37
+#define BRIGHT_BLACK_FG_COLOR    90
+#define BRIGHT_RED_FG_COLOR      91
+#define BRIGHT_GREEN_FG_COLOR    92
+#define BRIGHT_YELLOW_FG_COLOR   93
+#define BRIGHT_BLUE_FG_COLOR     94
+#define BRIGHT_MAGENTA_FG_COLOR  95
+#define BRIGHT_CYAN_FG_COLOR     96
+#define BRIGHT_WHITE_FG_COLOR    97
+
 
 typedef struct {
     char32_t sym;
