@@ -14,9 +14,11 @@
    в текстовое окно максималальной ширины max_width и в какой из этих
    строк будет расположен курсор
 */
-void calc_display_size(const char* text, int max_width, int cursor_pos,
+void calc_display_size(const char* text, const int max_width,
+                       const int cursor_pos,
                        int* need_cols, int* need_rows,
                        int* cursor_row, int* cursor_col);
+
 
 /**
    Вывод текста в текстовое окно
@@ -38,7 +40,7 @@ typedef struct {
 } LineInfo;
 
 
-#define FILLER U':' // '▒'
+#define FILLER U' ' //U'▒'
 
 int get_lines (const char* text, int max_col, int max_row,
                LineInfo* lines);

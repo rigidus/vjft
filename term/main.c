@@ -20,7 +20,7 @@
 extern ActionStackElt* undoStack;
 extern ActionStackElt* redoStack;
 
-void drawHorizontalLine(int cols, int y, char sym);
+void drawHorizontalLine(int cols, int y, char32_t sym);
 
 volatile int win_cols = 0;
 volatile int win_rows = 0;
@@ -281,11 +281,12 @@ void handle_winch(int sig) {
 void reDraw() {
     int ib_need_cols = 0, ib_need_rows = 0,
         ib_cursor_row = 0, ib_cursor_col = 0,
-        ib_from_row = 0;
+        ib_from_row = 0,
+        ib_abs_x = 0, ib_abs_y = 0;
 
     // Вычисляем относительную позицию курсора в inputbuffer-е
-    int rel_max_width = win_cols - margin*2;
-    calc_display_size(msgList.curr->text, rel_max_width,
+    int ib_rel_max_width = 20;
+    calc_display_size(msgList.curr->text, ib_rel_max_width,
                       msgList.curr->cursor_pos,
                       &ib_need_cols, &ib_need_rows,
                       &ib_cursor_row, &ib_cursor_col);
@@ -308,7 +309,7 @@ void reDraw() {
 
     dispCtrlStack();
 
-    dispExEv(gHistoryEventQueue);
+    /* dispExEv(gHistoryEventQueue); */
 
     appendToMiniBuffer("\nUndoStack: ");
     displayStack(undoStack);
@@ -316,18 +317,27 @@ void reDraw() {
     displayStack(redoStack);
 
     // Отображение минибуфера
-    int mb_max_col = win_cols-2, mb_max_row = 10;
-    int max_lines = miniBuffer.size + 1;
-    LineInfo* lines = malloc(max_lines * sizeof(LineInfo));
-    max_lines = get_lines(miniBuffer.buffer,
-                           mb_max_col, mb_max_row, lines);
+    /* int mb_max_col = win_cols-2, mb_max_row = 10; */
+    /* int max_lines = miniBuffer.size + 1; */
+    /* LineInfo* lines = malloc(max_lines * sizeof(LineInfo)); */
+    /* max_lines = get_lines(miniBuffer.buffer, */
+    /*                        mb_max_col, mb_max_row, lines); */
 
-    int mb_scroll_offset = 0;
-    render_text_window(miniBuffer.buffer,
-                       1, win_rows - max_lines,
-                       mb_max_col, mb_max_col,
-                       -1, -1,
-                       &mb_scroll_offset);
+    /* int mb_scroll_offset = 0; */
+    /* render_text_window(miniBuffer.buffer, */
+    /*                    1, win_rows - max_lines, */
+    /*                    mb_max_col, mb_max_row, */
+    /*                    -1, -1, */
+    /*                    &mb_scroll_offset); */
+    int max_lines = 10;
+    display_wrapped(
+        miniBuffer.buffer,
+        1, win_rows - max_lines,
+        win_cols-2, win_rows,
+        0,
+        -1,
+        -1);
+
 
     int bottom = win_rows - max_lines - 2;
 
@@ -362,27 +372,57 @@ void reDraw() {
     // Выводим
     if (msgList.curr) {
 
-        int scroll = 0;
-        render_text_window(
-            /* msgList.curr->text, */
-            "1234567\n8901",
-            /* "Какой-то текст, который явно не вмещается в окно. \n" */
-            /* "This is a sample text to display in the window. \n" */
-            /* "It should wrap properly and handle movements. ", */
-            margin, up-10,
-            3, // ib_need_cols-2,
-            7, // ib_need_rows,
-            1, // msgList.curr->cursor_pos,
-            5, // msgList.curr->marker_pos,
-            &scroll);
+        /* /\* char* text = "1234567\n8901"; *\/ */
+        /* char* text = msgList.curr->text; */
+        /* int text_length = utf8_strlen(text); */
+        /* int max_col = 3; */
+        /* int max_row = 7; */
+        /* // Estimate maximum number of lines */
+        /* int max_lines = text_length + 1; */
+        /* LineInfo* lines = malloc(max_lines * sizeof(LineInfo)); */
+        /* int lindex = get_lines(text, max_col, max_row, lines); */
 
-        /* display_wrapped(msgList.curr->text, margin, up, */
-        /*                 rel_max_width, ib_need_rows, */
-        /*                 ib_from_row, */
-        /*                 msgList.curr->cursor_pos, */
-        /*                 msgList.curr->marker_pos); */
+        /* // dbg  out */
+        /* for (int cur_row = 0; cur_row < lindex; cur_row++) { */
+        /*     char is_text[1024] = {0}; */
+        /*     char sub[1024] = {0}; */
+        /*     memcpy(&sub, text + lines[cur_row].byte_offset_start, */
+        /*            lines[cur_row].byte_offset_end */
+        /*            - lines[cur_row].byte_offset_start); */
+        /*     snprintf( */
+        /*         is_text, 1024, */
+        /*         "[%d] %d..%d '%s' (%d)", */
+        /*         cur_row, */
+        /*         lines[cur_row].byte_offset_start, */
+        /*         lines[cur_row].byte_offset_end, */
+        /*         &sub, */
+        /*         lines[cur_row].byte_offset_end */
+        /*         - lines[cur_row].byte_offset_start */
+        /*         ); */
+        /*     pushMessage(&msgList, is_text); */
+        /* } */
+        /* // end dbg out */
+
+        /* int scroll = 0; */
+        /* render_text_window( */
+        /*     text, */
+        /*     margin, up-26, */
+        /*     max_col, //ib_need_cols, */
+        /*     max_row, //ib_need_rows, */
+        /*     msgList.curr->cursor_pos, */
+        /*     msgList.curr->marker_pos, */
+        /*     &scroll); */
+
+        display_wrapped(//
+            msgList.curr->text,
+            ib_abs_x, ib_abs_y,
+            ib_rel_max_width,
+            ib_need_rows,
+            ib_from_row,
+            msgList.curr->cursor_pos,
+            msgList.curr->marker_pos);
     }
-    drawHorizontalLine(win_cols, up-1, '-');
+    drawHorizontalLine(win_cols, up-1, U'―');
     // Возвращаем номер строки выше отображения inputbuffer
     bottom =  up - 2;
 
@@ -432,10 +472,10 @@ void reDraw() {
     render_screen();
     clear_screen_buffer(back_buffer);
 
-    // Перемещаем курсор в нужную позицию с поправкой
-    // на расположение inputbuffer
-    moveCursor(ib_cursor_col + margin,
-               bottom + 1 + ib_cursor_row - ib_from_row);
+    /* // Перемещаем курсор в нужную позицию с поправкой */
+    /* // на расположение inputbuffer */
+    /* moveCursor(ib_cursor_col + ib_abs_x, */
+    /*            ib_cursor_row + ib_abs_y - ib_from_row -1); */
 }
 
 // Функции для копирования и очистки узлов списка сообщений

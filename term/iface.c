@@ -7,27 +7,28 @@
    вывода текста в текстовое окно максималальной ширины
    max_width и в какой из этих строк будет расположен курсор
 */
-void calc_display_size(const char* text, int max_width,
-                       int cursor_pos,
+void calc_display_size(const char* text, const int max_width,
+                       const int cursor_pos,
                        int* need_cols, int* need_rows,
                        int* cursor_row, int* cursor_col) {
-    int cur_text_pos = -1; // Текущий индекс выводимого символа
+    const char* byte_pos = text; // Указатель на байтовую позицию
     int cur_row = 1; // Текущая строка, она же счетчик строк
     int cur_col = 0; // Длина текущей строки
     int max_col = 0; // Максимальная найденная длина строки
 
-    for (const char* p = text; ; ) {
-        size_t char_len = utf8_char_length(p);
+    for (int cur_pos = 0; cur_pos <= utf8_strlen(text); cur_pos++)
+    {
+        size_t char_len = utf8_char_length(byte_pos);
+        char32_t codepoint = 0;
+        utf8_decode(byte_pos, char_len, &codepoint);
 
-        cur_text_pos++; // Увеличение текущей позиции в тексте
-        if (cur_text_pos == cursor_pos) {
+        if (cur_pos == cursor_pos) {
             // Дошли до позиции курсора?
             *cursor_row = cur_row; // Вернуть текущую строку
             *cursor_col = cur_col; // Вернуть текущий столбец
         }
 
         cur_col++; // Увеличение позиции в текущей строке
-
         if (cur_col > max_col) {
             // Если эта строка длиннее чем ранее встреченные
             // Обновить максимальную длину строки
@@ -35,18 +36,19 @@ void calc_display_size(const char* text, int max_width,
         }
 
         // Символ переноса строки или правая граница?
-        if ((*p == '\n') || (cur_col >= max_width)) {
+        if ((codepoint == '\n') || (cur_col >= max_width)) {
             cur_col = 0;  // Сброс длины строки для новой строки
             cur_row++;    // Увеличение счетчика строк
         }
 
         // Терминатор строки?
-        if (*p == 0) {
+        if (codepoint == '\0') {
             cur_col++;
             break;
         }
 
-        p += char_len; // Переходим к следующему символу
+        // Переходим к следующему символу
+        byte_pos += char_len; // Инкремент указателя
     }
 
     // Если последняя строка оказалась самой длинной
@@ -69,190 +71,6 @@ void reset_highlight_color() {
 }
 
 
-// Calculate the total number of lines and positions
-// of each line start and end
-int get_lines (const char* text, int max_col, int max_row,
-               LineInfo* lines) {
-    int byte_offset = 0;  // Byte offset in the text
-    int text_pos = 0;     // Position in the text (in characters)
-    int current_col = 0;
-
-    int lindex = 0;
-
-    int start_byte_offset = 0;
-    int start_text_pos = 0;
-
-    // First pass: collect line start positions
-    while (byte_offset < strlen(text)) {
-        // length of next character
-        int char_len = utf8_char_length(text + byte_offset);
-        char32_t codepoint = 0;
-        utf8_decode(text + byte_offset, char_len, &codepoint);
-
-        // Check if we need to wrap the line
-        if (current_col >= max_col || codepoint == '\n') {
-            lines[lindex].byte_offset_start = start_byte_offset;
-            lines[lindex].text_pos_start = start_text_pos;
-            lines[lindex].byte_offset_end = byte_offset;
-            lines[lindex].text_pos_end = text_pos;
-            lindex++;
-            current_col = 0;
-            if (codepoint == '\n') {
-                byte_offset += char_len;
-                text_pos++;
-            }
-            start_byte_offset = byte_offset;
-            start_text_pos = text_pos;
-        } else {
-            current_col++;
-            byte_offset += char_len;
-            text_pos++;
-        }
-    }
-    lines[lindex].byte_offset_start = start_byte_offset;
-    lines[lindex].text_pos_start = start_text_pos;
-    lines[lindex].byte_offset_end = byte_offset;
-    lines[lindex].text_pos_end = text_pos;
-    lindex++;
-
-    return lindex;
-}
-
-void render_text_window(const char* text,
-                        int window_x, int window_y,
-                        int max_col, int max_row,
-                        int cursor_pos, int marker_pos,
-                        int* scroll_offset) {
-    int text_length = utf8_strlen(text);
-
-    // Estimate maximum number of lines
-    int max_lines = text_length + 1;
-    LineInfo* lines = malloc(max_lines * sizeof(LineInfo));
-
-    int lindex = get_lines(text, max_col, max_row, lines);
-
-    int sel_start = min(cursor_pos, marker_pos);
-    int sel_end = max(cursor_pos, marker_pos);
-    bool is_highlighted = false;
-    /* // dbg  out */
-    /* for (int current_row = 0; current_row < lindex; current_row++) { */
-    /*     char is_text[1024] = {0}; */
-    /*     char sub[1024] = {0}; */
-    /*     memcpy(&sub, text + lines[current_row].byte_offset_start, */
-    /*            lines[current_row].byte_offset_end */
-    /*            - lines[current_row].byte_offset_start); */
-    /*     snprintf( */
-    /*         is_text, 1024, */
-    /*         "[%d] %d..%d '%s' (%d)", */
-    /*         current_row, */
-    /*         lines[current_row].byte_offset_start, */
-    /*         lines[current_row].byte_offset_end, */
-    /*         &sub, */
-    /*         lines[current_row].byte_offset_end */
-    /*         - lines[current_row].byte_offset_start */
-    /*         ); */
-    /*     pushMessage(&msgList, is_text); */
-    /* } */
-    /* // end dbg out */
-
-
-    // Adjust scroll_offset to ensure cursor is visible
-    if (cursor_pos != -1) {
-        int cursor_line = 0;
-        for (int i = 0; i < lindex; i++) {
-            if (cursor_pos >= lines[i].text_pos_start
-                && (i == lindex - 1
-                    || cursor_pos < lines[i].text_pos_end))
-            {
-                cursor_line = i;
-                break;
-            }
-        }
-        if (cursor_line < *scroll_offset) {
-            *scroll_offset = cursor_line;
-        } else if (cursor_line >= *scroll_offset + max_row) {
-            *scroll_offset = cursor_line - max_row + 1;
-        }
-    }
-
-    // Second pass: render the visible lines
-    for (int current_row = 0; current_row < max_row; current_row++) {
-        int line_idx = *scroll_offset + current_row;
-
-        // Render the line
-        int byte_offset = lines[line_idx].byte_offset_start;
-        int text_pos = lines[line_idx].text_pos_start;
-        int current_col = 0;
-
-        while (current_col < max_col
-               && text_pos < text_length
-               && current_row < lindex)
-        {
-            int char_len = utf8_char_length(text + byte_offset);
-            char32_t codepoint = 0;
-            utf8_decode(text + byte_offset, char_len, &codepoint);
-
-            if (codepoint == '\n') {
-                byte_offset += char_len;
-                text_pos++;
-                break; // Move to next line
-            }
-
-            // Check for selection highlighting
-            if (marker_pos >= 0) {
-                if (text_pos >= sel_start && text_pos < sel_end) {
-                    is_highlighted = true;
-                } else {
-                    is_highlighted = false;
-                }
-            }
-
-            // Check if this is the cursor position
-            bool is_cursor = (text_pos == cursor_pos);
-
-            // Set the colors based on cursor and highlighting
-            int fg_color = DEFAULT_FG_COLOR;
-            int bg_color = DEFAULT_BG_COLOR;
-            if (is_cursor) {
-                /* fg_color = DEFAULT_BG_COLOR; */
-                /* bg_color = DEFAULT_FG_COLOR; */
-                fg_color = BRIGHT_WHITE_FG_COLOR;
-                bg_color = MAGENTA_BG_COLOR;
-            } else if (is_highlighted) {
-                fg_color = HIGHLIGHT_FG_COLOR;
-                bg_color = HIGHLIGHT_BG_COLOR;
-            }
-
-            // Write the character to the back_buffer
-            buffered_putchar(back_buffer,
-                             window_y + current_row,
-                             window_x + current_col,
-                             codepoint,
-                             fg_color,
-                             bg_color);
-
-            // Advance positions
-            current_col++;
-            text_pos++;
-            byte_offset += char_len;
-        }
-
-        // Fill the rest of the line with spaces
-        for (; current_col < max_col; current_col++) {
-            buffered_putchar(back_buffer,
-                             window_y + current_row,
-                             window_x + current_col,
-                             '_',
-                             DEFAULT_FG_COLOR,
-                             DEFAULT_BG_COLOR);
-        }
-    }
-
-    free(lines);
-}
-
-
-
 /**
    Вывод текста в текстовое окно
 
@@ -269,17 +87,16 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
                      int from_row, int cursor_pos,
                      int marker_pos)
 {
-    int  cur_pos   = 0; // Текущий индекс символа в строке
+    const char* byte_pos = text; // Указатель на байтовую позицию
     int  rel_row   = 0; // Текущая строка, она же счётчик строк
     int  rel_col   = 0; // Текущий столбец
     int  sel_start = min(cursor_pos, marker_pos);
     int  sel_end   = max(cursor_pos, marker_pos);
     bool is_highlighted = false; // Флаг выделения
-    int  scr_row   = 0;
-    int  scr_col   = 0;
+    int  scr_row   = 0; // abs_x
+    int  scr_col   = 0; // abs_y + rel_row - from_row - 1
     int  fg_color = DEFAULT_FG_COLOR;
     int  bg_color = DEFAULT_BG_COLOR;
-
 
     bool is_not_skipped_row() {
         return (rel_row > from_row);
@@ -288,10 +105,9 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
     void fullfiller () {
         if (is_not_skipped_row()) {
             // Если мы не пропускаем
-            // Пока не правая граница
-            while (rel_col < rel_max_width) {
-                moveCursor(scr_col, scr_row);
-                /* putchar(FILLER); // Заполняем */
+            // Пока не правая граница - заполняем
+            while (rel_col <= rel_max_width) {
+                /* moveCursor(scr_col, scr_row); */
                 buffered_putchar(back_buffer, scr_row, scr_col,
                                  FILLER, fg_color, bg_color);
                 rel_col++; // Увеличиваем счётчик длины строки
@@ -305,112 +121,84 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
         if (is_not_skipped_row()) { // Если мы не пропускаем
             /* moveCursor(abs_x, abs_y + rel_row - from_row - 1); */
             scr_col = abs_x;
-            scr_row = abs_y + rel_row - from_row - 1;
+            scr_row = abs_y + rel_row - from_row;
         }
     }
 
     inc_rel_row(); // Курсор на начальную позицию
 
-    for (const char* p = text; ; ) {
-        size_t char_len = utf8_char_length(p);
+    for (int cur_pos = 0; cur_pos <= utf8_strlen(text); cur_pos++)
+    {
+        size_t char_len = utf8_char_length(byte_pos);
+        char32_t codepoint = 0;
+        utf8_decode(byte_pos, char_len, &codepoint);
 
-        /* if (scr_row >= 0 */
-        /*     && scr_row < back_buffer->rows */
-        /*     && scr_col >= 0 */
-        /*     && scr_col < back_buffer->cols) */
-        /* { */
-            /* // Учитываем выделение */
-            /* int fg_color = DEFAULT_FG_COLOR; */
-            /* int bg_color = DEFAULT_BG_COLOR; */
-            /* if (marker_pos != -1 */
-            /*     && cur_pos >= sel_start */
-            /*     && cur_pos < sel_end) */
-            /* { */
-            /*     bg_color = HIGHLIGHT_BG_COLOR; */
-            /*     fg_color = HIGHLIGHT_FG_COLOR; */
-            /* } */
+        if (scr_row    >= 0  &&  scr_row < back_buffer->rows
+            && scr_col >= 0  &&  scr_col < back_buffer->cols) {
 
-            /* // Записываем символ в back_buffer */
-            /* for (size_t i = 0; i < char_len; i++) { */
-            /*     buffered_putchar(back_buffer, scr_row, */
-            /*                      scr_col, p[i], fg_color, */
-            /*                      bg_color); */
-            /*     scr_col++; */
-            /*     if (scr_col >= back_buffer->cols) { */
-            /*         break; */
-            /*     } */
-            /* } */
-        /* } */
+            int fg_color = DEFAULT_FG_COLOR;
+            int bg_color = DEFAULT_BG_COLOR;
 
-        // Проверяем, нужно ли изменить цвет фона
-        // для этого символа
-        if (marker_pos != -1) {
-            if (cur_pos >= sel_start && cur_pos < sel_end) {
-                if (!is_highlighted) {
-                    set_highlight_color();
-                    is_highlighted = true;
-                }
-            } else {
-                if (is_highlighted) {
-                    reset_highlight_color();
-                    is_highlighted = false;
-                }
+            if (marker_pos != -1 // selected text
+                && cur_pos >= sel_start && cur_pos < sel_end)
+            {
+                bg_color = HIGHLIGHT_BG_COLOR;
+                fg_color = HIGHLIGHT_FG_COLOR;
             }
-        }
 
-        // Если текущая строка достигает максимальной
-        // ширины отображения
-        if (rel_col >= rel_max_width) {
-            inc_rel_row();
-        }
-
-        // Если максимальное количество строк достигнуто
-        if (rel_row > (rel_max_rows + from_row)) {
-            break;  // Прекращаем вывод
-        }
-
-        if (*p == '\n') {
-            // Если текущий символ - перевод строки
-            fullfiller();  // Заполняем оставшееся филлером
-            inc_rel_row(); // Переходим на следующую строку
-            p += char_len; // Переходим к следующему символу
-            cur_pos++;
-        } else {
-            if (*p == '\0') {
-                // Если текущий символ - завершающий нулевой байт
-                if (is_not_skipped_row()) {
-                    // Если мы не пропускаем
-                    // Выводим символ END_OF_TEXT
-                    /* moveCursor(scr_col, scr_row); */
-                    /* fputs("⍿", stdout); */
-                    buffered_putchar(back_buffer, scr_row,
-                                     scr_col, U'⌡',
-                                     fg_color, bg_color);
-                    scr_col++;
-
-                }
-                if (is_highlighted) {
-                    // Убираем выделение если оно есть
-                    reset_highlight_color();
-                }
-                // выходим из цикла
-                break;
-            } else {
-                // Обычный печатаемый символ
-                if (is_not_skipped_row()) {
-                    // Если мы не пропускаем
-                    // Выводим UTF8-символ
-                    /* moveCursor(scr_col, scr_row); */
-                    /* fwrite(p, 1, char_len, stdout); */
-                    buffered_putchar(back_buffer, scr_row,
-                                     scr_col, p[0],
-                                     fg_color, bg_color);
-                    scr_col++;
-                }
+            if (cur_pos == cursor_pos) { // is_cursor
+                fg_color = BRIGHT_WHITE_FG_COLOR;
+                bg_color = GREEN_BG_COLOR;
             }
-            rel_col++; // Увеличиваем счётчик длины строки
-            p += char_len; // Переходим к следующему символу
-            cur_pos++;
+
+            // Если текущая строка достигает максимальной
+            // ширины отображения
+            if (rel_col >= rel_max_width) {
+                inc_rel_row();
+            }
+
+            // Если максимальное количество строк достигнуто
+            if (rel_row > (rel_max_rows + from_row)) {
+                break;  // Прекращаем вывод
+            }
+
+            if (codepoint == '\n') {
+                // Если текущий символ - перевод строки
+                fullfiller();  // Заполняем оставшееся филлером
+                inc_rel_row(); // Переходим на следующую строку
+            } else {
+                if (codepoint == '\0') {
+                    // Если текущий символ - завершающий нулевой байт
+                    if (is_not_skipped_row()) {
+                        // Если мы не пропускаем
+                        // Выводим символ END_OF_TEXT
+                        /* moveCursor(scr_col, scr_row); */
+                        buffered_putchar(back_buffer, scr_row,
+                                         scr_col, U'⍿',
+                                         fg_color, bg_color);
+                        scr_col++;
+                    }
+                    if (is_highlighted) {
+                        // Убираем выделение если оно есть
+                        reset_highlight_color();
+                    }
+                    // выходим из цикла
+                    break;
+                } else {
+                    // Обычный печатаемый символ
+                    if (is_not_skipped_row()) {
+                        // Если мы не пропускаем
+                        // Выводим UTF8-символ
+                        /* moveCursor(scr_col, scr_row); */
+                        buffered_putchar(back_buffer, scr_row,
+                                         scr_col, codepoint,
+                                         fg_color, bg_color);
+                        scr_col++;
+                    }
+                }
+                rel_col++; // Увеличиваем счётчик длины строки
+            }
+            byte_pos += char_len; // Переходим к след символу
         }
     }
 
@@ -445,13 +233,11 @@ int display_message(MsgNode* msgnode, int x, int y,
     return actual_rows;
 }
 
-void drawHorizontalLine(int cols, int y, char sym) {
-    /* moveCursor(1, y); */
-    /* for (int i = 0; i < cols; i++) { */
-    /*     /\* putchar(sym); *\/ */
-    /*     buffered_putchar(back_buffer, y - 1, i, sym, DEFAULT_FG_COLOR, DEFAULT_BG_COLOR); */
-    /*     fflush(stdout); */
-    /* } */
+void drawHorizontalLine(int cols, int y, char32_t sym) {
+    for (int i = 0; i < cols; i++) {
+        buffered_putchar(back_buffer, y - 1, i, sym,
+                         DEFAULT_FG_COLOR, DEFAULT_BG_COLOR);
+    }
 }
 
 
