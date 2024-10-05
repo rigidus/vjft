@@ -69,33 +69,14 @@ void reset_highlight_color() {
 }
 
 
-void render_text_window(const char* text,
-                        int window_x, int window_y,
-                        int window_width, int window_height,
-                        int cursor_pos, int marker_pos,
-                        int* scroll_offset) {
-    int text_pos = 0;     // Position in the text (in characters)
+// Calculate the total number of lines and positions
+// of each line start and end
+int get_lines (const char* text, int max_col, int max_row,
+               LineInfo* lines) {
     int byte_offset = 0;  // Byte offset in the text
+    int text_pos = 0;     // Position in the text (in characters)
     int current_col = 0;
-    int max_row = window_height;
-    int max_col = window_width;
-    int text_length = utf8_strlen(text);
-    int sel_start = min(cursor_pos, marker_pos);
-    int sel_end = max(cursor_pos, marker_pos);
-    bool is_highlighted = false;
 
-    // Calculate the total number of lines and positions of each line start
-    // so we can properly handle scrolling
-    typedef struct {
-        int byte_offset_start;
-        int text_pos_start;
-        int byte_offset_end;
-        int text_pos_end;
-    } LineInfo;
-
-    // Estimate maximum number of lines
-    int max_lines = text_length + 1;
-    LineInfo* lines = malloc(max_lines * sizeof(LineInfo));
     int lindex = 0;
 
     int start_byte_offset = 0;
@@ -134,6 +115,27 @@ void render_text_window(const char* text,
     lines[lindex].text_pos_end = text_pos;
     lindex++;
 
+    return lindex;
+}
+
+
+
+void render_text_window(const char* text,
+                        int window_x, int window_y,
+                        int max_col, int max_row,
+                        int cursor_pos, int marker_pos,
+                        int* scroll_offset) {
+    int text_length = utf8_strlen(text);
+
+    // Estimate maximum number of lines
+    int max_lines = text_length + 1;
+    LineInfo* lines = malloc(max_lines * sizeof(LineInfo));
+
+    int lindex = get_lines(text, max_col, max_row, lines);
+
+    int sel_start = min(cursor_pos, marker_pos);
+    int sel_end = max(cursor_pos, marker_pos);
+    bool is_highlighted = false;
     /* // dbg  out */
     /* for (int current_row = 0; current_row < lindex; current_row++) { */
     /*     char is_text[1024] = {0}; */
@@ -180,9 +182,9 @@ void render_text_window(const char* text,
         int line_idx = *scroll_offset + current_row;
 
         // Render the line
-        byte_offset = lines[line_idx].byte_offset_start;
-        text_pos = lines[line_idx].text_pos_start;
-        current_col = 0;
+        int byte_offset = lines[line_idx].byte_offset_start;
+        int text_pos = lines[line_idx].text_pos_start;
+        int current_col = 0;
 
         while (current_col < max_col
                && text_pos < text_length

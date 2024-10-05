@@ -30,6 +30,14 @@ void calc_display_size(const char* text, int max_width, int cursor_pos,
 
 extern MsgList msgList;
 
+typedef struct {
+    int byte_offset_start;
+    int text_pos_start;
+    int byte_offset_end;
+    int text_pos_end;
+} LineInfo;
+
+
 #define FILLER U':' // '▒'
 
 void render_text_window(const char* text,
