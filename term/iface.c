@@ -233,9 +233,16 @@ int display_message(MsgNode* msgnode, int x, int y,
     return actual_rows;
 }
 
-void drawHorizontalLine(int cols, int y, char32_t sym) {
-    for (int i = 0; i < cols; i++) {
-        buffered_putchar(back_buffer, y - 1, i, sym,
+void drawHorizontalLine(int x, int y, int cols, char32_t sym) {
+    for (int i = x; i < x + cols; i++) {
+        buffered_putchar(back_buffer, y, i, sym,
+                         DEFAULT_FG_COLOR, DEFAULT_BG_COLOR);
+    }
+}
+
+void drawVerticalLine(int x, int y, int rows, char32_t sym) {
+    for (int i = y; i < y + rows; i++) {
+        buffered_putchar(back_buffer, i, x, sym,
                          DEFAULT_FG_COLOR, DEFAULT_BG_COLOR);
     }
 }

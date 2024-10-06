@@ -20,8 +20,6 @@
 extern ActionStackElt* undoStack;
 extern ActionStackElt* redoStack;
 
-void drawHorizontalLine(int cols, int y, char32_t sym);
-
 volatile int win_cols = 0;
 volatile int win_rows = 0;
 
@@ -281,11 +279,10 @@ void handle_winch(int sig) {
 void reDraw() {
     int ib_need_cols = 0, ib_need_rows = 0,
         ib_cursor_row = 0, ib_cursor_col = 0,
-        ib_from_row = 0,
-        ib_abs_x = 0, ib_abs_y = 0;
-
+        ib_from_row = 0;
+    int vert = 25;
+    int ib_rel_max_width = win_cols - vert - 5;
     // Вычисляем относительную позицию курсора в inputbuffer-е
-    int ib_rel_max_width = 20;
     calc_display_size(msgList.curr->text, ib_rel_max_width,
                       msgList.curr->cursor_pos,
                       &ib_need_cols, &ib_need_rows,
@@ -295,51 +292,64 @@ void reDraw() {
 
     clearMiniBuffer();
 
-    // Формируем текст для минибуфера с позицией курсора
-    // в строке inputBuffer-a относительной позицией в
-    // строке и столбце минибуфера
+    // Формируем текст для минибуфера с:
+    // - позицией курсора в строке inputBuffer-a
+    // - относительной позицией в строке и столбце минибуфера
     char mb_text[MAX_BUFFER] = {0};
     snprintf(mb_text, MAX_BUFFER,
-             "cur_pos=%d\nmar_pos=%d\ncur_row=%d\n"
-             "cur_col=%d\nib_need_rows=%d\nib_from_row=%d\n",
+             "cur_pos=%d\n" "mar_pos=%d\n" "cur_row=%d\n"
+             "cur_col=%d\n" "ib_need_rows=%d\n" "ib_from_row=%d\n"
+             "win_rows=%d\n",
              msgList.curr->cursor_pos, msgList.curr->marker_pos,
              ib_cursor_row, ib_cursor_col, ib_need_rows,
-             ib_from_row);
+             ib_from_row, win_rows);
     appendToMiniBuffer(mb_text);
-
+    appendToMiniBuffer("CtrlStack: ");
     dispCtrlStack();
-
-    /* dispExEv(gHistoryEventQueue); */
-
+    dispExEv(gHistoryEventQueue);
     appendToMiniBuffer("\nUndoStack: ");
     displayStack(undoStack);
     appendToMiniBuffer("\nRedoStack: ");
     displayStack(redoStack);
 
     // Отображение минибуфера
-    /* int mb_max_col = win_cols-2, mb_max_row = 10; */
-    /* int max_lines = miniBuffer.size + 1; */
-    /* LineInfo* lines = malloc(max_lines * sizeof(LineInfo)); */
-    /* max_lines = get_lines(miniBuffer.buffer, */
-    /*                        mb_max_col, mb_max_row, lines); */
 
-    /* int mb_scroll_offset = 0; */
-    /* render_text_window(miniBuffer.buffer, */
-    /*                    1, win_rows - max_lines, */
-    /*                    mb_max_col, mb_max_row, */
-    /*                    -1, -1, */
-    /*                    &mb_scroll_offset); */
-    int max_lines = 10;
+    int mb_need_cols = 0, mb_need_rows = 0,
+        mb_cursor_row = 0, mb_cursor_col = 0,
+        mb_from_row = 0,
+        mb_abs_x = 1;
+
+    // Вычисляем относительную позицию курсора в inputbuffer-е
+    int mb_rel_max_width = win_cols-2;
+    calc_display_size(miniBuffer.buffer, mb_rel_max_width,
+                      -1, // no cursor
+                      &mb_need_cols, &mb_need_rows,
+                      &mb_cursor_row, &mb_cursor_col);
+
+    // Добавим еще немного в минибуфер
+    char mb_text2[MAX_BUFFER] = {0};
+    snprintf(mb_text2, MAX_BUFFER,
+             "\nmb_need_rows=%d\n" "mb_need_cols=%d\n",
+             mb_need_rows, mb_need_cols);
+    appendToMiniBuffer(mb_text2);
+
+    // Перевычислим
+    mb_rel_max_width = win_cols-2;
+    calc_display_size(miniBuffer.buffer, mb_rel_max_width,
+                      -1, // no cursor
+                      &mb_need_cols, &mb_need_rows,
+                      &mb_cursor_row, &mb_cursor_col);
+
+    // Отобразим минибуффер
     display_wrapped(
         miniBuffer.buffer,
-        1, win_rows - max_lines,
-        win_cols-2, win_rows,
-        0,
-        -1,
-        -1);
+        mb_abs_x, win_rows - mb_need_rows,
+        mb_need_cols, mb_need_rows,
+        mb_from_row, -1,-1);
 
-
-    int bottom = win_rows - max_lines - 2;
+    int bottom = win_rows - mb_need_rows + 1;
+    drawHorizontalLine(0, bottom, win_cols, U'―');
+    bottom -= 2;
 
     // INPUTBUFFER ::::::::::::::::::::::::::::::::::::::::::
 
@@ -368,20 +378,23 @@ void reDraw() {
         ib_from_row = 0;
     }
     // Определяем абсолютные координаты верхней строки
-    int up = bottom + 1 - ib_need_rows;
+    int up = bottom - ib_need_rows;
     // Выводим
     if (msgList.curr) {
         display_wrapped(
             msgList.curr->text,
-            ib_abs_x, ib_abs_y,
+            vert+3, up,
             ib_rel_max_width,
             ib_need_rows,
             ib_from_row,
             msgList.curr->cursor_pos,
             msgList.curr->marker_pos);
     }
-    drawHorizontalLine(win_cols, up-1, U'―');
-    // Возвращаем номер строки выше отображения inputbuffer
+    // Выводим линии
+    drawHorizontalLine(vert, up-1, win_cols - vert,       U'―');
+    drawVerticalLine  (vert, 0,    up + ib_need_rows + 2, U'|');
+
+    /* Возвращаем номер строки выше отображения inputbuffer */
     bottom =  up - 2;
 
     // OUTPUT BUFFER

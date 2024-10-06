@@ -164,6 +164,9 @@ void resize_buffers(int new_rows, int new_cols);
 void buffered_putchar(ScreenBuffer *buffer, int row, int col,
                       char32_t sym, int fg_color, int bg_color);
 
+void drawHorizontalLine(int x, int y, int cols, char32_t sym);
+void drawVerticalLine(int x, int y, int rows, char32_t sym);
+
 size_t char32_to_utf8(char32_t c, char *out);
 void render_screen();
 
