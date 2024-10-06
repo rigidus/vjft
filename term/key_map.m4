@@ -462,10 +462,10 @@ XY(`KEY_CYRILLIC_SOFTSIGN', 2, "ь", 1)
 XY(`KEY_SHIFT_CYRILLIC_SOFTSIGN', 2, "Ь", 1)
 XY(`KEY_ALT_CYRILLIC_SOFTSIGN', 3, "\x1bь", 0)
 XY(`KEY_SHIFT_ALT_CYRILLIC_SOFTSIGN', 3, "\x1bЬ", 0)
-XY(`KEY_COLON', 1, ",", 1)
+XY(`KEY_COMMA', 1, "\x2c", 1)
 XY(`KEY_SHIFT_COMMA_IS_LESS ', 1, "<", 1)
-XY(`KEY_ALT_COLON', 2, "\x1b\x2c", 0)
-XY(`KEY_SHIFT_ALT_COLON', 2, "\x1b\x3c", 0) /* not C- & C-M */
+XY(`KEY_ALT_COMMA', 2, "\x1b\x2c", 0)
+XY(`KEY_SHIFT_ALT_COMMA', 2, "\x1b\x3c", 0) /* not C- & C-M */
 XY(`KEY_CYRILLIC_BE ', 2, "б", 1)
 XY(`KEY_SHIFT_CYRILLIC_BE ', 2, "Б", 1)
 XY(`KEY_ALT_CYRILLIC_BE ', 3, "\x1bб", 0)
