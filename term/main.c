@@ -14,6 +14,7 @@
 #include "event.h"
 #include "mbuf.h"
 #include "history.h"
+#include "client.h"
 
 #define MAX_BUFFER 1024
 
@@ -501,7 +502,38 @@ volatile bool need_redraw = true;
 
 int sockfd = -1;
 
-int main() {
+int main(int argc, char* argv[]) {
+    if (argc < 7) {
+        fprintf(stderr, "Usage: %s host port private_key_file password pub_key_file1 pub_key_file2 ...\n", argv[0]);
+        return 1;
+    }
+
+    const char* host = argv[1];
+    int port = atoi(argv[2]);
+    const char* private_key_file = argv[3];
+    const char* password = argv[4];
+    size_t peer_count = argc - 5; // Количество публичных ключей
+    const char** public_key_files = malloc(peer_count * sizeof(char*));
+
+    if (!public_key_files) {
+        perror("Memory allocation failed");
+        return 1;
+    }
+
+    for (int i = 0; i < peer_count; i++) {
+        public_key_files[i] = argv[5 + i];
+    }
+
+    client_t client;
+    if (client_init(&client, host, port,
+                    private_key_file, password,
+                    public_key_files, peer_count) != 0) {
+        fprintf(stderr, "Failed to initialize client\n");
+        free(public_key_files);
+        return 1;
+    }
+
+
     reinitializeState();
 
     // Отключение буферизации для stdout
@@ -530,6 +562,7 @@ int main() {
 
 
     /* connect_to_server("127.0.0.1", 8888); */
+
 
 
     fd_set read_fds;
@@ -624,6 +657,9 @@ int main() {
     clearStack(&undoStack);
 
     freeMiniBuffer();
+
+    client_close(&client);
+    free(public_key_files);
 
     return 0;
 }
