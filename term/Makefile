@@ -61,14 +61,17 @@ etags:
 	find . -name "*.[chCH]" -print | etags -
 
 
+srv:
+	../srv/chat_server 8888
+
 alice:
-	./a.out 127.0.0.1 9090 alice_private_key.pem qwe123 bob_public_key.pem carol_public_key.pem
+	./a.out 127.0.0.1 8888 alice_private_key.pem qwe123 bob_public_key.pem carol_public_key.pem
 
 bob:
-	./a.out 127.0.0.1 9090 bob_private_key.pem qwe123 alice_public_key.pem carol_public_key.pem
+	./a.out 127.0.0.1 8888 bob_private_key.pem qwe123 alice_public_key.pem carol_public_key.pem
 
 carol:
-	./a.out 127.0.0.1 9090 carol_private_key.pem qwe123 bob_public_key.pem alice_public_key.pem
+	./a.out 127.0.0.1 8888 carol_private_key.pem qwe123 bob_public_key.pem alice_public_key.pem
 
 
 gen_alice:

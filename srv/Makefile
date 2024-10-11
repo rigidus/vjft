@@ -52,6 +52,16 @@ Utils.o: Utils.cpp Utils.hpp defs.hpp Log.hpp defs.hpp
 	$(CXX) $(CXXFLAGS) -c Utils.cpp
 
 
+bob:
+	./chat_client bob 127.0.0.1 8888 bob_private_key.pem alice_public_key.pem carol_public_key.pem
+
+alice:
+	./chat_client alice 127.0.0.1 8888 alice_private_key.pem bob_public_key.pem carol_public_key.pem
+
+carol:
+	./chat_client carol 127.0.0.1 8888 carol_private_key.pem alice_public_key.pem bob_public_key.pem
+
+
 .PHONY: clean
 
 clean:

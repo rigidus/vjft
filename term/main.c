@@ -79,8 +79,7 @@ KeyMap keyCommands[] = {
     KEY_COMMAND("CMD_UNDO", cmd_undo, NULL, KEY_CTRL_BACKSPACE)
     KEY_COMMAND("CMD_REDO", cmd_redo, NULL, KEY_ALT_BACKSPACE)
     KEY_COMMAND("CMD_SET_MARKER", cmd_set_marker, NULL, KEY_CTRL_BACKTICK)
-    KEY_COMMAND("CMD_UNSET_MARKER", cmd_unset_marker, NULL,
-                KEY_SHIFT_ALT_CTRL_2_IS_ALT_CTRL_ATSIGN)
+    KEY_COMMAND("CMD_UNSET_MARKER", cmd_unset_marker, NULL, KEY_SHIFT_ALT_CTRL_2_IS_ALT_CTRL_ATSIGN)
 };
 
 
@@ -499,7 +498,7 @@ void reinitializeState() {
 #define READ_TIMEOUT 50000 // 50000 микросекунд (50 миллисекунд)
 #define SLEEP_TIMEOUT 100000 // 100 микросекунд
 volatile bool need_redraw = true;
-
+client_t client;
 int sockfd = -1;
 
 int main(int argc, char* argv[]) {
@@ -524,7 +523,6 @@ int main(int argc, char* argv[]) {
         public_key_files[i] = argv[5 + i];
     }
 
-    client_t client;
     if (client_init(&client, host, port,
                     private_key_file, password,
                     public_key_files, peer_count) != 0) {

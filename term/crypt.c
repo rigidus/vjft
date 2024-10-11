@@ -30,7 +30,9 @@ EVP_PKEY* load_key_from_file(const char* key_file, int is_private, const char* p
 
 // Реализация функций encipher и decipher, адаптированная на C
 
-unsigned char* encipher(EVP_PKEY* private_key, EVP_PKEY* public_key, const unsigned char* msg, size_t msg_len, size_t* out_len) {
+unsigned char* encipher(EVP_PKEY* private_key, EVP_PKEY* public_key,
+                        const unsigned char* msg, size_t msg_len,
+                        size_t* out_len) {
     // Реализация функции шифрования на C
     // Используйте EVP_PKEY_encrypt и связанные функции из OpenSSL
     // Верните зашифрованные данные и их длину через out_len

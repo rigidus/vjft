@@ -2,6 +2,8 @@
 
 #include "event.h"
 #include "msg.h"
+#include "client.h"
+
 
 MsgList msgList = {0};
 pthread_mutex_t msgList_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -65,7 +67,8 @@ void enqueueEvent(InputEvent** eventQueue,
     X(cmd_forward_word)                         \
     X(cmd_toggle_cursor)                        \
     X(cmd_set_marker)                           \
-    X(cmd_unset_marker)
+    X(cmd_unset_marker)                         \
+    X(cmd_enter)
 
 typedef struct {
     CmdFunc func;
@@ -423,29 +426,38 @@ Action* cmd_alt_enter(MsgNode* node, InputEvent* event) {
     return NULL;
 }
 
+extern client_t client;
+
 Action* cmd_enter(MsgNode* msg, InputEvent* event) {
     /* pushMessage(&msgList, "enter function"); */
-    /* if (msgList.curr == NULL) { */
-    /*     pushMessage(&msgList, "cmd_enter_err: Нет сообщения для отправки"); */
-    /*     return NULL; */
-    /* } */
-    /* const char* text = node->text; */
-    /* if (text == NULL || strlen(text) == 0) { */
-    /*     pushMessage(&msgList, "cmd_enter_err: Текущее сообщение пусто"); */
-    /*     return NULL; */
-    /* } */
-    /* if (sockfd <= 0) { */
-    /*     pushMessage(&msgList, "cmd_enter_err: Нет соединения"); */
-    /*     return NULL; */
-    /* } */
 
-    /* ssize_t bytes_sent = send(sockfd, text, strlen(text), 0); */
-    /* if (bytes_sent < 0) { */
-    /*     pushMessage(&msgList, "cmd_enter_err: Ошибка при отправке сообщения"); */
-    /* } else { */
-    /*     pushMessage(&msgList, "cmd_enter: отправлено успешно"); */
-    /* } */
+    size_t len = strlen(msg->text);
 
+    if (len == 0) {
+        return NULL;
+    }
+
+    // Send the message over the network
+    if (client.sockfd != -1) {
+        if (client_send(&client, (unsigned char*)msg->text, len) != 0) {
+            pushMessage(&msgList, "Failed to send message");
+            exit(1);
+        }
+    } else {
+        // No connection
+        pushMessage(&msgList, "Not connected to server");
+    }
+
+    // Add the message to the message list for local display
+    pushMessage(&msgList, msg->text);
+
+    // Clear the input buffer
+    free(msg->text);
+    msg->text = strdup("");
+    msg->cursor_pos = 0;
+    msg->marker_pos = -1;
+
+    // [NOTE:gmm] Можно ли отменить посылку сообщения?
     return NULL;
 }
 

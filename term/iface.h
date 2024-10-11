@@ -42,15 +42,6 @@ typedef struct {
 
 #define FILLER U' ' //U'▒'
 
-int get_lines (const char* text, int max_col, int max_row,
-               LineInfo* lines);
-
-void render_text_window(const char* text,
-                        int window_x, int window_y,
-                        int max_col, int max_row,
-                        int cursor_pos, int marker_pos,
-                        int* scroll_offset);
-
 // Основная функция для вывода текста с учётом переноса строк
 void display_wrapped(const char* text, int abs_x, int abs_y,
                      int rel_max_width, int rel_max_rows,
