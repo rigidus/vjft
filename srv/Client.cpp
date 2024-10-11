@@ -404,7 +404,7 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
             socket_,
             boost::asio::buffer(write_msgs_.front().data(), write_msgs_.front().size()),
             boost::bind(&Client::WriteHandler, this, _1));
-    }
+	}
 }
 
 void Client::WriteHandler(const boost::system::error_code& error) {

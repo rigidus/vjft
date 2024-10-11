@@ -450,7 +450,7 @@ std::vector<unsigned char> Crypt::encipher(
     uint16_t msg_size = static_cast<uint16_t>(msg.size());
     LOG_HEX("original msg size in hex", msg_size, 2);
 
-    // -> Write msg_zise to envelope, after random
+    // -> Write msg_size to envelope, after random
     // (the least significant byte comes first)
     envelope.push_back(static_cast<unsigned char>(msg_size & 0xFF));
     envelope.push_back(static_cast<unsigned char>((msg_size >> 8) & 0xFF));

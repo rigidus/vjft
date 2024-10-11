@@ -3,9 +3,19 @@
 
 #include "all_libs.h"
 
+
+
 EVP_PKEY* load_key_from_file(const char* key_file, int is_private, const char* password);
 
-unsigned char* encipher(EVP_PKEY* private_key, EVP_PKEY* public_key, const unsigned char* msg, size_t msg_len, size_t* out_len);
+#define HASH_SIZE 32
+
+int calc_crc(const unsigned char* msg, size_t msg_len,
+             unsigned char* hash);
+
+unsigned char* encipher(EVP_PKEY* private_key, EVP_PKEY* public_key,
+                        const unsigned char* msg, int msg_len,
+                        size_t* out_len);
+
 
 unsigned char* decipher(EVP_PKEY* private_key, EVP_PKEY* public_key, const unsigned char* encrypted_data, size_t encrypted_len, size_t* out_len);
 
