@@ -5,30 +5,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-EVP_PKEY* load_key_from_file(const char* key_file, int is_private, const char* password) {
-    FILE* fp = fopen(key_file, "r");
-    if (!fp) {
-        fprintf(stderr, "Error opening key file: %s\n", key_file);
-        return NULL;
-    }
-
-    EVP_PKEY* key = NULL;
-    if (is_private) {
-        key = PEM_read_PrivateKey(fp, NULL, NULL, (void*)password);
-    } else {
-        key = PEM_read_PUBKEY(fp, NULL, NULL, NULL);
-    }
-    fclose(fp);
-
-    if (!key) {
-        fprintf(stderr, "Error loading key: %s\n", ERR_error_string(ERR_get_error(), NULL));
-        return NULL;
-    }
-
-    return key;
-}
-
-
 int calc_crc(const char* msg, size_t msg_len,
             unsigned char* hash) {
     // Инициализация хэша нулями
@@ -208,9 +184,10 @@ unsigned char** split_buffer(const unsigned char* buffer,
 }
 
 
-#define LOG_TXT(msg)                                                      \
-if (DBG_MSG > 0) {                                                        \
-    fprintf(stderr, "Err: %s\n :>%s::%s", msg, __FILE__, __FUNCTION__);   \
+#define LOG_TXT(msg)                                \
+if (DBG_MSG > 0) {                                  \
+    fprintf(stderr, "Err: %s\n :>%s::%s", msg,      \
+    __FILE__, __FUNCTION__);                        \
 }
 
 unsigned char* encrypt_chunk(const unsigned char* chunk,
@@ -352,13 +329,98 @@ unsigned char* encipher(EVP_PKEY* private_key,
         exit(-1);
     }
 
-    // [TODO:gmm] Continue here...
-    // encrypt_chunks
-    // make_pack
-    // free memory for signature
-    // and return
+    // Allocate enc_chunks
+    unsigned char** enc_chunks = malloc(num_chunks * sizeof(unsigned char*));
+    if (enc_chunks == NULL) {
+        fprintf(stderr, "Err: memory allocation for enc_chunks\n");
+        exit(-1);
+    }
 
+    // Encrypt each chunk
+    for (size_t i = 0; i < num_chunks; i++) {
+        size_t encrypted_len = 0;
+        enc_chunks[i] =
+            encrypt_chunk(chunks[i], CHUNK_SIZE,
+                          public_key, &encrypted_len);
+        if (enc_chunks[i] == NULL) {
+            fprintf(stderr,
+                    "Err: encryption failed for chunk %zu\n", i);
+            // Free previously allocated encrypted chunks
+            for (size_t j = 0; j < i; j++) {
+                free(enc_chunks[j]);
+            }
+            free(enc_chunks);
+            exit(-1);
+        }
+        if (encrypted_len != ENC_CHUNK_SIZE) {
+            fprintf(stderr,
+                    "Err: unexpected encrypted chunk size %zu\n", i);
+            // Free all encrypted chunks
+            for (size_t j = 0; j <= i; j++) {
+                free(enc_chunks[j]);
+            }
+            free(enc_chunks);
+            exit(-1);
+        }
+    }
+
+    // Allocate pack buffer
+    unsigned char *pack =
+        malloc(2 + num_chunks * ENC_CHUNK_SIZE);
+
+    // Save count of enc_chunks to pack
+    uint16_t pack_size = num_chunks;
+    if (pack_size != num_chunks) {
+        perror("Err: num_chunks too long");
+        exit(-1);
+    }
+    memcpy(pack, &pack_size, 2);
+
+    // Copy the encrypted chunks into pack
+    for (size_t i = 0; i < num_chunks; i++) {
+        memcpy(pack + 2 + i * ENC_CHUNK_SIZE, enc_chunks[i], ENC_CHUNK_SIZE);
+    }
+
+    // Clean up allocated memory
+    free(rnd_arr);
+    free(msg_crc);
+    OPENSSL_free(msg_sign);
+    free(env);
+    for (size_t i = 0; i < num_chunks; i++) {
+        free(chunks[i]);
+        free(enc_chunks[i]);
+    }
+    free(chunks);
+    free(enc_chunks);
+
+    *out_len = 2 + num_chunks * ENC_CHUNK_SIZE;
+    return pack;
 }
+
+
+EVP_PKEY* load_key_from_file(const char* key_file, int is_private, const char* password) {
+    FILE* fp = fopen(key_file, "r");
+    if (!fp) {
+        fprintf(stderr, "Error opening key file: %s\n", key_file);
+        return NULL;
+    }
+
+    EVP_PKEY* key = NULL;
+    if (is_private) {
+        key = PEM_read_PrivateKey(fp, NULL, NULL, (void*)password);
+    } else {
+        key = PEM_read_PUBKEY(fp, NULL, NULL, NULL);
+    }
+    fclose(fp);
+
+    if (!key) {
+        fprintf(stderr, "Error loading key: %s\n", ERR_error_string(ERR_get_error(), NULL));
+        return NULL;
+    }
+
+    return key;
+}
+
 
 unsigned char* decipher(EVP_PKEY* private_key, EVP_PKEY* public_key, const unsigned char* encrypted_data, size_t encrypted_len, size_t* out_len) {
     // Реализация функции дешифрования на C
