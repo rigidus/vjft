@@ -148,6 +148,120 @@ int calc_sign(const char* msg, EVP_PKEY* key,
 }
 
 
+unsigned char** split_buffer(const unsigned char* buffer,
+                             size_t buffer_length,
+                             size_t chunk_size,
+                             size_t* num_chunks) {
+    if (buffer == NULL || chunk_size == 0 || num_chunks == NULL) {
+        // Некорректные параметры
+        return NULL;
+    }
+
+    // Вычисляем количество чанков
+    *num_chunks = buffer_length / chunk_size;
+    if (buffer_length % chunk_size != 0) {
+        (*num_chunks)++;
+    }
+
+    // Выделяем память для массива указателей на чанки
+    unsigned char** chunks =
+        (unsigned char**)malloc(*num_chunks * sizeof(unsigned char*));
+    if (chunks == NULL) {
+        // Ошибка выделения памяти
+        return NULL;
+    }
+
+    // Разбиваем буфер на чанки
+    size_t offset = 0;
+    for (size_t i = 0; i < *num_chunks; i++) {
+        // Выделяем память для каждого чанка
+        chunks[i] = (unsigned char*)malloc(chunk_size);
+        if (chunks[i] == NULL) {
+            // Ошибка выделения памяти,
+            // освобождаем ранее выделенную память
+            for (size_t j = 0; j < i; j++) {
+                free(chunks[j]);
+            }
+            free(chunks);
+            return NULL;
+        }
+
+        // Определяем количество байт для копирования
+        size_t bytes_to_copy = chunk_size;
+        if (offset + bytes_to_copy > buffer_length) {
+            bytes_to_copy = buffer_length - offset;
+        }
+
+        // Копируем данные в чанк
+        memcpy(chunks[i], buffer + offset, bytes_to_copy);
+
+        // Дополняем нулями, если последний чанк неполный
+        if (bytes_to_copy < chunk_size) {
+            memset(chunks[i] + bytes_to_copy, 0,
+                   chunk_size - bytes_to_copy);
+        }
+
+        offset += bytes_to_copy;
+    }
+
+    return chunks;
+}
+
+
+#define LOG_TXT(msg)                                                      \
+if (DBG_MSG > 0) {                                                        \
+    fprintf(stderr, "Err: %s\n :>%s::%s", msg, __FILE__, __FUNCTION__);   \
+}
+
+unsigned char* encrypt_chunk(const unsigned char* chunk,
+                             size_t chunk_len,
+                             EVP_PKEY* public_key,
+                             size_t* encrypted_len) {
+    size_t encrypted_length = 0;
+    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(public_key, NULL);
+    if (!ctx) {
+        LOG_TXT("Error creating context for encryption");
+        return NULL;
+    }
+
+    if (EVP_PKEY_encrypt_init(ctx) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        LOG_TXT("Error initializing encryption");
+        return NULL;
+    }
+
+    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        LOG_TXT("Error setting RSA padding");
+        return NULL;
+    }
+
+    if (EVP_PKEY_encrypt(ctx, NULL, &encrypted_length, chunk, chunk_len) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        LOG_TXT("Error determining buffer length for encryption");
+        return NULL;
+    }
+
+    unsigned char* encrypted = (unsigned char*)malloc(encrypted_length);
+    if (!encrypted) {
+        EVP_PKEY_CTX_free(ctx);
+        LOG_TXT("Error allocating memory for encryption");
+        return NULL;
+    }
+
+    if (EVP_PKEY_encrypt(ctx, encrypted, &encrypted_length, chunk, chunk_len) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        free(encrypted);
+        LOG_TXT("Error encrypting message");
+        return NULL;
+    }
+
+    EVP_PKEY_CTX_free(ctx);
+    *encrypted_len = encrypted_length;
+    return encrypted;
+}
+
+
 unsigned char* encipher(EVP_PKEY* private_key,
                         EVP_PKEY* public_key,
                         const char* msg,
@@ -229,8 +343,16 @@ unsigned char* encipher(EVP_PKEY* private_key,
     memcpy(env+1+rnd_size+HASH_SIZE, msg_sign, SIG_SIZE);
     memcpy(env+1+rnd_size+HASH_SIZE+SIG_SIZE, msg, msg_size);
 
+    // Split to chunks
+    size_t num_chunks = 0;
+    unsigned char** chunks =
+        split_buffer(env, env_size, CHUNK_SIZE, &num_chunks);
+    if (chunks == NULL) {
+        fprintf(stderr, "Err: split chunks\n");
+        exit(-1);
+    }
+
     // [TODO:gmm] Continue here...
-    // split_chunks
     // encrypt_chunks
     // make_pack
     // free memory for signature

@@ -526,7 +526,7 @@ std::vector<unsigned char> Crypt::encipher(
     // Split envelope to chunks
     std::vector<std::vector<unsigned char>> chunks = split_vec(envelope, CHUNK_SIZE);
 
-    // Encrypt every chunk with pubkey and wrute to enc_chunks
+    // Encrypt every chunk with pubkey and write to enc_chunks
     std::vector<std::vector<unsigned char>> enc_chunks;
     for (const auto& chunk : chunks) {
 #if (DBG_CRYPT > 0)
