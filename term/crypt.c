@@ -29,7 +29,7 @@ EVP_PKEY* load_key_from_file(const char* key_file, int is_private, const char* p
 }
 
 
-int calc_crc(const unsigned char* msg, size_t msg_len,
+int calc_crc(const char* msg, size_t msg_len,
             unsigned char* hash) {
     // Инициализация хэша нулями
     memset(hash, 0, HASH_SIZE);
@@ -81,19 +81,90 @@ int calc_crc(const unsigned char* msg, size_t msg_len,
 }
 
 
-unsigned char* encipher(EVP_PKEY* private_key, EVP_PKEY* public_key,
-                        const unsigned char* msg, int msg_len,
+int calc_sign(const char* msg, EVP_PKEY* key,
+              size_t* sign_len, unsigned char** sign_ret)
+{
+    // Create the Message Digest Context
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_create();
+    if (mdctx == NULL) {
+        fprintf(stderr, "Err: Sign: Failed to create EVP_MD_CTX\n");
+        return -1;
+    }
+
+    // Initialise the DigestSign operation - SHA-256
+    // has been selected as the message digest function
+    if (1 != EVP_DigestSignInit(mdctx, NULL, EVP_sha256(),
+                               NULL, key)) {
+        EVP_MD_CTX_free(mdctx);
+        fprintf(stderr, "Err: Sign: initializing signing: %s\n",
+                ERR_error_string(ERR_get_error(), NULL));
+        return -1;
+    }
+
+    // Call update with the message
+    if (1 != EVP_DigestSignUpdate(mdctx, msg,
+                                 strlen(msg))) {
+        EVP_MD_CTX_free(mdctx);
+        fprintf(stderr, "Err: Sign: updating signing: %s\n",
+                ERR_error_string(ERR_get_error(), NULL));
+        return -1;
+    }
+
+    // Finalise the DigestSign operation
+    // First call EVP_DigestSignFinal with a NULL
+    // sig parameter to obtain the length of the
+    // signature. Length is returned in slen
+    if (1 != EVP_DigestSignFinal(mdctx, NULL, sign_len)) {
+        EVP_MD_CTX_free(mdctx);
+        fprintf(stderr, "Err: Sign: finalizing signing: %s\n",
+                ERR_error_string(ERR_get_error(), NULL));
+        return -1;
+    }
+
+    // Allocate memory for the signature
+    // based on size in slen
+    unsigned char* sign = OPENSSL_malloc(*sign_len);
+    if (!sign) {
+        EVP_MD_CTX_free(mdctx);
+        fprintf(stderr, "Err: Sign: allocate signature buffer\n");
+        return -1;
+    }
+
+    // Obtain the signature
+    if (1 != EVP_DigestSignFinal(mdctx, sign, sign_len)) {
+        EVP_MD_CTX_free(mdctx);
+        OPENSSL_free(sign);
+        sign = NULL;
+        fprintf(stderr, "Err: Sign: getting signature: %s\n",
+                ERR_error_string(ERR_get_error(), NULL));
+        return -1;
+    }
+
+    // Success
+    EVP_MD_CTX_free(mdctx);
+    *sign_ret = sign;
+    /* after use we need make OPENSSL_free(sign); */
+    return 1;
+}
+
+
+unsigned char* encipher(EVP_PKEY* private_key,
+                        EVP_PKEY* public_key,
+                        const char* msg,
+                        int msg_len,
                         size_t* out_len) {
     // rnd_arr - array of unsigned char of random length
-    // from 0 to 255 and random content, which is necessary to make
-    // it impossible to guess the meaning of the message by its length
-    // (for example, for short messages like "yes" or "no").
+    // from 0 to 255 and random content, which is
+    // necessary to make it impossible to guess the
+    // meaning of the message by its length (for
+    // example, for short messages like "yes" or "no").
     srand(time(NULL));
     unsigned int rnd_len = rand() % 256;
     if (rnd_len == 0) {
         rnd_len = 255;
     }
-    unsigned char *rnd_arr = malloc(rnd_len * sizeof(unsigned char));
+    unsigned char *rnd_arr =
+        malloc(rnd_len * sizeof(unsigned char));
     if (rnd_arr == NULL) {
         perror("Err: enchipher memory allocation");
         exit(-1);
@@ -111,21 +182,31 @@ unsigned char* encipher(EVP_PKEY* private_key, EVP_PKEY* public_key,
     }
 
     // Calculate msg_crc
-    unsigned char *hash = malloc(HASH_SIZE * sizeof(unsigned char));
+    unsigned char *hash =
+        malloc(HASH_SIZE * sizeof(unsigned char));
     if (-1 == calc_crc(msg, msg_len, hash)) {
         perror("Err: bad crc");
         exit(-1);
     }
 
+    // Calculate msg_sign
+    size_t sign_len = 0;
+    unsigned char *sign = NULL;
+    if (-1 == calc_sign(msg, private_key, &sign_len, &sign)) {
+        perror("Err: bad sign");
+        exit(-1);
+    }
+
+
 
     // [TODO:gmm] Continue here...
-    // msg_sign
+    // [TODO:gmm] calculate envelope size and malloc
 
     /** Finally Envelope:
         +---------------+
-        | random_len    | 1 byte
+        | rnd_len       | 1 byte
         +---------------+
-        | random...     |
+        | rnd_arr...    |
         |   (0-0xFF)    | 0..0xFF bytes
         +---------------+
         | msg_size      | 2 bytes
