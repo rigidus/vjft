@@ -159,20 +159,20 @@ unsigned char* encipher(EVP_PKEY* private_key,
     // meaning of the message by its length (for
     // example, for short messages like "yes" or "no").
     srand(time(NULL));
-    unsigned int rnd_len = rand() % 256;
-    if (rnd_len == 0) {
-        rnd_len = 255;
+    unsigned int rnd_size = rand() % 256;
+    if (rnd_size == 0) {
+        rnd_size = 255;
     }
     unsigned char *rnd_arr =
-        malloc(rnd_len * sizeof(unsigned char));
+        malloc(rnd_size * sizeof(unsigned char));
     if (rnd_arr == NULL) {
         perror("Err: enchipher memory allocation");
         exit(-1);
     }
-    for (unsigned int i = 0; i < rnd_len; i++) {
+    for (unsigned int i = 0; i < rnd_size; i++) {
         rnd_arr[i] = rand() % 256;
     }
-    // now we have rnd_len and rnd_arr
+    // now we have rnd_size and rnd_arr
 
     // Calculate msg_size in bytes
     uint16_t msg_size = msg_len;
@@ -182,46 +182,58 @@ unsigned char* encipher(EVP_PKEY* private_key,
     }
 
     // Calculate msg_crc
-    unsigned char *hash =
+    unsigned char *msg_crc =
         malloc(HASH_SIZE * sizeof(unsigned char));
-    if (-1 == calc_crc(msg, msg_len, hash)) {
+    if (-1 == calc_crc(msg, msg_len, msg_crc)) {
         perror("Err: bad crc");
         exit(-1);
     }
 
     // Calculate msg_sign
     size_t sign_len = 0;
-    unsigned char *sign = NULL;
-    if (-1 == calc_sign(msg, private_key, &sign_len, &sign)) {
+    unsigned char *msg_sign = NULL;
+    if (-1 == calc_sign(msg, private_key, &sign_len, &msg_sign)) {
         perror("Err: bad sign");
         exit(-1);
     }
 
-
-
-    // [TODO:gmm] Continue here...
-    // [TODO:gmm] calculate envelope size and malloc
-
-    /** Finally Envelope:
+    // Calculate envelope size
+    /** Envelope:
         +---------------+
-        | rnd_len       | 1 byte
+        | rnd_size      | 1 byte
         +---------------+
-        | rnd_arr...    |
-        |   (0-0xFF)    | 0..0xFF bytes
+        | rnd_arr...    | 1..255 bytes
         +---------------+
         | msg_size      | 2 bytes
         +---------------+
-        | msg_crc       | 32 bytes
+        | msg_crc       | 32 bytes (HASH_SIZE)
         +---------------+
-        | msg_sign      | 512 bytes
+        | msg_sign      | 512 bytes (SIG_SIZE)
         +---------------+
-        | msg           | variable bytes
+        | msg...        | msg_size bytes
         +---------------+
     */
+    int env_size =
+        1 + rnd_size + 2 + HASH_SIZE + SIG_SIZE + msg_size;
 
+    // Allocate envelope buffer
+    unsigned char *env =
+        malloc(env_size * sizeof(unsigned char));
+
+    // Write to envelope
+    uint8_t rnd_size_byte = rnd_size;
+    memcpy(env, &(rnd_size_byte), 1);
+    memcpy(env+1, rnd_arr, rnd_size);
+    memcpy(env+1+rnd_size, &msg_size, 2);
+    memcpy(env+1+rnd_size+2, msg_crc, HASH_SIZE);
+    memcpy(env+1+rnd_size+HASH_SIZE, msg_sign, SIG_SIZE);
+    memcpy(env+1+rnd_size+HASH_SIZE+SIG_SIZE, msg, msg_size);
+
+    // [TODO:gmm] Continue here...
     // split_chunks
     // encrypt_chunks
     // make_pack
+    // free memory for signature
     // and return
 
 }
