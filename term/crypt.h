@@ -4,7 +4,7 @@
 #include "all_libs.h"
 
 #define DBG 0
-#define DBG_MSG 0
+#define DBG_MSG 1
 #define DBG_CRYPT 0
 
 #define SIG_SIZE 512
@@ -35,8 +35,22 @@
 #define READ_QUEUE_SIZE 32
 #define SYNC_MARKER_SIZE 32
 
+#define LOG_HEX(msg, value, size)                           \
+    if (DBG_MSG > 0) {                                      \
+        printf(":> %s :: %s(): ", __FILE__, __FUNCTION__);  \
+        printf(" %s:\n", msg);                              \
+        for (int i = 0; i < size; i++) {                    \
+            printf("%02x ", *(value + i));                  \
+        }                                                   \
+        printf("\n");                                       \
+    }
 
-EVP_PKEY* load_key_from_file(const char* key_file, int is_private, const char* password);
+
+#define LOG_TXT(msg)                                \
+    if (DBG_MSG > 0) {                              \
+        fprintf(stderr, "Err: %s\n :>%s::%s", msg,  \
+                __FILE__, __FUNCTION__);            \
+    }
 
 int calc_crc(const char* msg, size_t msg_len,
              unsigned char* hash);
@@ -55,5 +69,9 @@ unsigned char* decipher(EVP_PKEY* private_key,
                         EVP_PKEY* public_key,
                         const unsigned char* pack,
                         size_t* msg_len_out);
+
+EVP_PKEY* load_key_from_file(const char* key_file, int is_private,
+                             const char* password);
+
 
 #endif // CRYPT_H

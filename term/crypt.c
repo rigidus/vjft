@@ -183,13 +183,6 @@ unsigned char** split_buffer(const unsigned char* buffer,
     return chunks;
 }
 
-
-#define LOG_TXT(msg)                                \
-if (DBG_MSG > 0) {                                  \
-    fprintf(stderr, "Err: %s\n :>%s::%s", msg,      \
-    __FILE__, __FUNCTION__);                        \
-}
-
 unsigned char* encrypt_chunk(const unsigned char* chunk,
                              size_t chunk_len,
                              EVP_PKEY* public_key,
@@ -279,6 +272,8 @@ unsigned char* encipher(EVP_PKEY* private_key,
         perror("Err: bad crc");
         exit(-1);
     }
+
+    LOG_HEX("msc_crc", msg_crc, HASH_SIZE);
 
     // Calculate msg_sign
     size_t sign_len = 0;

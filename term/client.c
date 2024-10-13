@@ -1,5 +1,4 @@
 #include "client.h"
-
 #include "crypt.h"
 
 int client_init(client_t* client,
