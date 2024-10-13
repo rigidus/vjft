@@ -45,11 +45,15 @@ int calc_sign(const char* msg, EVP_PKEY* key,
               size_t* sign_len, unsigned char** sign_ret);
 
 
-unsigned char* encipher(EVP_PKEY* private_key, EVP_PKEY* public_key,
-                        const char* msg, int msg_len,
+unsigned char* encipher(EVP_PKEY* private_key,
+                        EVP_PKEY* public_key,
+                        const char* msg,
+                        int msg_len,
                         size_t* out_len);
 
-
-unsigned char* decipher(EVP_PKEY* private_key, EVP_PKEY* public_key, const unsigned char* encrypted_data, size_t encrypted_len, size_t* out_len);
+unsigned char* decipher(EVP_PKEY* private_key,
+                        EVP_PKEY* public_key,
+                        const unsigned char* pack,
+                        size_t* msg_len_out);
 
 #endif // CRYPT_H
