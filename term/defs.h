@@ -1,16 +1,8 @@
 #ifndef DEFS_H
 #define DEFS_H
 
-#ifndef DBG
-  #define DBG 0
-#endif
-
 #ifndef DBG_MSG
   #define DBG_MSG 0
-#endif
-
-#ifndef DBG_MSG
-  #define DBG_CRYPT 0
 #endif
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
