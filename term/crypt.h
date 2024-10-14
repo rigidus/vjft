@@ -40,7 +40,7 @@
         printf(":> %s :: %s(): ", __FILE__, __FUNCTION__);  \
         printf(" %s:\n", msg);                              \
         for (int i = 0; i < size; i++) {                    \
-            printf("%02x ", *(value + i));                  \
+            printf("%02x ", *((uint8_t*)value + i));        \
         }                                                   \
         printf("\n");                                       \
     }
@@ -68,7 +68,7 @@ unsigned char* encipher(EVP_PKEY* private_key,
 unsigned char* decipher(EVP_PKEY* private_key,
                         EVP_PKEY* public_key,
                         const unsigned char* pack,
-                        size_t* msg_len_out);
+                        size_t in_len);
 
 EVP_PKEY* load_key_from_file(const char* key_file, int is_private,
                              const char* password);

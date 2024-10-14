@@ -540,12 +540,11 @@ int main(int argc, char* argv[]) {
     }
 
     // Вывод зашифрованного сообщения в шестнадцатеричном формате
-    LOG_HEX("Encrypted message:\n", encrypted_msg, encrypted_len);
+    LOG_HEX("Encrypted message", encrypted_msg, encrypted_len);
 
     // Дешифрование сообщения
-    size_t decrypted_len = 0;
     unsigned char* decrypted_msg =
-        decipher(private_key, public_key, encrypted_msg, &decrypted_len);
+        decipher(private_key, public_key, encrypted_msg, encrypted_len);
     if (!decrypted_msg) {
         fprintf(stderr, "Decryption failed\n");
         free(encrypted_msg);
@@ -554,15 +553,15 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Вывод расшифрованного сообщения
-    printf("Decrypted message: %s\n", decrypted_msg);
+    /* // Вывод расшифрованного сообщения */
+    /* printf("Decrypted message: %s\n", decrypted_msg); */
 
-    // Освобождение ресурсов
-    free(encrypted_msg);
-    free(decrypted_msg);
-    EVP_PKEY_free(private_key);
-    EVP_PKEY_free(public_key);
-    /* ERR_free_strings(); */
+    /* // Освобождение ресурсов */
+    /* free(encrypted_msg); */
+    /* free(decrypted_msg); */
+    /* EVP_PKEY_free(private_key); */
+    /* EVP_PKEY_free(public_key); */
+    /* /\* ERR_free_strings(); *\/ */
 
     return 0;
 
