@@ -4,7 +4,7 @@ M4_HEAD=key_map.m4
 
 OBJECTS=$(SOURCES:.c=.o)
 M4_HEADERS=$(M4_HEAD:.m4=.h)
-HEADERS=all_libs.h key_map.h key.h term.h utf8.h msg.h ctrlstk.h iface.h kbd.h event.h mbuf.h history.h client.h crypt.h
+HEADERS=defs.h all_libs.h key_map.h key.h term.h utf8.h msg.h ctrlstk.h iface.h kbd.h event.h mbuf.h history.h client.h crypt.h
 
 # Библиотеки для линковки
 LIBS=-lssl -lcrypto
@@ -41,8 +41,8 @@ test: test.c
 	gcc -o test test.c
 
 # Правило для тестирования encipher/decipher
-ende: crypt.c ende.c
-	gcc -o $@ $^ $(LIBS)
+ende: all_libs.h defs.h crypt.h crypt.c ende.c
+	gcc -o $@ -DDBG_MSG=1 $^ $(LIBS)
 
 # valgrind
 valgrind:

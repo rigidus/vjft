@@ -1,9 +1,6 @@
+#include "all_libs.h"
+
 #include "crypt.h"
-#include <openssl/pem.h>
-#include <openssl/err.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 
 int calc_crc(const char* msg, size_t msg_len,
             unsigned char* hash) {

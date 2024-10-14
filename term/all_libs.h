@@ -1,10 +1,8 @@
 // all_libs.h
-
 #ifndef ALL_LIBS_H
 #define ALL_LIBS_H
 
-#define min(a, b) ((a) < (b) ? (a) : (b))
-#define max(a, b) ((a) > (b) ? (a) : (b))
+#include "defs.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,5 +22,7 @@
 #include <stddef.h>
 #include <uchar.h>
 #include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
 
 #endif

@@ -1,4 +1,5 @@
 //ende.c
+#include "defs.h"
 
 #include "all_libs.h"
 
@@ -8,7 +9,6 @@ int main(int argc, char* argv[]) {
 
     // Инициализация OpenSSL
     OpenSSL_add_all_algorithms();
-    /* ERR_load_CRYPTO_strings(); */
 
     // Загрузка ключей
     EVP_PKEY* private_key =
