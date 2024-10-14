@@ -40,6 +40,10 @@ key_map.h: $(M4_HEAD)
 test: test.c
 	gcc -o test test.c
 
+# Правило для тестирования encipher/decipher
+ende: crypt.c ende.c
+	gcc -o $@ $^ $(LIBS)
+
 # valgrind
 valgrind:
 	valgrind --leak-check=full ./$(TARGET)

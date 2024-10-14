@@ -187,7 +187,6 @@ unsigned char* encrypt_chunk(const unsigned char* chunk,
                              size_t chunk_len,
                              EVP_PKEY* public_key,
                              size_t* encrypted_len) {
-    size_t encrypted_length = 0;
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(public_key, NULL);
     if (!ctx) {
         LOG_TXT("Error creating context for encryption");
@@ -200,26 +199,32 @@ unsigned char* encrypt_chunk(const unsigned char* chunk,
         return NULL;
     }
 
-    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
+    if (EVP_PKEY_CTX_set_rsa_padding(ctx,
+                                     RSA_PKCS1_OAEP_PADDING) <= 0) {
         EVP_PKEY_CTX_free(ctx);
         LOG_TXT("Error setting RSA padding");
         return NULL;
     }
 
-    if (EVP_PKEY_encrypt(ctx, NULL, &encrypted_length, chunk, chunk_len) <= 0) {
+    size_t encrypted_length = 0;
+
+    if (EVP_PKEY_encrypt(ctx, NULL, &encrypted_length, chunk,
+                         chunk_len) <= 0) {
         EVP_PKEY_CTX_free(ctx);
         LOG_TXT("Error determining buffer length for encryption");
         return NULL;
     }
 
-    unsigned char* encrypted = (unsigned char*)malloc(encrypted_length);
+    unsigned char* encrypted =
+        (unsigned char*)malloc(encrypted_length);
     if (!encrypted) {
         EVP_PKEY_CTX_free(ctx);
         LOG_TXT("Error allocating memory for encryption");
         return NULL;
     }
 
-    if (EVP_PKEY_encrypt(ctx, encrypted, &encrypted_length, chunk, chunk_len) <= 0) {
+    if (EVP_PKEY_encrypt(ctx, encrypted, &encrypted_length, chunk,
+                         chunk_len) <= 0) {
         EVP_PKEY_CTX_free(ctx);
         free(encrypted);
         LOG_TXT("Error encrypting message");
@@ -236,7 +241,11 @@ unsigned char* encipher(EVP_PKEY* private_key,
                         EVP_PKEY* public_key,
                         const char* msg,
                         int msg_len,
-                        size_t* out_len) {
+                        size_t* out_len)
+{
+    printf("msg: %s\n", msg);
+    LOG_HEX("msg", msg, msg_len);
+
     // rnd_arr - array of unsigned char of random length
     // from 0 to 255 and random content, which is
     // necessary to make it impossible to guess the
@@ -257,7 +266,7 @@ unsigned char* encipher(EVP_PKEY* private_key,
         rnd_arr[i] = rand() % 256;
     }
     LOG_HEX("rnd_size", &rnd_size, 1);
-    LOG_HEX("rnd_arr", rnd_arr, rnd_size);
+    /* LOG_HEX("rnd_arr", rnd_arr, rnd_size); */
     // now we have rnd_size and rnd_arr
 
     // Calculate msg_size in bytes
@@ -284,7 +293,7 @@ unsigned char* encipher(EVP_PKEY* private_key,
         perror("Err: bad sign");
         exit(-1);
     }
-    LOG_HEX("msc_sign", msg_sign, SIG_SIZE);
+    /* LOG_HEX("msc_sign", msg_sign, SIG_SIZE); */
 
     // Calculate envelope size
     /** Envelope:
@@ -314,8 +323,8 @@ unsigned char* encipher(EVP_PKEY* private_key,
     memcpy(env+1, rnd_arr, rnd_size);
     memcpy(env+1+rnd_size, &msg_size, 2);
     memcpy(env+1+rnd_size+2, msg_crc, HASH_SIZE);
-    memcpy(env+1+rnd_size+HASH_SIZE, msg_sign, SIG_SIZE);
-    memcpy(env+1+rnd_size+HASH_SIZE+SIG_SIZE, msg, msg_size);
+    memcpy(env+1+rnd_size+2+HASH_SIZE, msg_sign, SIG_SIZE);
+    memcpy(env+1+rnd_size+2+HASH_SIZE+SIG_SIZE, msg, msg_size);
 
     // Split to chunks
     size_t num_chunks = 0;
@@ -368,7 +377,7 @@ unsigned char* encipher(EVP_PKEY* private_key,
 
     // Save count of enc_chunks to pack
     uint16_t pack_size = num_chunks;
-    LOG_HEX("pack_size", &pack_size, 2);
+    /* LOG_HEX("pack_size", &pack_size, 2); */
 
     if (pack_size != num_chunks) {
         perror("Err: num_chunks too long");
@@ -381,7 +390,7 @@ unsigned char* encipher(EVP_PKEY* private_key,
         memcpy(pack + 2 + i * ENC_CHUNK_SIZE, enc_chunks[i],
                ENC_CHUNK_SIZE);
     }
-    LOG_HEX("pack", pack, 2 + pack_size * ENC_CHUNK_SIZE);
+    /* LOG_HEX("pack", pack, 2 + pack_size * ENC_CHUNK_SIZE); */
 
     // Clean up allocated memory
     free(rnd_arr);
@@ -417,7 +426,8 @@ unsigned char* decrypt_chunk(const unsigned char* encrypted_chunk,
         return NULL;
     }
 
-    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
+    if (EVP_PKEY_CTX_set_rsa_padding(ctx,
+                                     RSA_PKCS1_OAEP_PADDING) <= 0) {
         EVP_PKEY_CTX_free(ctx);
         LOG_TXT("Error setting RSA padding");
         return NULL;
@@ -431,7 +441,8 @@ unsigned char* decrypt_chunk(const unsigned char* encrypted_chunk,
         return NULL;
     }
 
-    unsigned char* decrypted = (unsigned char*)malloc(outlen);
+    unsigned char* decrypted =
+        (unsigned char*)malloc(outlen);
     if (!decrypted) {
         EVP_PKEY_CTX_free(ctx);
         LOG_TXT("Error allocating memory for decryption");
@@ -497,12 +508,12 @@ int verify_sign(const char* msg, size_t msg_len,
 unsigned char* decipher(EVP_PKEY* private_key, EVP_PKEY* public_key,
                         const unsigned char* pack, size_t in_len) {
 
-    LOG_HEX("pack", pack, in_len);
+    /* LOG_HEX("pack", pack, in_len); */
 
     // Get pack_size (in enc_chunks)
     uint16_t pack_size;
     memcpy(&pack_size, pack, 2);
-    LOG_HEX("pack_size", (uint8_t*)&pack_size, 2);
+    /* LOG_HEX("pack_size", (uint8_t*)&pack_size, 2); */
 
     // Allocate array for decrypted chunks
     unsigned char** decrypted_chunks =
@@ -522,7 +533,8 @@ unsigned char* decipher(EVP_PKEY* private_key, EVP_PKEY* public_key,
             decrypt_chunk(enc_chunk_ptr, ENC_CHUNK_SIZE,
                           private_key, &dec_chunk_len);
         if (!dec_chunk) {
-            fprintf(stderr, "Err: decryption failed for chunk %zu\n", i);
+            fprintf(stderr,
+                    "Err: decryption failed for chunk %zu\n", i);
             // Clean up
             for (size_t j = 0; j < i; j++) {
                 free(decrypted_chunks[j]);
@@ -532,7 +544,7 @@ unsigned char* decipher(EVP_PKEY* private_key, EVP_PKEY* public_key,
         }
         if (dec_chunk_len != CHUNK_SIZE) {
             fprintf(stderr,
-                    "Err: unexpected decrypted chunk size at chunk %zu\n",
+                    "Err: decrypted chunk size at chunk %zu\n",
                     i);
             // Clean up
             for (size_t j = 0; j <= i; j++) {
@@ -545,117 +557,129 @@ unsigned char* decipher(EVP_PKEY* private_key, EVP_PKEY* public_key,
         total_decrypted_len += dec_chunk_len;
     }
 
-    /* // Merge decrypted chunks into env */
-    /* unsigned char* env = malloc(total_decrypted_len); */
-    /* if (!env) { */
-    /*     fprintf(stderr, "Err: memory allocation for env\n"); */
-    /*     // Clean up */
-    /*     for (size_t i = 0; i < pack_size; i++) { */
-    /*         free(decrypted_chunks[i]); */
-    /*     } */
-    /*     free(decrypted_chunks); */
-    /*     return NULL; */
-    /* } */
-    /* for (size_t i = 0; i < pack_size; i++) { */
-    /*     memcpy(env + i * CHUNK_SIZE, decrypted_chunks[i], CHUNK_SIZE); */
-    /*     free(decrypted_chunks[i]); */
-    /* } */
-    /* free(decrypted_chunks); */
+    // Merge decrypted chunks into env
+    unsigned char* env = malloc(total_decrypted_len);
+    if (!env) {
+        fprintf(stderr, "Err: memory allocation for env\n");
+        // Clean up
+        for (size_t i = 0; i < pack_size; i++) {
+            free(decrypted_chunks[i]);
+        }
+        free(decrypted_chunks);
+        return NULL;
+    }
+    for (size_t i = 0; i < pack_size; i++) {
+        memcpy(env + i * CHUNK_SIZE, decrypted_chunks[i], CHUNK_SIZE);
+        free(decrypted_chunks[i]);
+    }
+    free(decrypted_chunks);
 
 
-    /* // Now parse env to extract rnd_size and rnd_arr */
-    /* size_t offset = 0; */
-    /* if (total_decrypted_len < 1) { */
-    /*     fprintf(stderr, "Err: env too small\n"); */
-    /*     free(env); */
-    /*     return NULL; */
-    /* } */
-    /* uint8_t rnd_size = env[offset]; */
-    /* offset += 1; */
+    // Now parse env to extract rnd_size and rnd_arr
+    size_t offset = 0;
+    if (total_decrypted_len < 1) {
+        fprintf(stderr, "Err: env too small\n");
+        free(env);
+        return NULL;
+    }
+    uint8_t rnd_size = env[offset];
+    offset += 1;
 
-    /* if (rnd_size == 0) { */
-    /*     fprintf(stderr, "Err: invalid rnd_size\n"); */
-    /*     free(env); */
-    /*     return NULL; */
-    /* } */
-    /* if (offset + rnd_size > total_decrypted_len) { */
-    /*     fprintf(stderr, "Err: env too small for rnd_arr\n"); */
-    /*     free(env); */
-    /*     return NULL; */
-    /* } */
-    /* // Skipping rnd_arr */
-    /* offset += rnd_size; */
+    LOG_HEX("rnd_size", &rnd_size, 1);
+
+    if (rnd_size == 0) {
+        fprintf(stderr, "Err: invalid rnd_size\n");
+        free(env);
+        return NULL;
+    }
+    if (offset + rnd_size > total_decrypted_len) {
+        fprintf(stderr, "Err: env too small for rnd_arr\n");
+        free(env);
+        return NULL;
+    }
+    // Skipping rnd_arr
+    offset += rnd_size;
 
 
-    /* // msg_size */
-    /* if (offset + 2 > total_decrypted_len) { */
-    /*     fprintf(stderr, "Err: env too small for msg_size\n"); */
-    /*     free(env); */
-    /*     return NULL; */
-    /* } */
-    /* uint16_t msg_size; */
-    /* memcpy(&msg_size, env + offset, 2); */
-    /* offset += 2; */
+    // msg_size
+    if (offset + 2 > total_decrypted_len) {
+        fprintf(stderr, "Err: env too small for msg_size\n");
+        free(env);
+        return NULL;
+    }
+    uint16_t msg_size;
+    memcpy(&msg_size, env + offset, 2);
+    offset += 2;
 
-    /* // msg_crc */
-    /* if (offset + HASH_SIZE > total_decrypted_len) { */
-    /*     fprintf(stderr, "Err: env too small for msg_crc\n"); */
-    /*     free(env); */
-    /*     return NULL; */
-    /* } */
-    /* unsigned char* msg_crc = env + offset; */
-    /* offset += HASH_SIZE; */
+    LOG_HEX("msg_size", &msg_size, 2);
 
-    /* // msg_sign */
-    /* if (offset + SIG_SIZE > total_decrypted_len) { */
-    /*     fprintf(stderr, "Err: env too small for msg_sign\n"); */
-    /*     free(env); */
-    /*     return NULL; */
-    /* } */
-    /* unsigned char* msg_sign = env + offset; */
-    /* offset += SIG_SIZE; */
+    // msg_crc
+    if (offset + HASH_SIZE > total_decrypted_len) {
+        fprintf(stderr, "Err: env too small for msg_crc\n");
+        free(env);
+        return NULL;
+    }
+    unsigned char* msg_crc = env + offset;
+    offset += HASH_SIZE;
 
-    /* // msg */
-    /* if (offset + msg_size > total_decrypted_len) { */
-    /*     fprintf(stderr, "Err: env too small for msg\n"); */
-    /*     free(env); */
-    /*     return NULL; */
-    /* } */
-    /* unsigned char* msg = env + offset; */
+    LOG_HEX("msg_crc", msg_crc, HASH_SIZE);
 
-    /* // Now, verify msg_crc */
-    /* unsigned char computed_crc[HASH_SIZE]; */
-    /* if (calc_crc((const char*)msg, msg_size, computed_crc) == -1) { */
-    /*     fprintf(stderr, "Err: calc_crc failed\n"); */
-    /*     free(env); */
-    /*     return NULL; */
-    /* } */
-    /* if (memcmp(computed_crc, msg_crc, HASH_SIZE) != 0) { */
-    /*     fprintf(stderr, "Err: CRC mismatch\n"); */
-    /*     free(env); */
-    /*     return NULL; */
-    /* } */
+    // msg_sign
+    if (offset + SIG_SIZE > total_decrypted_len) {
+        fprintf(stderr, "Err: env too small for msg_sign\n");
+        free(env);
+        return NULL;
+    }
+    unsigned char* msg_sign = env + offset;
+    offset += SIG_SIZE;
 
-    /* // Now, verify msg_sign */
-    /* if (verify_sign((const char*)msg, msg_size, msg_sign, SIG_SIZE, public_key) != 1) { */
-    /*     fprintf(stderr, "Err: signature verification failed\n"); */
-    /*     free(env); */
-    /*     return NULL; */
-    /* } */
+    /* LOG_HEX("msg_sign", msg_sign, SIG_SIZE); */
 
-    /* // Copy msg to a new buffer to return */
-    /* unsigned char* msg_ret = malloc(msg_size); */
-    /* if (!msg_ret) { */
-    /*     fprintf(stderr, "Err: memory allocation for msg_ret\n"); */
-    /*     free(env); */
-    /*     return NULL; */
-    /* } */
-    /* memcpy(msg_ret, msg, msg_size); */
-    /* /\* *msg_len_out = msg_size; *\/ */
+    // msg
+    if (offset + msg_size > total_decrypted_len) {
+        fprintf(stderr, "Err: env too small for msg\n");
+        free(env);
+        return NULL;
+    }
+    unsigned char* msg = env + offset;
+
+    LOG_HEX("msg", msg, msg_size);
+    printf("msg: %s\n", msg);
+
+    // Now, verify msg_crc
+    unsigned char computed_crc[HASH_SIZE];
+    if (calc_crc((const char*)msg, msg_size, computed_crc) == -1) {
+        fprintf(stderr, "Err: calc_crc failed\n");
+        free(env);
+        return NULL;
+    }
+    if (memcmp(computed_crc, msg_crc, HASH_SIZE) != 0) {
+        fprintf(stderr, "Err: CRC mismatch\n");
+        free(env);
+        return NULL;
+    }
+
+    // Now, verify msg_sign
+    if (verify_sign((const char*)msg, msg_size, msg_sign,
+                    SIG_SIZE, public_key) != 1) {
+        fprintf(stderr, "Err: signature verification failed\n");
+        free(env);
+        return NULL;
+    }
+
+    // Copy msg to a new buffer to return
+    unsigned char* msg_ret = malloc(msg_size);
+    if (!msg_ret) {
+        fprintf(stderr, "Err: memory allocation for msg_ret\n");
+        free(env);
+        return NULL;
+    }
+    memcpy(msg_ret, msg, msg_size);
+    /* *msg_len_out = msg_size; */
 
     /* // Clean up */
-    /* free(env); */
-    /* return msg_ret; */
+    free(env);
+    return msg_ret;
 }
 
 

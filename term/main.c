@@ -540,7 +540,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Вывод зашифрованного сообщения в шестнадцатеричном формате
-    LOG_HEX("Encrypted message", encrypted_msg, encrypted_len);
+    /* LOG_HEX("Encrypted message", encrypted_msg, encrypted_len); */
 
     // Дешифрование сообщения
     unsigned char* decrypted_msg =
