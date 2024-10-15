@@ -62,8 +62,24 @@ int client_init(client_t* client,
 }
 
 int client_send(client_t* client, const unsigned char* data, size_t len) {
-    // Шифруем данные
-    /* std::vector<unsigned char> encrypted_data = encipher(client->private_key, client->peer_public_key, data, len); */
+
+    /* // Для каждого из ключей получателей.. */
+    /* for (auto i = 0; i < recipient_public_keys.size(); ++i) { */
+
+    /*  ... */
+
+    /*     // Шифруем данные */
+    /*     unsigned char* pack = */
+    /*         encipher(client->private_key, */
+    /*                  client->peer_public_key, */
+    /*                  data, */
+    /*                  len); */
+
+    /*  ... */
+
+    /*     // Добавляем packed_msg в очередь сообщений на отправку */
+    /*     write_msgs_.push_back(std::move(packed_msg)); */
+    /* } */
 
     // Отправляем данные
     ssize_t sent = send(client->sockfd, data, len, 0);

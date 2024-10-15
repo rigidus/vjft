@@ -488,13 +488,6 @@ Action* peekAction(const ActionStackElt* stack) {
     return stack->act;
 }
 
-// Инициализация состояния программы
-
-void reinitializeState() {
-    initMsgList(&msgList);
-    pushMessage(&msgList, "");
-}
-
 
 // Main
 
@@ -504,10 +497,13 @@ volatile bool need_redraw = true;
 client_t client;
 int sockfd = -1;
 
-int main(int argc, char* argv[]) {
-
+int main(int argc, char* argv[])
+{
     if (argc < 7) {
-        fprintf(stderr, "Usage: %s host port private_key_file password pub_key_file1 pub_key_file2 ...\n", argv[0]);
+        fprintf(stderr,
+                "Usage: %s host port private_key_file "
+                "password pub_key_file1 pub_key_file2 ...\n",
+                argv[0]);
         return 1;
     }
 
@@ -516,7 +512,8 @@ int main(int argc, char* argv[]) {
     const char* private_key_file = argv[3];
     const char* password = argv[4];
     size_t peer_count = argc - 5; // Количество публичных ключей
-    const char** public_key_files = malloc(peer_count * sizeof(char*));
+    const char** public_key_files =
+        malloc(peer_count * sizeof(char*));
 
     if (!public_key_files) {
         perror("Memory allocation failed");
@@ -536,7 +533,10 @@ int main(int argc, char* argv[]) {
     }
 
 
-    reinitializeState();
+    // Начальное состояние msgList
+    initMsgList(&msgList);
+    pushMessage(&msgList, "");
+
 
     // Отключение буферизации для stdout
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -563,10 +563,7 @@ int main(int argc, char* argv[]) {
     initMiniBuffer(128);
 
 
-    /* connect_to_server("127.0.0.1", 8888); */
-
-
-
+    // Основной цикл
     fd_set read_fds;
     struct timeval timeout;
     int maxfd;
@@ -580,7 +577,8 @@ int main(int argc, char* argv[]) {
 
         if (sockfd != -1) {
             FD_SET(sockfd, &read_fds);
-            maxfd = (STDIN_FILENO > sockfd ? STDIN_FILENO : sockfd) + 1;
+            maxfd =
+                (STDIN_FILENO > sockfd ? STDIN_FILENO : sockfd) + 1;
         } else {
             maxfd = STDIN_FILENO + 1;
         }
@@ -625,14 +623,15 @@ int main(int argc, char* argv[]) {
                                       &gEventQueue_mutex,
                                       input, &input_size,
                                       &log_window_start, win_rows)) {
-                        /* Тут не нужно дополнительных действий, т.к. */
-                        /* далее все будет перерисовано */
+                        // Тут не нужно дополнительных действий,
+                        // т.к. далее все будет перерисовано
                     }
                     need_redraw = true;
                 } else if (FD_ISSET(sockfd, &read_fds)) {
                     // NETWORK
                     char buffer[MAX_BUFFER];
-                    int nread = read(sockfd, buffer, sizeof(buffer) - 1);
+                    int nread = read(sockfd, buffer,
+                                     sizeof(buffer) - 1);
                     if (nread > 0) {
                         buffer[nread] = '\0';
                         pushMessage(&msgList, buffer);
