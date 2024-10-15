@@ -2,9 +2,6 @@
 
 #include "mbuf.h"
 
-// Глобальный минибуфер
-MiniBuffer miniBuffer = {NULL, 0, 0};
-
 // Функция для инициализации минибуфера
 void initMiniBuffer(size_t initial_capacity) {
     miniBuffer.buffer = malloc(initial_capacity);

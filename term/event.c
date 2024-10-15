@@ -757,7 +757,7 @@ Action* cmd_insert(MsgNode* node, InputEvent* event) {
             exit(EXIT_FAILURE);
         }
         // Записываем завершающий нуль в конец строки
-        memset(new_seq + new_seq_len - 2, 0, 1);
+        memset(new_seq + new_seq_len - 1, 0, 1);
         // Дописываем к new_seq новый event->seq (в конец)
         strncpy(new_seq + insert_seq_len,
                 event->seq, event_seq_len);

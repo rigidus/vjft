@@ -12,7 +12,6 @@ typedef struct {
     size_t capacity;  // Вместимость буфера
 } MiniBuffer;
 
-
 // Глобальный минибуфер
 extern MiniBuffer miniBuffer;
 

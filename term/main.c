@@ -198,9 +198,10 @@ bool keyb () {
 
 // Формируем отображение CtrlStack
 void dispCtrlStack() {
-    char buffer[MAX_BUFFER / 2] = {0};
+    char* buffer = malloc(MAX_BUFFER);
+
     // Указатель на конец буфера
-    char *ptr = buffer + sizeof(buffer) - 1;
+    char *ptr = buffer + MAX_BUFFER - 1;
     *ptr = '\0';  // Завершающий нуль-символ
 
     CtrlStack* selt = ctrlStack;
@@ -220,6 +221,7 @@ void dispCtrlStack() {
         ptr++; // Убираем ведущий пробел
     }
     appendToMiniBuffer(ptr);
+    free(buffer);
 }
 
 
@@ -278,6 +280,10 @@ volatile sig_atomic_t sig_winch_raised = false;
 void handle_winch(int sig) {
     sig_winch_raised = true;
 }
+
+// Глобальный минибуфер
+MiniBuffer miniBuffer = {NULL, 0, 0};
+
 
 void reDraw() {
     int ib_need_cols = 0, ib_need_rows = 0,
@@ -350,7 +356,7 @@ void reDraw() {
         mb_need_cols, mb_need_rows,
         mb_from_row, -1,-1);
 
-    int bottom = win_rows - mb_need_rows + 1;
+    int bottom = win_rows - mb_need_rows;
     drawHorizontalLine(0, bottom, win_cols, U'―');
     bottom -= 2;
 
@@ -560,6 +566,7 @@ int main(int argc, char* argv[])
     sa.sa_handler = handle_winch;
     sigaction(SIGWINCH, &sa, NULL);
 
+    // Инициализируем минибуффер
     initMiniBuffer(128);
 
 

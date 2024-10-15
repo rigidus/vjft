@@ -53,7 +53,7 @@ callgrind:
 	valgrind --tool=callgrind ./a.out
 
 gdb:
-	gdb $(TARGET)
+	gdb --args $(TARGET) 127.0.0.1 8888 alice_private_key.pem qwe123 bob_public_key.pem carol_public_key.pem
 #   # run
 #   # bt
 
