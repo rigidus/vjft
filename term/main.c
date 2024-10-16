@@ -502,6 +502,7 @@ Action* peekAction(const ActionStackElt* stack) {
 volatile bool need_redraw = true;
 client_t client;
 int sockfd = -1;
+int peer_count = 0; // Количество публичных ключей
 
 int main(int argc, char* argv[])
 {
@@ -517,7 +518,7 @@ int main(int argc, char* argv[])
     int port = atoi(argv[2]);
     const char* private_key_file = argv[3];
     const char* password = argv[4];
-    size_t peer_count = argc - 5; // Количество публичных ключей
+    peer_count = argc - 5; // Количество публичных ключей
     const char** public_key_files =
         malloc(peer_count * sizeof(char*));
 

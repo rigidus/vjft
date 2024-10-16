@@ -439,7 +439,7 @@ Action* cmd_enter(MsgNode* msg, InputEvent* event) {
 
     // Send the message over the network
     if (client.sockfd != -1) {
-        if (client_send(&client, (unsigned char*)msg->text, len) != 0) {
+        if (client_send(&client, (char*)msg->text, len) != 0) {
             pushMessage(&msgList, "Failed to send message");
             exit(1);
         }

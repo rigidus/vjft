@@ -389,7 +389,7 @@ void Client::WriteImpl(std::vector<unsigned char> msg) {
 
         // Debug print packed msg size
         LOG_HEX("packed_msg_size = [pack_sync_size[[envelope_chunk_size[envelope]]+[sync_marker]]] (hex)", packed_msg_size, 2);
-        LOG_VEC("packed_msg" , packed_msg);
+        LOG_VEC("packed_msg", packed_msg);
 
         // Теперь добавляем packed_msg в очередь сообщений на отправку
         write_msgs_.push_back(std::move(packed_msg));
@@ -418,7 +418,8 @@ void Client::WriteHandler(const boost::system::error_code& error) {
         if (!write_msgs_.empty()) {
             boost::asio::async_write(
                 socket_,
-                boost::asio::buffer(write_msgs_.front(), write_msgs_.front().size()),
+                boost::asio::buffer(write_msgs_.front(),
+									write_msgs_.front().size()),
                 boost::bind(&Client::WriteHandler, this, _1));
         }
     } else {

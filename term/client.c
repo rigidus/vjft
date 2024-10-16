@@ -61,33 +61,41 @@ int client_init(client_t* client,
     return 0;
 }
 
-int client_send(client_t* client, const unsigned char* data, size_t len) {
+int client_send(client_t* client,
+                const char* data,
+                size_t len)
+{
+    // sync_marker : 32 нулевых байта
+    uint8_t sync_marker[SYNC_SIZE] = {0};
 
-    /* // Для каждого из ключей получателей.. */
-    /* for (auto i = 0; i < recipient_public_keys.size(); ++i) { */
+    // Для каждого из ключей получателей..
+    for (int i = 0; i < peer_count; ++i) {
 
-    /*  ... */
+        // Шифрование
+        size_t out_len = 0;
+        uint8_t *encrypted =
+            encipher(client->private_key,
+                     client->peer_public_keys[i],
+                     data, len, &out_len);
 
-    /*     // Шифруем данные */
-    /*     unsigned char* pack = */
-    /*         encipher(client->private_key, */
-    /*                  client->peer_public_key, */
-    /*                  data, */
-    /*                  len); */
+        uint16_t packed_msg_size = 2 + out_len + SYNC_SIZE;
 
-    /*  ... */
+        uint8_t *packed_msg = malloc(packed_msg_size);
 
-    /*     // Добавляем packed_msg в очередь сообщений на отправку */
-    /*     write_msgs_.push_back(std::move(packed_msg)); */
-    /* } */
+        memcpy(packed_msg, &packed_msg_size, 2);
+        memcpy(packed_msg+2, encrypted, out_len);
+        memcpy(packed_msg+2+out_len, &sync_marker, SYNC_SIZE);
 
-    // Отправляем данные
-    ssize_t sent = send(client->sockfd, data, len, 0);
-    if (sent < 0) {
-        perror("send");
-        return -1;
+        // Добавляем packed_msg в очередь сообщений на отправку
+        /* write_msgs_.push_back(std::move(packed_msg)); */
+        // Пока вместо просто отправляем
+        ssize_t sent = send(client->sockfd, packed_msg, len, 0);
+        if (sent < 0) {
+            perror("send");
+            return -1;
+        }
+
     }
-
     return 0;
 }
 
