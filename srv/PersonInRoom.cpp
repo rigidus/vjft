@@ -74,6 +74,7 @@ void PersonInRoom::HeaderHandler(const boost::system::error_code& error) {
             strand_.wrap(boost::bind(&PersonInRoom::ReadHandler,
                                      shared_from_this(), _1, _2)));
     } else {
+		LOG_MSG("PersonInRoom::HEaderHandler LEaving");
         room_.Leave(shared_from_this());
     }
 }
@@ -121,6 +122,7 @@ void PersonInRoom::ReadHandler(
             strand_.wrap(boost::bind(&PersonInRoom::HeaderHandler,
                                      shared_from_this(), _1)));
     } else {
+		LOG_MSG("PersonInRoom::ReadHandler LEaving");
         room_.Leave(shared_from_this());
     }
 }
@@ -140,7 +142,7 @@ void PersonInRoom::WriteHandler(const boost::system::error_code& error) {
                                          shared_from_this(), _1)));
         }
     } else {
-        LOG_ERR("Message written successfully" << error.message());
+        LOG_ERR("Message written successfully: " << error.message());
         room_.Leave(shared_from_this());
     }
 }

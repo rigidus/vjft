@@ -62,6 +62,7 @@ void Client::Write(const std::vector<unsigned char>& msg) {
 }
 
 void Client::Close() {
+	LOG_ERR("CLient::CLose");
     io_service_.post(boost::bind(&Client::CloseImpl, this));
 }
 
@@ -142,6 +143,7 @@ void Client::HandleDataTimeout(const boost::system::error_code& error) {
 
         // Здесь мы можем попытаться закрыть текущее соединение
         // и начать процедуру восстановления соединения
+		LOG_ERR("Err HandleDataTimeout");
         CloseImpl();
 
         // Опционально, можно начать процедуру восстановления
@@ -253,6 +255,7 @@ void Client::HeaderHandler(const boost::system::error_code& error) {
                                 boost::asio::buffer(read_msg_.data(), need_read_size),
                                 boost::bind(&Client::ReadHandler, this, _1, _2));
     } else {
+		LOG_MSG("Close in HeaderHandler");
         CloseImpl();
     }
 }

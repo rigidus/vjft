@@ -656,12 +656,9 @@ int main(int argc, char* argv[])
                         pushMessage(&msgList, buffer);
                         need_redraw = true;
                     } else if (nread == 0) {
-                        fprintf(stderr,
-                                "Connection closed by server\n");
                         terminate = EXIT_CONNECTION_CLOSED;
                         goto exit;
                     } else {
-                        perror("read from socket failed");
                         terminate = EXIT_SOCKET_FAILED;
                         goto exit;
                     }
