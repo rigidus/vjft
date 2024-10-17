@@ -7,8 +7,8 @@ int client_init(client_t* client,
                 const char* password,
                 const char** peer_pub_key_files,
                 size_t peer_count) {
-    client->sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (client->sockfd < 0) {
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
         perror("socket");
         return -1;
     }
@@ -19,19 +19,19 @@ int client_init(client_t* client,
     server_addr.sin_port = htons(port);
     inet_pton(AF_INET, host, &server_addr.sin_addr);
 
-    if (connect(client->sockfd,
+    if (connect(sockfd,
                 (struct sockaddr*)&server_addr,
                 sizeof(server_addr)) < 0)
     {
         perror("connect");
-        close(client->sockfd);
+        close(sockfd);
         return -1;
     }
 
     client->private_key =
         load_key_from_file(priv_key_file, 1, password);
     if (!client->private_key) {
-        close(client->sockfd);
+        close(sockfd);
         return -1;
     }
 
@@ -39,7 +39,7 @@ int client_init(client_t* client,
         malloc(peer_count * sizeof(EVP_PKEY*));
     if (!client->peer_public_keys) {
         EVP_PKEY_free(client->private_key);
-        close(client->sockfd);
+        close(sockfd);
         return -1;
     }
 
@@ -53,7 +53,7 @@ int client_init(client_t* client,
             }
             free(client->peer_public_keys);
             EVP_PKEY_free(client->private_key);
-            close(client->sockfd);
+            close(sockfd);
             return -1;
         }
     }
@@ -89,9 +89,10 @@ int client_send(client_t* client,
         // Добавляем packed_msg в очередь сообщений на отправку
         /* write_msgs_.push_back(std::move(packed_msg)); */
         // Пока вместо просто отправляем
-        ssize_t sent = send(client->sockfd, packed_msg, len, 0);
+        ssize_t sent = send(sockfd, packed_msg, len, 0);
         if (sent < 0) {
             perror("send");
+            exit(1);
             return -1;
         }
 
@@ -101,7 +102,7 @@ int client_send(client_t* client,
 
 int client_receive(client_t* client, unsigned char* buffer, size_t max_len) {
     // Получаем данные (здесь вы можете реализовать буферизацию и обработку заголовков)
-    ssize_t received = recv(client->sockfd, buffer, max_len, 0);
+    ssize_t received = recv(sockfd, buffer, max_len, 0);
     if (received < 0) {
         perror("recv");
         return -1;
@@ -117,8 +118,8 @@ int client_receive(client_t* client, unsigned char* buffer, size_t max_len) {
 }
 
 void client_close(client_t* client) {
-    if (client->sockfd >= 0) {
-        close(client->sockfd);
+    if (sockfd >= 0) {
+        close(sockfd);
     }
     if (client->private_key) {
         EVP_PKEY_free(client->private_key);

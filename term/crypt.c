@@ -240,7 +240,6 @@ unsigned char* encipher(EVP_PKEY* private_key,
                         int msg_len,
                         size_t* out_len)
 {
-    printf("msg: %s\n", msg);
     LOG_HEX("msg", msg, msg_len);
 
     // rnd_arr - array of unsigned char of random length

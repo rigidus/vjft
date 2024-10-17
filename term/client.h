@@ -5,10 +5,11 @@
 
 #define SYNC_SIZE 32
 
+extern int sockfd;
 extern int peer_count;
 
 typedef struct {
-    int sockfd;
+
     EVP_PKEY* private_key;
     EVP_PKEY** peer_public_keys; // Массив указателей на pubkeys
     size_t peer_count; // Количество pubkeys

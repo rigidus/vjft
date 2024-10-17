@@ -19,6 +19,11 @@
 #include "client.h"
 #include "crypt.h"
 
+#define EXIT_NO_ERROR             1
+#define EXIT_CONNECTION_CLOSED    2
+#define EXIT_SOCKET_FAILED        3
+#define EXIT_SELECT_NO_SIGWINCH   4
+
 #define MAX_BUFFER 1024
 
 extern ActionStackElt* undoStack;
@@ -572,16 +577,20 @@ int main(int argc, char* argv[])
 
 
     // Основной цикл
-    fd_set read_fds;
+    fd_set read_fds, write_fds;
     struct timeval timeout;
     int maxfd;
 
-    bool terminate = false;
+    int terminate = false;
 
     while (!terminate) {
         // initialization for select
         FD_ZERO(&read_fds);
         FD_SET(STDIN_FILENO, &read_fds);
+        if (sockfd != -1) {
+            FD_SET(sockfd, &read_fds);
+            FD_SET(sockfd, &write_fds);
+        }
 
         if (sockfd != -1) {
             FD_SET(sockfd, &read_fds);
@@ -598,9 +607,7 @@ int main(int argc, char* argv[])
         int select_result;
         do {
             select_result =
-                select(maxfd, &read_fds, NULL, NULL, &timeout);
-                /* select(STDIN_FILENO + 1, */
-                /*        &read_fds, NULL, NULL, &timeout); */
+                select(maxfd, &read_fds, &write_fds, NULL, &timeout);
             if (select_result < 0) {
                 if (errno == EINTR) {
                     // Обработка прерывания вызова сигналом
@@ -612,6 +619,9 @@ int main(int argc, char* argv[])
                         need_redraw = true;
                         // Сбрасываем флаг сигнала
                         sig_winch_raised =  false;
+                    } else {
+                        terminate = EXIT_SELECT_NO_SIGWINCH;
+                        goto exit;
                     }
                     // Сейчас мы должны сразу перейти
                     // к отображению..
@@ -635,7 +645,8 @@ int main(int argc, char* argv[])
                         // т.к. далее все будет перерисовано
                     }
                     need_redraw = true;
-                } else if (FD_ISSET(sockfd, &read_fds)) {
+                } // else if ?
+                if (FD_ISSET(sockfd, &read_fds)) {
                     // NETWORK
                     char buffer[MAX_BUFFER];
                     int nread = read(sockfd, buffer,
@@ -644,8 +655,37 @@ int main(int argc, char* argv[])
                         buffer[nread] = '\0';
                         pushMessage(&msgList, buffer);
                         need_redraw = true;
+                    } else if (nread == 0) {
+                        fprintf(stderr,
+                                "Connection closed by server\n");
+                        terminate = EXIT_CONNECTION_CLOSED;
+                        goto exit;
+                    } else {
+                        perror("read from socket failed");
+                        terminate = EXIT_SOCKET_FAILED;
+                        goto exit;
                     }
                 }
+                /* if (FD_ISSET(sockfd, &write_fds)) { */
+                /*     char* msg; */
+                /*     while (dequeue(&outgoing_queue, &msg)) { */
+                /*         int total_sent = 0; */
+                /*         int msg_len = strlen(msg); */
+                /*         while (total_sent < msg_len) { */
+                /*             int sent = */
+                /*              send(sockfd, msg + total_sent, */
+                /*                   msg_len - total_sent, 0); */
+                /*             if (sent == -1) { */
+                /*                 perror("send failed"); */
+                /*                 terminate = true; */
+                /*                 break; */
+                /*             } */
+                /*             total_sent += sent; */
+                /*         } */
+                /*         free(msg); */
+                /*         if (terminate) break; */
+                /*     } */
+                /* } */
             }
             // ОТОБРАЖЕНИЕ (если оно небходимо):
             if (need_redraw) {
@@ -669,6 +709,7 @@ int main(int argc, char* argv[])
 
     client_close(&client);
     free(public_key_files);
-
-    return 0;
+exit:
+    if (terminate == 1) terminate = 0;
+    return terminate;
 }
