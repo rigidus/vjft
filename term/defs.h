@@ -51,6 +51,19 @@
     if (DBG_MSG > 0) {                              \
         fprintf(stderr, "Err: %s\n :>%s::%s", msg,  \
                 __FILE__, __FUNCTION__);            \
-    }
+}
+
+
+typedef struct message_node {
+    char* message;
+    struct message_node* next;
+} message_node_t;
+
+typedef struct {
+    message_node_t* head;
+    message_node_t* tail;
+} message_queue_t;
+
 
 #endif // DEFS_H
+

@@ -7,6 +7,7 @@
 
 extern int sockfd;
 extern int peer_count;
+extern message_queue_t outgoing_queue;
 
 typedef struct {
 

@@ -122,7 +122,8 @@ void PersonInRoom::ReadHandler(
             strand_.wrap(boost::bind(&PersonInRoom::HeaderHandler,
                                      shared_from_this(), _1)));
     } else {
-		LOG_MSG("PersonInRoom::ReadHandler LEaving");
+		LOG_MSG("ERR, PersonInRoom::ReadHandler LEaving: " <<
+			error);
         room_.Leave(shared_from_this());
     }
 }

@@ -61,42 +61,47 @@ int client_init(client_t* client,
     return 0;
 }
 
+extern message_queue_t outgoing_queue;
+extern bool enqueue(message_queue_t* queue, const char* msg);
+
 int client_send(client_t* client,
                 const char* data,
                 size_t len)
 {
-    // sync_marker : 32 нулевых байта
-    uint8_t sync_marker[SYNC_SIZE] = {0};
+    enqueue(&outgoing_queue, data);
 
-    // Для каждого из ключей получателей..
-    for (int i = 0; i < peer_count; ++i) {
+    /* // sync_marker : 32 нулевых байта */
+    /* uint8_t sync_marker[SYNC_SIZE] = {0}; */
 
-        // Шифрование
-        size_t out_len = 0;
-        uint8_t *encrypted =
-            encipher(client->private_key,
-                     client->peer_public_keys[i],
-                     data, len, &out_len);
+    /* // Для каждого из ключей получателей.. */
+    /* for (int i = 0; i < peer_count; ++i) { */
 
-        uint16_t packed_msg_size = 2 + out_len + SYNC_SIZE;
+    /*     // Шифрование */
+    /*     size_t out_len = 0; */
+    /*     uint8_t *encrypted = */
+    /*         encipher(client->private_key, */
+    /*                  client->peer_public_keys[i], */
+    /*                  data, len, &out_len); */
 
-        uint8_t *packed_msg = malloc(packed_msg_size);
+    /*     uint16_t packed_msg_size = 2 + out_len + SYNC_SIZE; */
 
-        memcpy(packed_msg, &packed_msg_size, 2);
-        memcpy(packed_msg+2, encrypted, out_len);
-        memcpy(packed_msg+2+out_len, &sync_marker, SYNC_SIZE);
+    /*     uint8_t *packed_msg = malloc(packed_msg_size); */
 
-        // Добавляем packed_msg в очередь сообщений на отправку
-        /* write_msgs_.push_back(std::move(packed_msg)); */
-        // Пока вместо просто отправляем
-        ssize_t sent = send(sockfd, packed_msg, len, 0);
-        if (sent < 0) {
-            perror("send");
-            exit(1);
-            return -1;
-        }
+    /*     memcpy(packed_msg, &packed_msg_size, 2); */
+    /*     memcpy(packed_msg+2, encrypted, out_len); */
+    /*     memcpy(packed_msg+2+out_len, &sync_marker, SYNC_SIZE); */
 
-    }
+    /*     // Добавляем packed_msg в очередь сообщений на отправку */
+    /*     /\* write_msgs_.push_back(std::move(packed_msg)); *\/ */
+    /*     // Пока вместо просто отправляем */
+    /*     ssize_t sent = send(sockfd, packed_msg, len, 0); */
+    /*     if (sent < 0) { */
+    /*         perror("send"); */
+    /*         exit(1); */
+    /*         return -1; */
+    /*     } */
+
+    /* } */
     return 0;
 }
 

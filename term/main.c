@@ -500,6 +500,49 @@ Action* peekAction(const ActionStackElt* stack) {
 }
 
 
+
+void init_queue(message_queue_t* queue) {
+    queue->head = queue->tail = NULL;
+}
+
+bool enqueue(message_queue_t* queue, const char* msg) {
+    message_node_t* node = malloc(sizeof(message_node_t));
+    if (!node) return false;
+    node->message = strdup(msg);
+    if (!node->message) {
+        free(node);
+        return false;
+    }
+    node->next = NULL;
+    if (queue->tail) {
+        queue->tail->next = node;
+    } else {
+        queue->head = node;
+    }
+    queue->tail = node;
+    return true;
+}
+
+bool dequeue(message_queue_t* queue, char** msg) {
+    if (!queue->head) return false;
+    message_node_t* node = queue->head;
+    *msg = node->message;
+    queue->head = node->next;
+    if (!queue->head) {
+        queue->tail = NULL;
+    }
+    free(node);
+    return true;
+}
+
+void clear_queue(message_queue_t* queue) {
+    char* msg;
+    while (dequeue(queue, &msg)) {
+        free(msg);
+    }
+}
+
+
 // Main
 
 #define READ_TIMEOUT 50000 // 50000 микросекунд (50 миллисекунд)
@@ -508,6 +551,7 @@ volatile bool need_redraw = true;
 client_t client;
 int sockfd = -1;
 int peer_count = 0; // Количество публичных ключей
+message_queue_t outgoing_queue;
 
 int main(int argc, char* argv[])
 {
@@ -575,6 +619,8 @@ int main(int argc, char* argv[])
     // Инициализируем минибуффер
     initMiniBuffer(128);
 
+    // Инициализация выходной очереди
+    init_queue(&outgoing_queue);
 
     // Основной цикл
     fd_set read_fds, write_fds;
@@ -663,26 +709,26 @@ int main(int argc, char* argv[])
                         goto exit;
                     }
                 }
-                /* if (FD_ISSET(sockfd, &write_fds)) { */
-                /*     char* msg; */
-                /*     while (dequeue(&outgoing_queue, &msg)) { */
-                /*         int total_sent = 0; */
-                /*         int msg_len = strlen(msg); */
-                /*         while (total_sent < msg_len) { */
-                /*             int sent = */
-                /*              send(sockfd, msg + total_sent, */
-                /*                   msg_len - total_sent, 0); */
-                /*             if (sent == -1) { */
-                /*                 perror("send failed"); */
-                /*                 terminate = true; */
-                /*                 break; */
-                /*             } */
-                /*             total_sent += sent; */
-                /*         } */
-                /*         free(msg); */
-                /*         if (terminate) break; */
-                /*     } */
-                /* } */
+                if (FD_ISSET(sockfd, &write_fds)) {
+                    char* msg;
+                    while (dequeue(&outgoing_queue, &msg)) {
+                        int total_sent = 0;
+                        int msg_len = strlen(msg);
+                        while (total_sent < msg_len) {
+                            int sent =
+                             send(sockfd, msg + total_sent,
+                                  msg_len - total_sent, 0);
+                            if (sent == -1) {
+                                perror("send failed");
+                                terminate = true;
+                                break;
+                            }
+                            total_sent += sent;
+                        }
+                        free(msg);
+                        if (terminate) break;
+                    }
+                }
             }
             // ОТОБРАЖЕНИЕ (если оно небходимо):
             if (need_redraw) {
