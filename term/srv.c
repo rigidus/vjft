@@ -63,6 +63,7 @@ int main() {
     }
 
     printf("Сервер запущен на порту %d. Ожидание подключений...\n", PORT);
+    printf("Введите сообщения для отправки клиентам:\n");
 
     // Основной цикл сервера
     while (1) {
@@ -71,6 +72,7 @@ int main() {
 
         FD_ZERO(&master_set);
         FD_SET(listener_fd, &master_set);
+        FD_SET(STDIN_FILENO, &master_set); // Добавляем stdin в набор для чтения
 
         // Добавление клиентских сокетов в master_set
         for (i = 0; i < MAX_CLIENTS; i++) {
@@ -80,6 +82,11 @@ int main() {
                     fd_max = client_fds[i];
                 }
             }
+        }
+
+        // Определение максимального дескриптора
+        if (STDIN_FILENO > fd_max) {
+            fd_max = STDIN_FILENO;
         }
 
         read_fds = master_set;
@@ -117,7 +124,30 @@ int main() {
                         printf("Максимальное количество клиентов достигнуто. Отказ в подключении.\n");
                         close(new_fd);
                     }
-                } else {
+                }
+                else if (i == STDIN_FILENO) {
+                    // Ввод с консоли сервера
+                    memset(buffer, 0, sizeof(buffer));
+                    if (fgets(buffer, sizeof(buffer), stdin) != NULL) {
+                        // Удаление символа новой строки, если есть
+                        size_t len = strlen(buffer);
+                        if (len > 0 && buffer[len - 1] == '\n') {
+                            buffer[len - 1] = '\0';
+                        }
+
+                        // Отправка сообщения всем клиентам
+                        for (j = 0; j < MAX_CLIENTS; j++) {
+                            if (client_fds[j] != -1) {
+                                if (send(client_fds[j], buffer, strlen(buffer), 0) == -1) {
+                                    perror("send");
+                                }
+                            }
+                        }
+
+                        printf("Сообщение отправлено всем клиентам: %s\n", buffer);
+                    }
+                }
+                else {
                     // Данные от существующего клиента
                     memset(buffer, 0, sizeof(buffer));
                     if ((nbytes = recv(i, buffer, sizeof(buffer) - 1, 0)) <= 0) {
@@ -136,7 +166,7 @@ int main() {
                             }
                         }
                     } else {
-                        // Получено сообщение
+                        // Получено сообщение от клиента
                         printf("Сообщение от FD %d: %s\n", i, buffer);
                     }
                 }
