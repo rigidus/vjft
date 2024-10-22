@@ -259,12 +259,6 @@ int display_message_with_frame(MsgNode* msgnode, int x, int y,
                      x + max_width-1,
                      U'┐', DEFAULT_FG_COLOR, DEFAULT_BG_COLOR);
 
-    /* char fc_text[1024] = {0}; */
-    /* snprintf(fc_text, 1024, */
-    /*          "needed_rows=%d", */
-    /*          needed_rows); */
-    /* pushMessage(&msgList, strdup(fc_text)); */
-
     // Нижний левый угол
     buffered_putchar(back_buffer,
                      y + needed_rows + 2 - 1,
