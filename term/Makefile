@@ -66,7 +66,7 @@ etags:
 
 
 srv:
-	../srv/chat_server 8888
+	./srv
 
 server: srv.c
 	gcc srv.c -o srv
