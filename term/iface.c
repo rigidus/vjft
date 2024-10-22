@@ -1,6 +1,7 @@
 // iface.c
 
 #include "iface.h"
+#include "msg.h"
 
 /**
    Подсчитывает сколько строк и столбцов необходимо для
@@ -211,11 +212,8 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
 
 
 int display_message(MsgNode* msgnode, int x, int y,
-                    int max_width, int max_height) {
-    if (msgnode == NULL || msgnode->text == NULL) {
-        return 0;
-    }
-
+                    int max_width, int max_height)
+{
     int needed_cols, needed_rows, cursor_row, cursor_col;
     calc_display_size(msgnode->text, max_width, 0,
                       &needed_cols, &needed_rows,
@@ -232,6 +230,81 @@ int display_message(MsgNode* msgnode, int x, int y,
 
     return actual_rows;
 }
+
+int display_message_with_frame(MsgNode* msgnode, int x, int y,
+                               int max_width, int max_height)
+{
+    // Доступная ширина для текста внутри рамки
+    int rel_max_width = max_width - 4;
+    if (rel_max_width <= 0) {
+        // Недостаточно места для отображения текста
+        return 0;
+    }
+
+    // Вычисляем размеры текста с учётом доступной ширины
+    int needed_cols, needed_rows, cursor_row, cursor_col;
+    calc_display_size(msgnode->text, rel_max_width,
+                      msgnode->cursor_pos,
+                      &needed_cols, &needed_rows,
+                      &cursor_row, &cursor_col);
+
+    // Верхний левый угол
+    buffered_putchar(back_buffer,
+                     y,
+                     x,
+                     U'┌', DEFAULT_FG_COLOR, DEFAULT_BG_COLOR);
+    // Верхний правый угол
+    buffered_putchar(back_buffer,
+                     y,
+                     x + max_width-1,
+                     U'┐', DEFAULT_FG_COLOR, DEFAULT_BG_COLOR);
+
+    /* char fc_text[1024] = {0}; */
+    /* snprintf(fc_text, 1024, */
+    /*          "needed_rows=%d", */
+    /*          needed_rows); */
+    /* pushMessage(&msgList, strdup(fc_text)); */
+
+    // Нижний левый угол
+    buffered_putchar(back_buffer,
+                     y + needed_rows + 2 - 1,
+                     x,
+                     U'└', DEFAULT_FG_COLOR, DEFAULT_BG_COLOR);
+    // Нижний правый угол
+    buffered_putchar(back_buffer,
+                     y + needed_rows + 2 - 1,
+                     x + max_width-1,
+                     U'┘', DEFAULT_FG_COLOR, DEFAULT_BG_COLOR);
+
+    // Верхняя и нижняя горизонтальные линии
+    drawHorizontalLine(x + 1,
+                       y,
+                       max_width - 2, U'─');
+    drawHorizontalLine(x + 1,
+                       y + needed_rows + 2 - 1,
+                       max_width - 2, U'─');
+
+    // Левая и правая вертикальные линии
+    drawVerticalLine(x,
+                     y+1,
+                     needed_rows + 2 - 2,
+                     U'│');
+    drawVerticalLine(x + max_width -1,
+                     y+1,
+                     needed_rows + 2 - 2,
+                     U'│');
+
+    // Отображаем текст внутри рамки с учётом отступов
+    display_wrapped(msgnode->text, x + 2, y,
+                    rel_max_width, needed_rows,
+                    0,  // from_row
+                    -1, //msgnode->cursor_pos,
+                    -1  //msgnode->marker_pos
+        );
+
+    return max_height; // Возвращаем высоту с рамкой
+}
+
 
 void drawHorizontalLine(int x, int y, int cols, char32_t sym) {
     for (int i = x; i < x + cols; i++) {

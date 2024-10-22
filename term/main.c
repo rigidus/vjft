@@ -278,7 +278,8 @@ void displayStack(ActionStackElt* stack) {
 }
 
 
-int margin = 8;
+int margin = 4;
+int vert = 25;
 
 volatile sig_atomic_t sig_winch_raised = false;
 
@@ -294,7 +295,6 @@ void reDraw() {
     int ib_need_cols = 0, ib_need_rows = 0,
         ib_cursor_row = 0, ib_cursor_col = 0,
         ib_from_row = 0;
-    int vert = 25;
     int ib_rel_max_width = win_cols - vert - 5;
     // Вычисляем относительную позицию курсора в inputbuffer-е
     calc_display_size(msgList.curr->text, ib_rel_max_width,
@@ -417,7 +417,7 @@ void reDraw() {
 
     int ob_bottom = outputBufferAvailableLines;
     // максимальная ширина текста
-    int maxWidth = win_cols - 2 * margin;
+    int maxWidth = win_cols - vert - 2 * margin;
     // начинаем с последнего элемента
     MsgNode* current = msgList.tail;
     if (current) {
@@ -434,18 +434,26 @@ void reDraw() {
                           &cursorRow, &cursorCol);
 
         if (needRows <= ob_bottom) {
-            display_wrapped(current->text, margin,
-                            ob_bottom - needRows,
-                            maxWidth, needRows, 0, -1, -1);
+            display_message_with_frame(
+             current,
+             vert + 2,             // x
+             ob_bottom - needRows, // y
+             maxWidth - vert - 2,  // max_width
+             needRows + 3);        // max_height
             // обновляем начальную точку для
             // следующего сообщения
-            ob_bottom -= needRows+1;
+            ob_bottom -= needRows+3;
         } else {
-            display_wrapped(current->text, margin, 0,
-                            maxWidth, ob_bottom,
-                            needRows - ob_bottom, -1, -1);
-            ob_bottom = 0; // заполнили доступное пространство
+            display_message_with_frame(
+                current,
+                vert + 2,             // x
+                ob_bottom - needRows, // y
+                maxWidth - vert - 2,  // max_width
+                needRows + 3);        // max_height
+            // заполнили доступное пространство
+            ob_bottom = 0;
         }
+
         // переходим к предыдущему сообщению
         current = current->prev;
     }
