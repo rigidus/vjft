@@ -51,6 +51,8 @@ void display_wrapped(const char* text, int abs_x, int abs_y,
 int display_message(MsgNode* message, int x, int y,
                     int max_width, int max_height);
 
+int display_message_with_frame(MsgNode* msgnode, int x, int y,
+                               int max_width, int max_height);
 
 // А чтобы раскрасить буквы, используйте формат
 // \033[число;число.
