@@ -70,7 +70,7 @@ srv:
 	./srv
 
 server: srv.c
-	gcc srv.c -o srv
+	gcc --static srv.c -o srv
 
 alice:
 	./a.out 127.0.0.1 8888 alice_private_key.pem qwe123 bob_public_key.pem carol_public_key.pem

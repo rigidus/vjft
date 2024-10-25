@@ -563,7 +563,7 @@ message_queue_t outgoing_queue;
 
 int main(int argc, char* argv[])
 {
-    if (argc < 7) {
+    if (argc < 6) {
         fprintf(stderr,
                 "Usage: %s host port private_key_file "
                 "password pub_key_file1 pub_key_file2 ...\n",
@@ -588,10 +588,13 @@ int main(int argc, char* argv[])
         public_key_files[i] = argv[5 + i];
     }
 
-    if (client_init(&client, host, port,
+    int client_init_result =
+        client_init(&client, host, port,
                     private_key_file, password,
-                    public_key_files, peer_count) != 0) {
-        fprintf(stderr, "Failed to initialize client\n");
+                    public_key_files, peer_count);
+    if (client_init_result != 0) {
+        fprintf(stderr, "Failed to initialize client: %d\n",
+                client_init_result);
         free(public_key_files);
         return 1;
     }

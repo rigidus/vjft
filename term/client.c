@@ -32,7 +32,7 @@ int client_init(client_t* client,
         load_key_from_file(priv_key_file, 1, password);
     if (!client->private_key) {
         close(sockfd);
-        return -1;
+        return -2;
     }
 
     client->peer_public_keys =
@@ -40,7 +40,7 @@ int client_init(client_t* client,
     if (!client->peer_public_keys) {
         EVP_PKEY_free(client->private_key);
         close(sockfd);
-        return -1;
+        return -3;
     }
 
     client->peer_count = peer_count;
@@ -54,7 +54,7 @@ int client_init(client_t* client,
             free(client->peer_public_keys);
             EVP_PKEY_free(client->private_key);
             close(sockfd);
-            return -1;
+            return -100-i;
         }
     }
 
