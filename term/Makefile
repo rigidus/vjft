@@ -7,7 +7,8 @@ M4_HEADERS=$(M4_HEAD:.m4=.h)
 HEADERS=defs.h all_libs.h key_map.h key.h term.h utf8.h msg.h ctrlstk.h iface.h kbd.h event.h mbuf.h history.h client.h crypt.h
 
 # Библиотеки для линковки
-LIBS=-lssl -lcrypto
+# LIBS=-lssl -lcrypto
+LIBS=-Wl,-Bstatic -lssl -lcrypto -Wl,-Bdynamic
 
 # Имя целевого исполняемого файла
 TARGET=a.out
